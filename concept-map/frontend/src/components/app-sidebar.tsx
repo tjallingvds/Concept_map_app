@@ -1,132 +1,168 @@
 import * as React from "react"
-import { Link } from "react-router-dom"
 import {
-  BookOpen,
-  Home,
-  Plus,
-  Map,
-  Library,
-  Settings2,
-  History,
-  PieChart,
-  GalleryVerticalEnd,
-  AudioWaveform,
-  Command,
+  FileText,
   Globe,
+  LayoutDashboard,
+  Map,
+  PlusCircle,
+  type LucideIcon
 } from "lucide-react"
+import { Link } from "react-router-dom"
+import { useEffect, useState } from "react"
 
-import { NavProjects } from "../components/nav-projects"
+import { NavProjects, type ProjectItem } from "../components/nav-projects"
 import { NavUser } from "../components/nav-user"
-import { TeamSwitcher } from "../components/team-switcher"
+import { SidebarOptInForm } from "../components/sidebar-opt-in-form"
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarHeader,
-  SidebarRail,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
   SidebarGroup,
   SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
 } from "../components/ui/sidebar"
 import { useAuth } from "../contexts/auth-context"
+import { CreateMapDialog } from "../components/create-map-dialog"
+
+// Define the type for concept maps from the backend
+interface ConceptMapData {
+  id: number;
+  name: string;
+  url: string;
+}
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { user } = useAuth()
+  const [recentMaps, setRecentMaps] = useState<ProjectItem[]>([])
+  const [loading, setLoading] = useState(true)
   
-  // This is sample data for teams and projects
-  const data = {
-    teams: [
-      {
-        name: "Personal",
-        logo: GalleryVerticalEnd,
-        plan: "Free",
-      },
-      {
-        name: "My Team",
-        logo: AudioWaveform,
-        plan: "Pro",
-      },
-      {
-        name: "School",
-        logo: Command,
-        plan: "Education",
-      },
-    ],
-    navItems: [
-      {
-        title: "Dashboard",
-        url: "/dashboard",
-        icon: Home,
-      },
-      {
-        title: "Create New",
-        url: "/create",
-        icon: Plus,
-      },
-      {
-        title: "My Maps",
-        url: "/maps",
-        icon: Map,
-      },
-      {
-        title: "Explore Public Maps",
-        url: "/library",
-        icon: Globe,
-      },
-    ],
-    projects: [
-      {
-        name: "Recent Maps",
-        url: "/maps/recent",
-        icon: History,
-      },
-      {
-        name: "Educational Maps",
-        url: "/maps/category/education",
-        icon: BookOpen,
-      },
-      {
-        name: "Work Projects",
-        url: "/maps/category/work",
-        icon: PieChart,
-      },
-    ],
-  }
-
+  // Fetch recent maps from the backend
+  useEffect(() => {
+    const fetchRecentMaps = async () => {
+      try {
+        if (user) {
+          // In a real app, this would be an API call to your backend
+          // const response = await fetch(`/api/users/${user.id}/recent-maps`);
+          // const data = await response.json();
+          // Convert backend data to ProjectItem format
+          // const mapItems: ProjectItem[] = data.maps.map((map: ConceptMapData) => ({
+          //   name: map.name,
+          //   url: map.url,
+          //   icon: Map
+          // }));
+          // setRecentMaps(mapItems);
+          
+          // For now, set empty array to show "None yet" message
+          setRecentMaps([]);
+        }
+      } catch (error) {
+        console.error("Failed to fetch recent maps:", error);
+        setRecentMaps([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchRecentMaps();
+  }, [user]);
+  
   return (
-    <Sidebar collapsible="icon" {...props}>
+    <Sidebar 
+      variant="inset" 
+      className="border-r border-border"
+      {...props}
+    >
       <SidebarHeader>
-        <TeamSwitcher teams={data.teams} />
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton size="lg" asChild>
+              <Link to="/dashboard">
+                <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
+                  <Map className="size-4" />
+                </div>
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-medium">Concept Map</span>
+                  <span className="truncate text-xs">Learning Tool</span>
+                </div>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
+        {/* Get started section with direct links */}
         <SidebarGroup>
-          <SidebarGroupLabel>Platform</SidebarGroupLabel>
+          <SidebarGroupLabel>Get started</SidebarGroupLabel>
           <SidebarMenu>
-            {data.navItems.map((item) => (
-              <SidebarMenuItem key={item.title}>
-                <SidebarMenuButton asChild>
-                  <Link to={item.url}>
-                    {item.icon && <item.icon />}
-                    <span>{item.title}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
+            {/* Dashboard link */}
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild>
+                <Link to="/dashboard">
+                  <LayoutDashboard />
+                  <span>Dashboard</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            
+            {/* New concept map - Opens create map dialog */}
+            <SidebarMenuItem>
+              <CreateMapDialog 
+                trigger={
+                  <SidebarMenuButton>
+                    <PlusCircle />
+                    <span>New concept map</span>
+                  </SidebarMenuButton>
+                }
+              />
+            </SidebarMenuItem>
+            
+            {/* My concept maps - Links to /maps page */}
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild>
+                <Link to="/maps">
+                  <FileText />
+                  <span>My concept maps</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            
+            {/* Public concept maps - Links to /library page */}
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild>
+                <Link to="/library">
+                  <Globe />
+                  <span>Public concept maps</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroup>
-        <NavProjects projects={data.projects} />
+        
+        {/* Recent work section */}
+        <NavProjects 
+          projects={recentMaps} 
+          title="Your most recent work" 
+          emptyMessage="None yet" 
+          isLoading={loading}
+        />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={{
-          name: user?.email?.split('@')[0] || "User",
-          email: user?.email || "user@example.com",
-          avatar: "/avatars/default.jpg",
-        }} />
+        {/* Premium upgrade component */}
+        <div className="mb-4 px-3">
+          <SidebarOptInForm freeMessage="Awww thanks but it is free for you!" />
+        </div>
+        
+        {user && (
+          <NavUser user={{
+            name: user.displayName || user.email?.split('@')[0] || "User",
+            email: user.email || "",
+            avatar: user.avatarUrl || "",
+          }} />
+        )}
       </SidebarFooter>
-      <SidebarRail />
     </Sidebar>
   )
 }
-

@@ -3,6 +3,16 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 interface User {
   id: number;
   email: string;
+  displayName?: string;
+  bio?: string;
+  avatarUrl?: string;
+}
+
+interface UserProfileUpdate {
+  name?: string;
+  email?: string;
+  bio?: string;
+  avatarUrl?: string;
 }
 
 interface AuthContextType {
@@ -12,6 +22,7 @@ interface AuthContextType {
   register: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
+  updateUserProfile: (data: UserProfileUpdate) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -29,7 +40,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (response.ok) {
         const data = await response.json();
-        setUser(data);
+        // Ensure we set displayName if available from the backend
+        setUser({
+          ...data,
+          displayName: data.displayName || data.email.split('@')[0],
+        });
       } else {
         setUser(null);
       }
@@ -61,7 +76,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const data = await response.json();
-    setUser(data.user);
+    setUser({
+      ...data.user,
+      displayName: data.user.displayName || data.user.email.split('@')[0],
+    });
   };
 
   const register = async (email: string, password: string) => {
@@ -88,6 +106,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
+  const updateUserProfile = async (data: UserProfileUpdate) => {
+    try {
+      // In a real application, you would call an API endpoint to update the user profile
+      // const response = await fetch("http://localhost:5001/api/auth/profile", {
+      //   method: "PUT",
+      //   headers: {
+      //     "Content-Type": "application/json",
+      //   },
+      //   body: JSON.stringify(data),
+      //   credentials: "include",
+      // });
+      
+      // if (!response.ok) {
+      //   const error = await response.json();
+      //   throw new Error(error.error || "Profile update failed");
+      // }
+
+      // const updatedUser = await response.json();
+      // setUser(updatedUser);
+      
+      // For now, just update the local state since backend isn't implemented
+      if (user) {
+        setUser({
+          ...user,
+          displayName: data.name || user.displayName,
+          email: data.email || user.email,
+          bio: data.bio !== undefined ? data.bio : user.bio,
+        });
+      }
+    } catch (error) {
+      console.error("Profile update failed:", error);
+      throw error;
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -97,6 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         register,
         logout,
         checkAuth,
+        updateUserProfile,
       }}
     >
       {children}

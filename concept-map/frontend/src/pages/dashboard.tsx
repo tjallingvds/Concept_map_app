@@ -5,6 +5,7 @@ import { useAuth } from "../contexts/auth-context"
 import { Button } from "../components/ui/button"
 import { Input } from "../components/ui/input"
 import { PlusIcon, Search } from "lucide-react"
+import { CreateMapDialog } from "../components/create-map-dialog"
 
 // Mock data for concept maps (to be replaced with real data later)
 const mockConceptMaps = [
@@ -54,15 +55,19 @@ export default function DashboardPage() {
               
               {/* Action Cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
-                <div className="flex flex-col items-center p-6 border border-border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors">
-                  <div className="p-3 bg-primary/10 rounded-full mb-4">
-                    <PlusIcon className="h-6 w-6 text-primary" />
-                  </div>
-                  <h3 className="font-medium">Create New Map</h3>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Start a new concept map
-                  </p>
-                </div>
+                <CreateMapDialog
+                  trigger={
+                    <div className="flex flex-col items-center p-6 border border-border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors">
+                      <div className="p-3 bg-primary/10 rounded-full mb-4">
+                        <PlusIcon className="h-6 w-6 text-primary" />
+                      </div>
+                      <h3 className="font-medium">Create New Map</h3>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Start a new concept map
+                      </p>
+                    </div>
+                  }
+                />
                 
                 <div className="flex flex-col items-center p-6 border border-border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors">
                   <div className="p-3 bg-primary/10 rounded-full mb-4">

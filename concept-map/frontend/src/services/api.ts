@@ -52,7 +52,7 @@ const conceptMapsApi = {
   },
 
   // Create a new concept map
-  createMap: async (title: string): Promise<MapItem | null> => {
+  createMap: async (mapData: { title: string, description?: string, isPublic?: boolean, useTemplate?: boolean }): Promise<MapItem | null> => {
     try {
       const response = await fetch(`${API_URL}/concept-maps`, {
         method: "POST",
@@ -61,7 +61,9 @@ const conceptMapsApi = {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          name: title,
+          name: mapData.title,
+          description: mapData.description || "",
+          is_public: mapData.isPublic || false,
           nodes: [],
           edges: []
         }),

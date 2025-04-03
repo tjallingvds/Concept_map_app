@@ -3,36 +3,82 @@ Models for the concept map application.
 Currently using in-memory storage, but structured to easily migrate to a database.
 """
 from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import datetime
 
 class User:
     """Model representing a user in the application."""
     
-    def __init__(self, email, password, user_id=None):
+    def __init__(self, email, password, user_id=None, display_name=None, bio=None, avatar_url=None):
         self.id = user_id
         self.email = email
         self.password_hash = generate_password_hash(password)
+        self.display_name = display_name or email.split('@')[0]
+        self.bio = bio
+        self.avatar_url = avatar_url
+        self.created_at = datetime.utcnow()
+        self.updated_at = datetime.utcnow()
+        self.is_active = True
     
     def verify_password(self, password):
         """Verify the user's password."""
         return check_password_hash(self.password_hash, password)
     
+    def update_profile(self, display_name=None, bio=None, avatar_url=None):
+        """Update the user's profile information."""
+        if display_name:
+            self.display_name = display_name
+        if bio is not None:  # Allow empty string to clear bio
+            self.bio = bio
+        if avatar_url is not None:  # Allow setting to None to remove avatar
+            self.avatar_url = avatar_url
+        self.updated_at = datetime.utcnow()
+    
+    def deactivate(self):
+        """Soft delete the user account by marking it as inactive."""
+        self.is_active = False
+        self.updated_at = datetime.utcnow()
+    
     def to_dict(self):
         """Convert the model to a dictionary representation (excluding password)."""
         return {
             "id": self.id,
-            "email": self.email
+            "email": self.email,
+            "displayName": self.display_name,
+            "bio": self.bio,
+            "avatarUrl": self.avatar_url,
+            "createdAt": self.created_at.isoformat() if self.created_at else None,
+            "updatedAt": self.updated_at.isoformat() if self.updated_at else None,
+            "isActive": self.is_active
         }
     
     @classmethod
     def from_dict(cls, data, user_id=None):
         """Create a User instance from a dictionary."""
-        # Note: This should only be used for creating new users, not loading from DB
-        # as the password would be hashed again
-        return cls(
+        user = cls(
             email=data.get("email", ""),
             password=data.get("password", ""),
-            user_id=user_id or data.get("id")
+            user_id=user_id or data.get("id"),
+            display_name=data.get("displayName"),
+            bio=data.get("bio"),
+            avatar_url=data.get("avatarUrl")
         )
+        # Set timestamps if available
+        if "createdAt" in data and data["createdAt"]:
+            try:
+                user.created_at = datetime.fromisoformat(data["createdAt"])
+            except (ValueError, TypeError):
+                pass
+        
+        if "updatedAt" in data and data["updatedAt"]:
+            try:
+                user.updated_at = datetime.fromisoformat(data["updatedAt"])
+            except (ValueError, TypeError):
+                pass
+        
+        if "isActive" in data:
+            user.is_active = bool(data["isActive"])
+            
+        return user
 
 
 class ConceptMap:

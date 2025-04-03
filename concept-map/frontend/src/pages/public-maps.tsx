@@ -4,7 +4,9 @@ import { SidebarProvider, SidebarTrigger } from "../components/ui/sidebar"
 import { AppSidebar } from "../components/app-sidebar"
 import { FileSystem, MapItem, FileSearchBar } from "../components/file-system"
 import { Button } from "../components/ui/button"
+import { Plus } from "lucide-react"
 import conceptMapsApi from "../services/api"
+import { CreateMapDialog } from "../components/create-map-dialog"
 
 // Mock data for public concept maps
 const mockPublicMaps: MapItem[] = [
@@ -165,6 +167,12 @@ export default function PublicMapsPage() {
     setSearchQuery(e.target.value)
   }
 
+  // Handle map creation callback
+  const handleMapCreated = (mapId: number) => {
+    // Navigate to the map editor for the new map
+    navigate(`/editor/${mapId}`)
+  }
+
   return (
     <SidebarProvider>
       <div className="flex h-screen w-full">
@@ -177,6 +185,15 @@ export default function PublicMapsPage() {
               <span className="text-sm font-medium text-gray-700 min-w-24">Explore Public Maps</span>
               <FileSearchBar searchQuery={searchQuery} onSearch={handleSearch} />
             </div>
+            <CreateMapDialog 
+              trigger={
+                <Button size="sm" className="gap-1 ml-3">
+                  <Plus className="h-4 w-4" />
+                  <span>New Map</span>
+                </Button>
+              }
+              onMapCreated={handleMapCreated}
+            />
           </div>
           
           {/* Main Content */}

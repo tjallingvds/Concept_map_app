@@ -7,6 +7,7 @@ import { Plus } from "lucide-react"
 import { Button } from "../components/ui/button"
 import { useAuth } from "../contexts/auth-context"
 import conceptMapsApi from "../services/api"
+import { CreateMapDialog } from "../components/create-map-dialog"
 
 // Mock data for personal concept maps
 const mockPersonalMaps: MapItem[] = [
@@ -89,18 +90,10 @@ export default function MyMapsPage() {
     fetchMaps()
   }, [])
 
-  const handleCreateMap = async () => {
-    try {
-      const newMap = await conceptMapsApi.createMap("New Concept Map")
-      if (newMap) {
-        // Navigate to the map editor for the new map
-        // This route doesn't exist yet, but we're preparing for it
-        navigate(`/editor/${newMap.id}`)
-      }
-    } catch (err) {
-      console.error("Failed to create new map", err)
-      alert("Failed to create a new map. Please try again.")
-    }
+  // Handle map creation callback
+  const handleMapCreated = (mapId: number) => {
+    // Navigate to the map editor for the new map
+    navigate(`/editor/${mapId}`)
   }
   
   const handleFavorite = async (id: number) => {
@@ -164,10 +157,15 @@ export default function MyMapsPage() {
               <span className="text-sm font-medium text-gray-700 min-w-24">My Maps</span>
               <FileSearchBar searchQuery={searchQuery} onSearch={handleSearch} />
             </div>
-            <Button size="sm" className="gap-1 ml-3" onClick={handleCreateMap}>
-              <Plus className="h-4 w-4" />
-              <span>New Map</span>
-            </Button>
+            <CreateMapDialog 
+              trigger={
+                <Button size="sm" className="gap-1 ml-3">
+                  <Plus className="h-4 w-4" />
+                  <span>New Map</span>
+                </Button>
+              }
+              onMapCreated={handleMapCreated}
+            />
           </div>
           
           {/* Main Content */}

@@ -7,6 +7,8 @@ import LandingPage from './pages/landing';
 import MyMapsPage from './pages/my-maps';
 import PublicMapsPage from './pages/public-maps';
 import { AuthProvider, useAuth } from './contexts/auth-context';
+import ProfilePage from './pages/profile';
+import SettingsPage from './pages/settings';
 
 // Protected route component that redirects to login if user is not authenticated
 function ProtectedRoute() {
@@ -59,6 +61,8 @@ function AppRoutes() {
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/maps" element={<MyMapsPage />} />
         <Route path="/library" element={<PublicMapsPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/settings" element={<SettingsPage />} />
         {/* Add more protected routes here */}
       </Route>
     </Routes>
