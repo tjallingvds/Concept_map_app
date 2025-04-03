@@ -258,5 +258,4 @@ Use the following format for branch names:
 ## 📞 Contact
 
 For questions, feedback, or support, please contact:
-- Email: tjalling@uni.minerva.edu
 - GitHub Issues: [Create an issue](https://github.com/tjallingvds/concept_map_app/issues)
