@@ -80,7 +80,7 @@ export default function DashboardPage() {
                       </div>
                       <h3 className="font-medium">Import Map</h3>
                       <p className="text-sm text-muted-foreground mt-2">
-                        Import from file or URL
+                        Import from a local file 
                       </p>
                     </div>
                   }

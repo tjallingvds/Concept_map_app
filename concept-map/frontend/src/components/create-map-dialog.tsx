@@ -4,6 +4,13 @@ import { z } from "zod"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { FileUp, FileText, X } from "lucide-react"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select"
 
 import {
   Dialog,
@@ -39,6 +46,7 @@ const formSchema = z.object({
   title: z.string().min(1, "Title is required").max(100, "Title must be less than 100 characters"),
   learningObjective: z.string().min(1, "Learning objective is required").max(200, "Learning objective must be less than 200 characters"),
   description: z.string().max(500, "Description must be less than 500 characters").optional(),
+  mapType: z.enum(["mindmap", "wordcloud", "bubblechart"]).default("mindmap"),
   isPublic: z.boolean().default(false),
   contentSource: z.enum(["empty", "file", "text"]).default("empty"),
   fileUpload: z.any().optional(),
@@ -65,6 +73,7 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
       title: "",
       learningObjective: "",
       description: "",
+      mapType: "mindmap",
       isPublic: false,
       contentSource: "empty",
       textContent: "",
@@ -180,6 +189,29 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
             <div className="space-y-4 p-4 rounded-lg border border-border bg-muted/30">
               <h3 className="text-lg font-medium">Map Information</h3>
               <div className="grid grid-cols-1 gap-4">
+                <FormField
+                  control={form.control}
+                  name="mapType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Map Type</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select a map type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="mindmap">Mind Map</SelectItem>
+                          <SelectItem value="wordcloud">Word Cloud</SelectItem>
+                          <SelectItem value="bubblechart">Bubble Chart</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        Choose how you want to visualize your concept map
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 <FormField
                   control={form.control}
                   name="title"
@@ -367,4 +399,4 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
       </DialogContent>
     </Dialog>
   )
-} 
+}
