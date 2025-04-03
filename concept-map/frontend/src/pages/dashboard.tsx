@@ -6,6 +6,7 @@ import { Button } from "../components/ui/button"
 import { Input } from "../components/ui/input"
 import { PlusIcon, Search } from "lucide-react"
 import { CreateMapDialog } from "../components/create-map-dialog"
+import { ImportMapDialog } from "../components/import-map-dialog"
 
 // Mock data for concept maps (to be replaced with real data later)
 const mockConceptMaps = [
@@ -69,17 +70,26 @@ export default function DashboardPage() {
                   }
                 />
                 
-                <div className="flex flex-col items-center p-6 border border-border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors">
-                  <div className="p-3 bg-primary/10 rounded-full mb-4">
-                    <svg className="h-6 w-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                  <h3 className="font-medium">Import Map</h3>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Import from file or URL
-                  </p>
-                </div>
+                <ImportMapDialog
+                  trigger={
+                    <div className="flex flex-col items-center p-6 border border-border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors">
+                      <div className="p-3 bg-primary/10 rounded-full mb-4">
+                        <svg className="h-6 w-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      <h3 className="font-medium">Import Map</h3>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Import from file or URL
+                      </p>
+                    </div>
+                  }
+                  onMapImported={(file) => {
+                    // Handle the imported file
+                    console.log('Imported file:', file)
+                    // TODO: Implement file processing logic
+                  }}
+                />
                 
                 <div className="flex flex-col items-center p-6 border border-border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors">
                   <div className="p-3 bg-primary/10 rounded-full mb-4">
@@ -99,4 +109,4 @@ export default function DashboardPage() {
       </div>
     </SidebarProvider>
   )
-} 
+}
