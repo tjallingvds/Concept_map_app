@@ -4,6 +4,8 @@ import { LoginForm } from './components/login-form';
 import { RegisterForm } from './components/register-form';
 import DashboardPage from './pages/dashboard';
 import LandingPage from './pages/landing';
+import MyMapsPage from './pages/my-maps';
+import PublicMapsPage from './pages/public-maps';
 import { AuthProvider, useAuth } from './contexts/auth-context';
 
 // Protected route component that redirects to login if user is not authenticated
@@ -55,6 +57,8 @@ function AppRoutes() {
       {/* Protected routes */}
       <Route element={<ProtectedRoute />}>
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/maps" element={<MyMapsPage />} />
+        <Route path="/library" element={<PublicMapsPage />} />
         {/* Add more protected routes here */}
       </Route>
     </Routes>

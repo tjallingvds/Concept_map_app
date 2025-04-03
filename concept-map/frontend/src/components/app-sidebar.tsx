@@ -1,70 +1,132 @@
-import { PlusIcon, BookOpenIcon, FileIcon } from "lucide-react"
+import * as React from "react"
+import { Link } from "react-router-dom"
+import {
+  BookOpen,
+  Home,
+  Plus,
+  Map,
+  Library,
+  Settings2,
+  History,
+  PieChart,
+  GalleryVerticalEnd,
+  AudioWaveform,
+  Command,
+  Globe,
+} from "lucide-react"
 
+import { NavProjects } from "../components/nav-projects"
+import { NavUser } from "../components/nav-user"
+import { TeamSwitcher } from "../components/team-switcher"
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
+  SidebarRail,
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  SidebarSeparator,
-} from "./ui/sidebar"
+  SidebarGroup,
+  SidebarGroupLabel,
+} from "../components/ui/sidebar"
+import { useAuth } from "../contexts/auth-context"
 
-export function AppSidebar() {
+export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const { user } = useAuth()
+  
+  // This is sample data for teams and projects
+  const data = {
+    teams: [
+      {
+        name: "Personal",
+        logo: GalleryVerticalEnd,
+        plan: "Free",
+      },
+      {
+        name: "My Team",
+        logo: AudioWaveform,
+        plan: "Pro",
+      },
+      {
+        name: "School",
+        logo: Command,
+        plan: "Education",
+      },
+    ],
+    navItems: [
+      {
+        title: "Dashboard",
+        url: "/dashboard",
+        icon: Home,
+      },
+      {
+        title: "Create New",
+        url: "/create",
+        icon: Plus,
+      },
+      {
+        title: "My Maps",
+        url: "/maps",
+        icon: Map,
+      },
+      {
+        title: "Explore Public Maps",
+        url: "/library",
+        icon: Globe,
+      },
+    ],
+    projects: [
+      {
+        name: "Recent Maps",
+        url: "/maps/recent",
+        icon: History,
+      },
+      {
+        name: "Educational Maps",
+        url: "/maps/category/education",
+        icon: BookOpen,
+      },
+      {
+        name: "Work Projects",
+        url: "/maps/category/work",
+        icon: PieChart,
+      },
+    ],
+  }
+
   return (
-    <Sidebar className="border-r w-64 max-w-64 flex-shrink-0 overflow-x-hidden">
-      <SidebarHeader className="px-4 py-3 border-b">
-        <div className="flex items-center gap-2 overflow-hidden">
-          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-black flex-shrink-0">
-            <FileIcon className="h-5 w-5 text-white" />
-          </div>
-          <span className="text-lg font-semibold truncate">Concept Map</span>
-        </div>
+    <Sidebar collapsible="icon" {...props}>
+      <SidebarHeader>
+        <TeamSwitcher teams={data.teams} />
       </SidebarHeader>
-      <SidebarContent className="px-2 pt-2 overflow-x-hidden">
+      <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
+          <SidebarGroupLabel>Platform</SidebarGroupLabel>
+          <SidebarMenu>
+            {data.navItems.map((item) => (
+              <SidebarMenuItem key={item.title}>
                 <SidebarMenuButton asChild>
-                  <a href="#" className="flex items-center gap-2 px-2 py-2 rounded-md hover:bg-muted truncate w-full overflow-hidden">
-                    <PlusIcon className="h-5 w-5 flex-shrink-0" />
-                    <span className="truncate">New Concept Map</span>
-                  </a>
+                  <Link to={item.url}>
+                    {item.icon && <item.icon />}
+                    <span>{item.title}</span>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <a href="#" className="flex items-center gap-2 px-2 py-2 rounded-md hover:bg-muted truncate w-full overflow-hidden">
-                    <BookOpenIcon className="h-5 w-5 flex-shrink-0" />
-                    <span className="truncate">Public Library</span>
-                  </a>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
+            ))}
+          </SidebarMenu>
         </SidebarGroup>
-        <SidebarSeparator className="my-3 mx-1 bg-border" />
-        <SidebarGroup>
-          <SidebarGroupLabel className="px-2 mb-2 text-sm font-medium text-muted-foreground truncate">
-            Your Maps
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <div className="p-3 text-sm text-muted-foreground overflow-hidden">
-              Your saved concept maps will appear here
-            </div>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        <NavProjects projects={data.projects} />
       </SidebarContent>
-      <SidebarFooter className="mt-auto border-t">
-        <div className="p-3 text-xs text-muted-foreground truncate">
-          Concept Map App © {new Date().getFullYear()}
-        </div>
+      <SidebarFooter>
+        <NavUser user={{
+          name: user?.email?.split('@')[0] || "User",
+          email: user?.email || "user@example.com",
+          avatar: "/avatars/default.jpg",
+        }} />
       </SidebarFooter>
+      <SidebarRail />
     </Sidebar>
   )
-} 
+}
+
