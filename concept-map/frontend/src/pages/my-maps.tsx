@@ -145,6 +145,38 @@ export default function MyMapsPage() {
     setSearchQuery(e.target.value)
   }
 
+  const handleDownload = async (id: number) => {
+    try {
+      // Get the specific map that's being downloaded
+      const map = await conceptMapsApi.getMap(id);
+      
+      if (!map) {
+        throw new Error("Could not retrieve map data");
+      }
+      
+      if (map.svgContent) {
+        // Create a download function similar to the one in create-map-dialog
+        const blob = new Blob([map.svgContent], { type: 'image/svg+xml' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${map.title}.svg`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        // Show success message
+        alert("Map downloaded successfully");
+      } else {
+        alert("This map doesn't have SVG content available for download");
+      }
+    } catch (err) {
+      console.error("Failed to download map", err);
+      alert(`An error occurred during download: ${err instanceof Error ? err.message : 'Please try again'}`); 
+    }
+  };
+
   return (
     <SidebarProvider>
       <div className="flex h-screen w-full">
@@ -196,6 +228,7 @@ export default function MyMapsPage() {
                 onEdit={handleEdit}
                 onShare={handleShare}
                 onDelete={handleDelete}
+                onDownload={handleDownload}
               />
             )}
           </div>
@@ -203,4 +236,4 @@ export default function MyMapsPage() {
       </div>
     </SidebarProvider>
   )
-} 
+}

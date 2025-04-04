@@ -48,6 +48,7 @@ export type MapItem = {
   author?: string
   tags?: string[]
   thumbnail?: string
+  svgContent?: string
 }
 
 // Props for the FileSystem component
@@ -365,4 +366,4 @@ export function FileSearchBar({
       />
     </div>
   );
-} 
+}
