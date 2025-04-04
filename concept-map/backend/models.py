@@ -84,12 +84,18 @@ class User:
 class ConceptMap:
     """Model representing a concept map structure."""
     
-    def __init__(self, name, nodes=None, edges=None, map_id=None, user_id=None):
+    def __init__(self, name, nodes=None, edges=None, map_id=None, user_id=None, is_public=False, share_id=None, created_at=None, updated_at=None, image=None, format=None):
         self.id = map_id
         self.name = name
         self.nodes = nodes or []
         self.edges = edges or []
         self.user_id = user_id  # Add user_id to associate maps with users
+        self.is_public = is_public  # Whether the map is publicly accessible
+        self.share_id = share_id  # Unique ID for sharing the map
+        self.created_at = created_at or datetime.utcnow()
+        self.updated_at = updated_at or datetime.utcnow()
+        self.image = image  # Store the image representation
+        self.format = format  # Format of the image (svg, png, etc.)
     
     def to_dict(self):
         """Convert the model to a dictionary representation."""
@@ -98,18 +104,44 @@ class ConceptMap:
             "name": self.name,
             "nodes": self.nodes,
             "edges": self.edges,
-            "user_id": self.user_id
+            "user_id": self.user_id,
+            "is_public": self.is_public,
+            "share_id": self.share_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "image": self.image,
+            "format": self.format
         }
     
     @classmethod
     def from_dict(cls, data, map_id=None):
         """Create a ConceptMap instance from a dictionary."""
+        created_at = None
+        if "created_at" in data and data["created_at"]:
+            try:
+                created_at = datetime.fromisoformat(data["created_at"])
+            except (ValueError, TypeError):
+                pass
+                
+        updated_at = None
+        if "updated_at" in data and data["updated_at"]:
+            try:
+                updated_at = datetime.fromisoformat(data["updated_at"])
+            except (ValueError, TypeError):
+                pass
+                
         return cls(
             name=data.get("name", ""),
             nodes=data.get("nodes", []),
             edges=data.get("edges", []),
             map_id=map_id or data.get("id"),
-            user_id=data.get("user_id")
+            user_id=data.get("user_id"),
+            is_public=data.get("is_public", False),
+            share_id=data.get("share_id"),
+            created_at=created_at,
+            updated_at=updated_at,
+            image=data.get("image"),
+            format=data.get("format")
         )
 
 
@@ -150,4 +182,4 @@ class Edge:
             "target": self.target,
             "label": self.label,
             "properties": self.properties
-        } 
+        }

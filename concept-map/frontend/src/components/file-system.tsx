@@ -49,6 +49,9 @@ export type MapItem = {
   tags?: string[]
   thumbnail?: string
   svgContent?: string
+  shareId?: string
+  shareUrl?: string
+  inputText?: string
 }
 
 // Props for the FileSystem component
@@ -150,39 +153,57 @@ export function FileSystem({
         ) : viewMode === "grid" ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredItems.map(item => (
-              <Card key={item.id} className="hover:shadow-md transition-shadow duration-200">
+              <Card 
+                key={item.id} 
+                className="hover:shadow-md transition-shadow duration-200 cursor-pointer" 
+                onClick={() => onEdit && onEdit(item.id)}
+              >
                 <CardHeader className="pb-3">
                   <div className="flex justify-between items-start">
                     <CardTitle className="truncate">{item.title}</CardTitle>
                     {showActions && (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8"
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <MoreHorizontal className="h-4 w-4" />
                             <span className="sr-only">More options</span>
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-48">
-                          {onEdit && (
-                            <DropdownMenuItem onClick={() => onEdit(item.id)}>
-                              <Edit className="mr-2 h-4 w-4" />
-                              <span>Edit</span>
-                            </DropdownMenuItem>
-                          )}
                           {onShare && (
-                            <DropdownMenuItem onClick={() => onShare(item.id)}>
+                            <DropdownMenuItem 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onShare(item.id);
+                              }}
+                            >
                               <Share2 className="mr-2 h-4 w-4" />
                               <span>Share</span>
                             </DropdownMenuItem>
                           )}
                           {onDownload && (
-                            <DropdownMenuItem onClick={() => onDownload(item.id)}>
+                            <DropdownMenuItem 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDownload(item.id);
+                              }}
+                            >
                               <Download className="mr-2 h-4 w-4" />
                               <span>Download</span>
                             </DropdownMenuItem>
                           )}
                           {onFavorite && (
-                            <DropdownMenuItem onClick={() => onFavorite(item.id)}>
+                            <DropdownMenuItem 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onFavorite(item.id);
+                              }}
+                            >
                               {item.isFavorite ? (
                                 <>
                                   <StarOff className="mr-2 h-4 w-4" />
@@ -200,7 +221,10 @@ export function FileSystem({
                             <>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem 
-                                onClick={() => onDelete(item.id)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onDelete(item.id);
+                                }}
                                 className="text-destructive focus:text-destructive"
                               >
                                 <Trash2 className="mr-2 h-4 w-4" />
@@ -245,7 +269,11 @@ export function FileSystem({
         ) : (
           <div className="flex flex-col divide-y divide-border">
             {filteredItems.map(item => (
-              <div key={item.id} className="flex items-center py-3 hover:bg-muted/50 px-2 rounded-md transition-colors">
+              <div 
+                key={item.id} 
+                className="flex items-center py-3 hover:bg-muted/50 px-2 rounded-md transition-colors cursor-pointer"
+                onClick={() => onEdit && onEdit(item.id)}
+              >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center">
                     <File className="h-5 w-5 mr-3 text-muted-foreground" />
@@ -280,7 +308,7 @@ export function FileSystem({
                 </div>
                 
                 {showActions && (
-                  <div>
+                  <div onClick={(e) => e.stopPropagation()}>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -289,12 +317,6 @@ export function FileSystem({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-48">
-                        {onEdit && (
-                          <DropdownMenuItem onClick={() => onEdit(item.id)}>
-                            <Edit className="mr-2 h-4 w-4" />
-                            <span>Edit</span>
-                          </DropdownMenuItem>
-                        )}
                         {onShare && (
                           <DropdownMenuItem onClick={() => onShare(item.id)}>
                             <Share2 className="mr-2 h-4 w-4" />
@@ -326,7 +348,10 @@ export function FileSystem({
                           <>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem 
-                              onClick={() => onDelete(item.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDelete(item.id);
+                              }}
                               className="text-destructive focus:text-destructive"
                             >
                               <Trash2 className="mr-2 h-4 w-4" />

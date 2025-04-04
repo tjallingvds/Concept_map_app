@@ -117,10 +117,47 @@ export default function MyMapsPage() {
   
   const handleShare = async (id: number) => {
     try {
-      await conceptMapsApi.shareMap(id)
-      alert("Sharing options will be implemented soon!")
+      const { shareUrl, shareId } = await conceptMapsApi.shareMap(id);
+      
+      // Update the map in the list with the share URL
+      setMaps(prevMaps => prevMaps.map(map => {
+        if (map.id === id) {
+          return {
+            ...map,
+            isPublic: true,
+            shareId: shareId,
+            shareUrl: shareUrl
+          };
+        }
+        return map;
+      }));
+      
+      // Show success message with the shareable link
+      toast({
+        title: "Map shared successfully",
+        description: (
+          <div className="mt-2 flex flex-col gap-2">
+            <p>Anyone with this link can view your concept map:</p>
+            <div className="flex items-center gap-2 bg-muted p-2 rounded">
+              <code className="text-xs truncate flex-1">{shareUrl}</code>
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                onClick={() => {
+                  navigator.clipboard.writeText(shareUrl);
+                  toast.success("Link copied to clipboard");
+                }}
+              >
+                Copy
+              </Button>
+            </div>
+          </div>
+        ),
+        duration: 5000,
+      });
     } catch (err) {
-      console.error("Failed to share map", err)
+      console.error("Failed to share map", err);
+      toast.error("Failed to share map. Please try again.");
     }
   }
   

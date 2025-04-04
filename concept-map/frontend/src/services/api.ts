@@ -12,6 +12,11 @@ interface ConceptMapResponse {
   user_id: number;
   image?: string;
   format?: string;
+  is_public?: boolean;
+  share_id?: string;
+  created_at?: string;
+  updated_at?: string;
+  input_text?: string;
 }
 
 // Function to convert backend concept map format to frontend MapItem format
@@ -43,16 +48,28 @@ const mapResponseToMapItem = (response: ConceptMapResponse): MapItem => {
     console.log('SVG Content prefix:', svgContent.substring(0, 30));
   }
 
+  // Generate share URL if the map is public and has a share_id
+  let shareUrl = undefined;
+  if (response.is_public && response.share_id) {
+    shareUrl = `/shared/${response.share_id}`;
+  }
+
+  // Get actual node count from nodes array
+  const nodeCount = response.nodes ? response.nodes.length : 0;
+
   return {
     id: response.id,
     title: response.name,
-    description: response.nodes.length > 0 ? `A concept map with ${response.nodes.length} nodes` : "Empty concept map",
-    createdAt: new Date().toISOString(), // The backend doesn't provide these timestamps yet
-    lastEdited: new Date().toISOString(),
-    nodes: response.nodes.length,
-    isPublic: false, // Default to private, can be updated from backend later
+    description: response.input_text || "Concept map",
+    createdAt: response.created_at || new Date().toISOString(),
+    lastEdited: response.updated_at || new Date().toISOString(),
+    nodes: nodeCount,
+    isPublic: response.is_public || false,
     isFavorite: false, // Default to not favorite, can be updated from backend later
-    svgContent: svgContent
+    svgContent: svgContent,
+    shareId: response.share_id,
+    shareUrl: shareUrl,
+    inputText: response.input_text || ""
   };
 };
 
@@ -121,7 +138,8 @@ const conceptMapsApi = {
           nodes: generatedMap ? generatedMap.nodes || [] : [],
           edges: generatedMap ? generatedMap.edges || [] : [],
           image: generatedMap ? `data:${generatedMap.format === 'svg' ? 'image/svg+xml' : 'image/png'};base64,${generatedMap.image}` : null,
-          format: generatedMap ? generatedMap.format : null
+          format: generatedMap ? generatedMap.format : null,
+          input_text: mapData.text || ""
         }),
       });
 
@@ -221,11 +239,80 @@ const conceptMapsApi = {
     return true;
   },
 
-  // Placeholder for sharing a map (not yet implemented in backend)
-  shareMap: async (id: number): Promise<boolean> => {
-    // This will need to be implemented in the backend
-    console.log(`Sharing map ${id} (not yet implemented in backend)`);
-    return true;
+  // Share a concept map to generate a shareable link
+  shareMap: async (id: number): Promise<{ shareUrl: string, shareId: string }> => {
+    try {
+      const response = await fetch(`${API_URL}/concept-maps/${id}/share`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to share concept map with id ${id}`);
+      }
+
+      const data = await response.json();
+      return {
+        shareUrl: `${window.location.origin}${data.share_url}`,
+        shareId: data.share_id
+      };
+    } catch (error) {
+      console.error(`Error sharing concept map ${id}:`, error);
+      throw error;
+    }
+  },
+  
+  // Get a shared concept map by share ID
+  getSharedMap: async (shareId: string): Promise<MapItem | null> => {
+    try {
+      const response = await fetch(`${API_URL}/shared/concept-maps/${shareId}`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch shared concept map with id ${shareId}`);
+      }
+
+      const data: ConceptMapResponse = await response.json();
+      return mapResponseToMapItem(data);
+    } catch (error) {
+      console.error(`Error fetching shared concept map ${shareId}:`, error);
+      return null;
+    }
+  },
+  
+  // Get all saved maps for the current user
+  getSavedMaps: async (): Promise<MapItem[]> => {
+    try {
+      const user_id = sessionStorage.getItem('user_id'); // Assuming user_id is stored in session storage
+      if (!user_id) {
+        throw new Error("User not authenticated");
+      }
+      
+      const response = await fetch(`${API_URL}/users/${user_id}/saved-maps`, {
+        method: "GET",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch saved concept maps");
+      }
+
+      const data: ConceptMapResponse[] = await response.json();
+      return data.map(mapResponseToMapItem);
+    } catch (error) {
+      console.error("Error fetching saved concept maps:", error);
+      return [];
+    }
   }
 };
 
