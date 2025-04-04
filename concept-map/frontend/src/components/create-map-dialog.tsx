@@ -40,6 +40,7 @@ import { Separator } from "./ui/separator"
 import { toast } from "sonner"
 
 import conceptMapsApi from "../services/api"
+import { TLDrawEditor } from "./tldraw-editor"
 
 // Form schema validation
 const formSchema = z.object({
@@ -51,6 +52,7 @@ const formSchema = z.object({
   contentSource: z.enum(["empty", "file", "text"]).default("empty"),
   fileUpload: z.any().optional(),
   textContent: z.string().max(5000, "Text content must be less than 5000 characters").optional(),
+  tldrawContent: z.string().optional(),
 })
 
 export type CreateMapData = z.infer<typeof formSchema>
@@ -130,9 +132,10 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
   // Form submit handler
   const onSubmit = async (data: CreateMapData) => {
     try {
-      setIsCreating(true)
+      setIsCreating(true);
       
       let textContent = "";
+      let svgContent = "";
       
       // Handle different content sources
       if (data.contentSource === "file" && selectedFile) {
@@ -143,104 +146,101 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
         textContent = data.textContent;
       }
       
+      // If using TLDraw, include the SVG as the input text
+      const inputText = data.contentSource === "empty" && data.tldrawContent ? data.tldrawContent : textContent;
+      
       // Call API to create the map
       const newMap = await conceptMapsApi.createMap({
         title: data.title,
         description: `${data.learningObjective}${data.description ? ` - ${data.description}` : ''}`,
         isPublic: data.isPublic,
         mapType: data.mapType,
-        text: textContent
-      })
+        text: inputText
+      });
       
       if (!newMap) {
         throw new Error("Failed to create map");
       }
       
-      // Get image content from the map
-      if (newMap && newMap.svgContent) {
-        // Log the image content for debugging
+      // Handle SVG content if available
+      if (newMap.svgContent) {
         console.log('Received image content:', newMap.svgContent.substring(0, 50) + '...');
         
-        // Download the image file
+        // Download the image
         downloadImage(newMap.svgContent, data.title);
         
-        // Display the image in a new window for immediate viewing
+        // Open in new window if requested
         const newWindow = window.open();
-        if (newWindow && newMap && newMap.svgContent) {
-          // Check if it's SVG or PNG format
+        if (newWindow && newMap.svgContent) {
+          // Check if the content is SVG
           const isSvg = newMap.svgContent.includes('image/svg+xml');
           
-          if (isSvg) {
-            // For SVG, we can extract and embed the SVG content
-            try {
-              const svgContent = atob(newMap.svgContent.split(',')[1]);
-              newWindow.document.write(`
-                <html>
-                  <head>
-                    <title>${data.title} - Concept Map</title>
-                    <style>
-                      body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; }
-                      svg { max-width: 100%; max-height: 90vh; }
-                    </style>
-                  </head>
-                  <body>
-                    ${svgContent}
-                  </body>
-                </html>
-              `);
-            } catch (error) {
-              console.error('Error processing SVG content:', error);
-              // Fallback to displaying the image using an img tag
-              displayImageFallback();
-            }
-          } else {
-            // For PNG or other formats, use an img tag
-            displayImageFallback();
-          }
+          // Set the content type
+          newWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+              <head>
+                <title>${data.title} - Concept Map</title>
+                <style>
+                  body {
+                    margin: 0;
+                    padding: 0;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    min-height: 100vh;
+                    background-color: #f8f9fa;
+                  }
+                  img {
+                    max-width: 90%;
+                    max-height: 90vh;
+                    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+                  }
+                </style>
+              </head>
+              <body>
+          `);
           
-          function displayImageFallback() {
+          // Add either SVG or image content
+          if (isSvg) {
+            const svgContent = atob(newMap.svgContent.split(',')[1]);
             newWindow.document.write(`
-              <html>
-                <head>
-                  <title>${data.title} - Concept Map</title>
-                  <style>
-                    body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; }
-                    img { max-width: 100%; max-height: 90vh; }
-                  </style>
-                </head>
-                <body>
-                  <img src="${newMap.svgContent}" alt="${data.title}" />
-                </body>
-              </html>
+              ${svgContent}
+            `);
+          } else {
+            newWindow.document.write(`
+              <img src="${newMap.svgContent}" alt="${data.title}" />
             `);
           }
+          
+          newWindow.document.write(`
+              </body>
+            </html>
+          `);
+          newWindow.document.close();
         }
       }
       
-      // Show success message
-      toast.success("Map created and downloaded successfully")
+      toast.success("Concept map created successfully!");
       
       // Close the dialog
-      setOpen(false)
+      setOpen(false);
       
-      // Reset form
-      form.reset()
-      setSelectedFile(null)
-      
-      // If callback provided, call it
-      if (onMapCreated && newMap?.id) {
-        onMapCreated(newMap.id)
-      } else if (newMap?.id) {
-        // Navigate to the map editor for the new map
-        navigate(`/editor/${newMap.id}`)
+      // Handle map created callback
+      if (onMapCreated && newMap.id) {
+        onMapCreated(newMap.id);
+      } else if (newMap.id) {
+        // Navigate to the created map
+        navigate(`/editor/${newMap.id}`);
       }
+      
     } catch (error) {
-      console.error("Failed to create map", error)
-      toast.error("Failed to create map. Please try again.")
+      console.error("Error creating map:", error);
+      toast.error("Failed to create concept map. Please try again.");
     } finally {
-      setIsCreating(false)
+      setIsCreating(false);
     }
-  }
+  };
   
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -380,8 +380,15 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
                         <TabsTrigger value="text">Text Input</TabsTrigger>
                       </TabsList>
                       <TabsContent value="empty" className="pt-4">
-                        <div className="text-center py-8 text-muted-foreground">
+                        <div className="text-center py-2 text-muted-foreground">
                           <p>Start with a blank canvas and build your concept map from scratch.</p>
+                        </div>
+                        <div className="mt-4 border rounded-lg" style={{ height: '500px' }}>
+                          <TLDrawEditor 
+                            onSave={(svgContent) => {
+                              form.setValue("tldrawContent", svgContent);
+                            }}
+                          />
                         </div>
                       </TabsContent>
                       <TabsContent value="file" className="pt-4">
