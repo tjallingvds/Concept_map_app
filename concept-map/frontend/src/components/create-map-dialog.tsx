@@ -4,6 +4,13 @@ import { z } from "zod"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { FileUp, FileText, X } from "lucide-react"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select"
 
 import {
   Dialog,
@@ -39,6 +46,7 @@ const formSchema = z.object({
   title: z.string().min(1, "Title is required").max(100, "Title must be less than 100 characters"),
   learningObjective: z.string().min(1, "Learning objective is required").max(200, "Learning objective must be less than 200 characters"),
   description: z.string().max(500, "Description must be less than 500 characters").optional(),
+  mapType: z.enum(["mindmap", "wordcloud", "bubblechart"]).default("mindmap"),
   isPublic: z.boolean().default(false),
   contentSource: z.enum(["empty", "file", "text"]).default("empty"),
   fileUpload: z.any().optional(),
@@ -65,6 +73,7 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
       title: "",
       learningObjective: "",
       description: "",
+      mapType: "mindmap",
       isPublic: false,
       contentSource: "empty",
       textContent: "",
@@ -89,31 +98,127 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
     }
   }
 
+  // Function to download image (supports both SVG and PNG formats)
+  const downloadImage = (imageContent: string, fileName: string) => {
+    // Check if the content is a data URL
+    if (imageContent.startsWith('data:')) {
+      // Extract the MIME type from the data URL
+      const mimeType = imageContent.split(';')[0].split(':')[1];
+      const fileExtension = mimeType === 'image/svg+xml' ? 'svg' : 'png';
+      
+      // For data URLs, we can use them directly
+      const link = document.createElement('a');
+      link.href = imageContent;
+      link.download = `${fileName}.${fileExtension}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else {
+      // If it's not a data URL, assume it's SVG content
+      const blob = new Blob([imageContent], { type: 'image/svg+xml' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${fileName}.svg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+  };
+
   // Form submit handler
   const onSubmit = async (data: CreateMapData) => {
     try {
       setIsCreating(true)
+      
+      let textContent = "";
+      
+      // Handle different content sources
+      if (data.contentSource === "file" && selectedFile) {
+        // Read file content
+        const fileContent = await selectedFile.text();
+        textContent = fileContent;
+      } else if (data.contentSource === "text" && data.textContent) {
+        textContent = data.textContent;
+      }
       
       // Call API to create the map
       const newMap = await conceptMapsApi.createMap({
         title: data.title,
         description: `${data.learningObjective}${data.description ? ` - ${data.description}` : ''}`,
         isPublic: data.isPublic,
+        mapType: data.mapType,
+        text: textContent
       })
       
-      // In a real implementation, we would handle file uploads or text content here
-      if (data.contentSource === "file" && selectedFile) {
-        // Upload file logic would go here
-        console.log("File to process:", selectedFile)
-        // Simulate file upload success
-        toast.success("File uploaded successfully")
-      } else if (data.contentSource === "text" && data.textContent) {
-        // Process text content logic would go here
-        console.log("Text content to process:", data.textContent)
+      if (!newMap) {
+        throw new Error("Failed to create map");
+      }
+      
+      // Get image content from the map
+      if (newMap && newMap.svgContent) {
+        // Log the image content for debugging
+        console.log('Received image content:', newMap.svgContent.substring(0, 50) + '...');
+        
+        // Download the image file
+        downloadImage(newMap.svgContent, data.title);
+        
+        // Display the image in a new window for immediate viewing
+        const newWindow = window.open();
+        if (newWindow && newMap && newMap.svgContent) {
+          // Check if it's SVG or PNG format
+          const isSvg = newMap.svgContent.includes('image/svg+xml');
+          
+          if (isSvg) {
+            // For SVG, we can extract and embed the SVG content
+            try {
+              const svgContent = atob(newMap.svgContent.split(',')[1]);
+              newWindow.document.write(`
+                <html>
+                  <head>
+                    <title>${data.title} - Concept Map</title>
+                    <style>
+                      body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; }
+                      svg { max-width: 100%; max-height: 90vh; }
+                    </style>
+                  </head>
+                  <body>
+                    ${svgContent}
+                  </body>
+                </html>
+              `);
+            } catch (error) {
+              console.error('Error processing SVG content:', error);
+              // Fallback to displaying the image using an img tag
+              displayImageFallback();
+            }
+          } else {
+            // For PNG or other formats, use an img tag
+            displayImageFallback();
+          }
+          
+          function displayImageFallback() {
+            newWindow.document.write(`
+              <html>
+                <head>
+                  <title>${data.title} - Concept Map</title>
+                  <style>
+                    body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; }
+                    img { max-width: 100%; max-height: 90vh; }
+                  </style>
+                </head>
+                <body>
+                  <img src="${newMap.svgContent}" alt="${data.title}" />
+                </body>
+              </html>
+            `);
+          }
+        }
       }
       
       // Show success message
-      toast.success("Map created successfully")
+      toast.success("Map created and downloaded successfully")
       
       // Close the dialog
       setOpen(false)
@@ -180,6 +285,29 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
             <div className="space-y-4 p-4 rounded-lg border border-border bg-muted/30">
               <h3 className="text-lg font-medium">Map Information</h3>
               <div className="grid grid-cols-1 gap-4">
+                <FormField
+                  control={form.control}
+                  name="mapType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Map Type</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select a map type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="mindmap">Mind Map</SelectItem>
+                          <SelectItem value="wordcloud">Word Cloud</SelectItem>
+                          <SelectItem value="bubblechart">Bubble Chart</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        Choose how you want to visualize your concept map
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 <FormField
                   control={form.control}
                   name="title"
@@ -367,4 +495,4 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
       </DialogContent>
     </Dialog>
   )
-} 
+}
