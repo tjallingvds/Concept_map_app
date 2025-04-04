@@ -10,10 +10,39 @@ interface ConceptMapResponse {
   nodes: any[];
   edges: any[];
   user_id: number;
+  image?: string;
+  format?: string;
 }
 
 // Function to convert backend concept map format to frontend MapItem format
 const mapResponseToMapItem = (response: ConceptMapResponse): MapItem => {
+  // Properly format the image data based on format
+  let svgContent = undefined;
+  try {
+    if (response.image) {
+      // Check if the image already has a data URL prefix
+      if (response.image.startsWith('data:')) {
+        svgContent = response.image;
+        console.log('Using existing data URL from backend');
+      } else {
+        // Add the appropriate data URL prefix based on format
+        const mimeType = response.format === 'svg' ? 'image/svg+xml' : 'image/png';
+        svgContent = `data:${mimeType};base64,${response.image}`;
+        console.log(`Created data URL with format: ${mimeType}, data length: ${response.image.length}`);
+      }
+    } else {
+      console.log('No image data found in response');
+    }
+  } catch (error) {
+    console.error('Error processing image data:', error);
+  }
+  
+  // Debug the svgContent
+  if (svgContent) {
+    console.log('SVG Content type:', typeof svgContent);
+    console.log('SVG Content prefix:', svgContent.substring(0, 30));
+  }
+
   return {
     id: response.id,
     title: response.name,
@@ -22,7 +51,8 @@ const mapResponseToMapItem = (response: ConceptMapResponse): MapItem => {
     lastEdited: new Date().toISOString(),
     nodes: response.nodes.length,
     isPublic: false, // Default to private, can be updated from backend later
-    isFavorite: false // Default to not favorite, can be updated from backend later
+    isFavorite: false, // Default to not favorite, can be updated from backend later
+    svgContent: svgContent
   };
 };
 
@@ -52,8 +82,32 @@ const conceptMapsApi = {
   },
 
   // Create a new concept map
-  createMap: async (mapData: { title: string, description?: string, isPublic?: boolean, useTemplate?: boolean }): Promise<MapItem | null> => {
+  createMap: async (mapData: { title: string, description?: string, isPublic?: boolean, useTemplate?: boolean, mapType?: string, text?: string }): Promise<MapItem | null> => {
     try {
+      // First generate the concept map if text is provided
+      let generatedMap = null;
+      if (mapData.text && mapData.mapType) {
+        const generateResponse = await fetch(`${API_URL}/concept-map/generate`, {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            text: mapData.text,
+            mapType: mapData.mapType,
+            title: mapData.title
+          }),
+        });
+
+        if (!generateResponse.ok) {
+          throw new Error("Failed to generate concept map");
+        }
+
+        generatedMap = await generateResponse.json();
+      }
+
+      // Then create the map entry
       const response = await fetch(`${API_URL}/concept-maps`, {
         method: "POST",
         credentials: "include",
@@ -64,10 +118,13 @@ const conceptMapsApi = {
           name: mapData.title,
           description: mapData.description || "",
           is_public: mapData.isPublic || false,
-          nodes: [],
-          edges: []
+          nodes: generatedMap ? generatedMap.nodes || [] : [],
+          edges: generatedMap ? generatedMap.edges || [] : [],
+          image: generatedMap ? `data:${generatedMap.format === 'svg' ? 'image/svg+xml' : 'image/png'};base64,${generatedMap.image}` : null,
+          format: generatedMap ? generatedMap.format : null
         }),
       });
+
 
       if (!response.ok) {
         throw new Error("Failed to create concept map");
@@ -172,4 +229,4 @@ const conceptMapsApi = {
   }
 };
 
-export default conceptMapsApi; 
+export default conceptMapsApi;

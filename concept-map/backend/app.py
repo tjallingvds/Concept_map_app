@@ -5,10 +5,28 @@ import os
 import secrets
 from werkzeug.utils import secure_filename
 import uuid
+from datetime import timedelta
+from concept_map_generation.routes import concept_map_bp
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(16))
-CORS(app, supports_credentials=True)  # Enable CORS for all routes with credentials
+
+# Configure CORS with specific settings
+CORS(app, 
+     supports_credentials=True,
+     origins=['http://localhost:5173'],  # Frontend development server
+     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+     allow_headers=['Content-Type'],
+     expose_headers=['Content-Type'])
+
+# Configure session settings
+app.config['SESSION_COOKIE_SECURE'] = True  # Only send cookie over HTTPS
+app.config['SESSION_COOKIE_HTTPONLY'] = True  # Prevent JavaScript access to session cookie
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Protect against CSRF
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)  # Session expires in 7 days
+
+# Register blueprints
+app.register_blueprint(concept_map_bp)
 
 # Configure upload folder for profile images
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
@@ -74,10 +92,22 @@ def login():
     if not user or not user.verify_password(data['password']):
         return jsonify({"error": "Invalid email or password"}), 401
     
-    # Store user ID in session
-    session['user_id'] = user.id
-    
-    return jsonify({"message": "Login successful", "user": user.to_dict()}), 200
+    try:
+        # Set session as permanent and store user ID
+        session.permanent = True
+        session['user_id'] = user.id
+        
+        # Return user data and session info
+        response = jsonify({
+            "message": "Login successful",
+            "user": user.to_dict()
+        })
+        
+        return response, 200
+        
+    except Exception as e:
+        print(f"Login error: {str(e)}")
+        return jsonify({"error": "An error occurred during login"}), 500
 
 @app.route('/api/auth/logout', methods=['POST'])
 def logout():
@@ -266,7 +296,9 @@ def create_concept_map():
         "name": data['name'],
         "nodes": data.get('nodes', []),
         "edges": data.get('edges', []),
-        "user_id": user_id
+        "user_id": user_id,
+        "image": data.get('image'),
+        "format": data.get('format')
     }
     
     concept_maps.append(new_map)
@@ -365,4 +397,4 @@ def get_recent_maps(user_id):
     return jsonify({"maps": recent_maps}), 200
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5001, debug=True) 
+    app.run(host='0.0.0.0', port=5001, debug=True)
