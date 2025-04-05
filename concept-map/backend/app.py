@@ -1,368 +1,485 @@
 from flask import Flask, request, jsonify, session, send_from_directory
 from flask_cors import CORS
-from models import User, ConceptMap
+from models import db, User, ConceptMap, Node, Edge
 import os
 import secrets
 from werkzeug.utils import secure_filename
 import uuid
+from flask_migrate import Migrate
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(16))
+app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(16))
 CORS(app, supports_credentials=True)  # Enable CORS for all routes with credentials
 
+# Configure database
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
+    "DATABASE_URL", "sqlite:///concept_map.db"
+)
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+# Initialize database
+db.init_app(app)
+migrate = Migrate(app, db)
+
 # Configure upload folder for profile images
-UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5MB max file size
+UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
+ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif"}
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5MB max file size
 
 # Create uploads directory if it doesn't exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# In-memory storage (replace with database in production)
-concept_maps = []
-users = []  # List to store user objects
 
 def allowed_file(filename):
-    """Check if the file extension is allowed."""
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
-@app.route('/api/health', methods=['GET'])
-def health_check():
-    return jsonify({"status": "healthy", "message": "Flask backend is running"}), 200
 
 # Authentication routes
-@app.route('/api/auth/register', methods=['POST'])
+@app.route("/api/auth/register", methods=["POST"])
 def register():
     data = request.json
-    
+
     # Basic validation
-    if not data or 'email' not in data or 'password' not in data:
+    if not data or "email" not in data or "password" not in data:
         return jsonify({"error": "Missing required fields"}), 400
-    
+
     # Check if user already exists
-    for user in users:
-        if user.email == data['email']:
-            return jsonify({"error": "Email already registered"}), 409
-    
+    existing_user = User.query.filter_by(email=data["email"]).first()
+    if existing_user:
+        return jsonify({"error": "Email already registered"}), 409
+
     # Create new user
     new_user = User(
-        email=data['email'],
-        password=data['password'],
-        user_id=len(users) + 1,
-        display_name=data.get('displayName')
+        email=data["email"],
+        password=data["password"],
+        display_name=data.get("displayName"),
     )
-    
-    users.append(new_user)
-    
+
+    db.session.add(new_user)
+    db.session.commit()
+
     # Don't return the password hash in the response
     return jsonify(new_user.to_dict()), 201
 
-@app.route('/api/auth/login', methods=['POST'])
+
+@app.route("/api/auth/login", methods=["POST"])
 def login():
     data = request.json
-    
+
     # Basic validation
-    if not data or 'email' not in data or 'password' not in data:
+    if not data or "email" not in data or "password" not in data:
         return jsonify({"error": "Missing required fields"}), 400
-    
+
     # Find user by email
-    user = next((u for u in users if u.email == data['email'] and u.is_active), None)
-    
+    user = User.query.filter_by(email=data["email"], is_active=True).first()
+
     # Check if user exists and password is correct
-    if not user or not user.verify_password(data['password']):
+    if not user or not user.verify_password(data["password"]):
         return jsonify({"error": "Invalid email or password"}), 401
-    
+
     # Store user ID in session
-    session['user_id'] = user.id
-    
+    session["user_id"] = user.id
+
     return jsonify({"message": "Login successful", "user": user.to_dict()}), 200
 
-@app.route('/api/auth/logout', methods=['POST'])
+
+@app.route("/api/auth/logout", methods=["POST"])
 def logout():
     # Clear the session
     session.clear()
     return jsonify({"message": "Logout successful"}), 200
 
-@app.route('/api/auth/current-user', methods=['GET'])
-def current_user():
+
+# User profile routes
+@app.route("/api/auth/profile", methods=["GET"])
+def get_profile():
     # Get the user ID from session
-    user_id = session.get('user_id')
-    
+    user_id = session.get("user_id")
+
     if not user_id:
         return jsonify({"error": "Not authenticated"}), 401
-    
+
     # Find user by ID
-    user = next((u for u in users if u.id == user_id and u.is_active), None)
-    
+    user = User.query.filter_by(id=user_id, is_active=True).first()
+
     if not user:
         return jsonify({"error": "User not found"}), 404
-    
+
     return jsonify(user.to_dict()), 200
 
-@app.route('/api/auth/profile', methods=['PUT'])
+
+@app.route("/api/auth/profile", methods=["PUT"])
 def update_profile():
     # Get the user ID from session
-    user_id = session.get('user_id')
-    
+    user_id = session.get("user_id")
+
     if not user_id:
         return jsonify({"error": "Not authenticated"}), 401
-    
+
     # Find user by ID
-    user = next((u for u in users if u.id == user_id and u.is_active), None)
-    
+    user = User.query.filter_by(id=user_id, is_active=True).first()
+
     if not user:
         return jsonify({"error": "User not found"}), 404
-    
+
     data = request.json
-    
+
     # Update user profile
-    user.update_profile(
-        display_name=data.get('displayName'),
-        bio=data.get('bio')
-    )
-    
+    user.update_profile(display_name=data.get("displayName"), bio=data.get("bio"))
+
+    db.session.commit()
+
     return jsonify(user.to_dict()), 200
 
-@app.route('/api/auth/profile/avatar', methods=['POST'])
+
+@app.route("/api/auth/profile/avatar", methods=["POST"])
 def upload_avatar():
     # Get the user ID from session
-    user_id = session.get('user_id')
-    
+    user_id = session.get("user_id")
+
     if not user_id:
         return jsonify({"error": "Not authenticated"}), 401
-    
+
     # Find user by ID
-    user = next((u for u in users if u.id == user_id and u.is_active), None)
-    
+    user = User.query.filter_by(id=user_id, is_active=True).first()
+
     if not user:
         return jsonify({"error": "User not found"}), 404
-    
+
     # Check if the POST request has the file part
-    if 'avatar' not in request.files:
+    if "avatar" not in request.files:
         return jsonify({"error": "No file part"}), 400
-        
-    file = request.files['avatar']
-    
+
+    file = request.files["avatar"]
+
     # If user does not select file, browser also submit an empty part without filename
-    if file.filename == '':
+    if file.filename == "":
         return jsonify({"error": "No selected file"}), 400
-        
+
     if file and allowed_file(file.filename):
-        # Use a unique filename to avoid collisions
-        filename = str(uuid.uuid4()) + '.' + file.filename.rsplit('.', 1)[1].lower()
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        
+        # Generate a secure filename with a UUID to avoid collisions
+        filename = secure_filename(file.filename)
+        unique_filename = f"{uuid.uuid4()}_{filename}"
+        filepath = os.path.join(app.config["UPLOAD_FOLDER"], unique_filename)
+
         # Save the file
         file.save(filepath)
-        
-        # Generate URL for the file
-        file_url = f"/uploads/{filename}"
-        
+
         # Update user's avatar URL
-        user.update_profile(avatar_url=file_url)
-        
-        return jsonify({"message": "Avatar uploaded successfully", "avatarUrl": file_url}), 200
-    
+        avatar_url = f"/uploads/{unique_filename}"
+        user.update_profile(avatar_url=avatar_url)
+
+        db.session.commit()
+
+        return (
+            jsonify(
+                {"message": "Avatar uploaded successfully", "avatarUrl": avatar_url}
+            ),
+            200,
+        )
+
     return jsonify({"error": "File type not allowed"}), 400
 
-@app.route('/api/auth/profile/avatar', methods=['DELETE'])
+
+@app.route("/api/auth/profile/avatar", methods=["DELETE"])
 def remove_avatar():
     # Get the user ID from session
-    user_id = session.get('user_id')
-    
+    user_id = session.get("user_id")
+
     if not user_id:
         return jsonify({"error": "Not authenticated"}), 401
-    
+
     # Find user by ID
-    user = next((u for u in users if u.id == user_id and u.is_active), None)
-    
+    user = User.query.filter_by(id=user_id, is_active=True).first()
+
     if not user:
         return jsonify({"error": "User not found"}), 404
-    
+
     # Delete the avatar file if it exists
-    if user.avatar_url and user.avatar_url.startswith('/uploads/'):
-        filename = user.avatar_url.split('/')[-1]
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    if user.avatar_url and user.avatar_url.startswith("/uploads/"):
+        filename = user.avatar_url.split("/")[-1]
+        filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
         if os.path.exists(filepath):
             os.remove(filepath)
-    
+
     # Update user's avatar URL to None
     user.update_profile(avatar_url=None)
-    
+
+    db.session.commit()
+
     return jsonify({"message": "Avatar removed successfully"}), 200
 
-@app.route('/api/auth/account', methods=['DELETE'])
+
+@app.route("/api/auth/account", methods=["DELETE"])
 def delete_account():
     # Get the user ID from session
-    user_id = session.get('user_id')
-    
+    user_id = session.get("user_id")
+
     if not user_id:
         return jsonify({"error": "Not authenticated"}), 401
-    
+
     # Find user by ID
-    user = next((u for u in users if u.id == user_id and u.is_active), None)
-    
+    user = User.query.filter_by(id=user_id, is_active=True).first()
+
     if not user:
         return jsonify({"error": "User not found"}), 404
-    
+
     # Deactivate the user account (soft delete)
     user.deactivate()
-    
+
     # Clean up user data
-    
+
     # 1. Delete user's avatar if it exists
-    if user.avatar_url and user.avatar_url.startswith('/uploads/'):
-        filename = user.avatar_url.split('/')[-1]
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    if user.avatar_url and user.avatar_url.startswith("/uploads/"):
+        filename = user.avatar_url.split("/")[-1]
+        filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
         if os.path.exists(filepath):
             os.remove(filepath)
-    
-    # 2. Delete or anonymize user's concept maps
-    for map in concept_maps:
-        if map.get('user_id') == user_id:
-            # Option 1: Delete maps
-            # concept_maps.remove(map)
-            
-            # Option 2: Anonymize maps (mark as deleted)
-            map['deleted'] = True
-    
+
+    # 2. Mark user's concept maps as deleted
+    for concept_map in user.concept_maps:
+        concept_map.is_deleted = True
+
+    db.session.commit()
+
     # Clear the session
     session.clear()
-    
+
     return jsonify({"message": "Account deleted successfully"}), 200
 
+
 # Concept Map routes
-@app.route('/api/concept-maps', methods=['GET'])
+@app.route("/api/concept-maps", methods=["GET"])
 def get_concept_maps():
     # Get the user ID from session
-    user_id = session.get('user_id')
-    
+    user_id = session.get("user_id")
+
     if not user_id:
         return jsonify({"error": "Not authenticated"}), 401
-        
-    # Filter maps by user_id and not deleted
-    user_maps = [m for m in concept_maps if m.get('user_id') == user_id and not m.get('deleted', False)]
-    return jsonify(user_maps), 200
 
-@app.route('/api/concept-maps', methods=['POST'])
+    # Filter maps by user_id and not deleted
+    user_maps = ConceptMap.query.filter_by(user_id=user_id, is_deleted=False).all()
+    return jsonify([map.to_dict() for map in user_maps]), 200
+
+
+@app.route("/api/concept-maps", methods=["POST"])
 def create_concept_map():
     # Get the user ID from session
-    user_id = session.get('user_id')
-    
+    user_id = session.get("user_id")
+
     if not user_id:
         return jsonify({"error": "Not authenticated"}), 401
-        
-    data = request.json
-    
-    # Basic validation
-    if not data or 'name' not in data:
-        return jsonify({"error": "Missing required fields"}), 400
-    
-    # Create a new concept map with a unique ID
-    new_map = {
-        "id": len(concept_maps) + 1,
-        "name": data['name'],
-        "nodes": data.get('nodes', []),
-        "edges": data.get('edges', []),
-        "user_id": user_id
-    }
-    
-    concept_maps.append(new_map)
-    return jsonify(new_map), 201
 
-@app.route('/api/concept-maps/<int:map_id>', methods=['GET'])
+    data = request.json
+
+    # Basic validation
+    if not data or "name" not in data:
+        return jsonify({"error": "Missing required fields"}), 400
+
+    # Create a new concept map
+    new_map = ConceptMap(
+        name=data["name"],
+        description=data.get("description", ""),
+        user_id=user_id,
+        is_public=data.get("is_public", False),
+    )
+
+    db.session.add(new_map)
+    db.session.commit()
+
+    # Add nodes if provided
+    if "nodes" in data and isinstance(data["nodes"], list):
+        for node_data in data["nodes"]:
+            node = Node(
+                concept_map_id=new_map.id,
+                node_id=node_data.get("id", str(uuid.uuid4())),
+                label=node_data.get("label", ""),
+                position_x=node_data.get("position", {}).get("x"),
+                position_y=node_data.get("position", {}).get("y"),
+                properties=node_data.get("properties", {}),
+            )
+            db.session.add(node)
+
+    # Add edges if provided
+    if "edges" in data and isinstance(data["edges"], list):
+        for edge_data in data["edges"]:
+            edge = Edge(
+                concept_map_id=new_map.id,
+                edge_id=edge_data.get("id", str(uuid.uuid4())),
+                source=edge_data.get("source", ""),
+                target=edge_data.get("target", ""),
+                label=edge_data.get("label", ""),
+                properties=edge_data.get("properties", {}),
+            )
+            db.session.add(edge)
+
+    db.session.commit()
+
+    return jsonify(new_map.to_dict()), 201
+
+
+@app.route("/api/concept-maps/<int:map_id>", methods=["GET"])
 def get_concept_map(map_id):
     # Get the user ID from session
-    user_id = session.get('user_id')
-    
+    user_id = session.get("user_id")
+
     if not user_id:
         return jsonify({"error": "Not authenticated"}), 401
-        
-    for map in concept_maps:
-        if map["id"] == map_id and map.get("user_id") == user_id and not map.get('deleted', False):
-            return jsonify(map), 200
-    
-    return jsonify({"error": "Concept map not found"}), 404
 
-@app.route('/api/concept-maps/<int:map_id>', methods=['PUT'])
+    # Find the concept map
+    concept_map = ConceptMap.query.filter_by(id=map_id).first()
+
+    if not concept_map:
+        return jsonify({"error": "Concept map not found"}), 404
+
+    # Check if the user has access to this map
+    if concept_map.user_id != user_id and not concept_map.is_public:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    return jsonify(concept_map.to_dict()), 200
+
+
+@app.route("/api/concept-maps/<int:map_id>", methods=["PUT"])
 def update_concept_map(map_id):
     # Get the user ID from session
-    user_id = session.get('user_id')
-    
+    user_id = session.get("user_id")
+
     if not user_id:
         return jsonify({"error": "Not authenticated"}), 401
-        
-    data = request.json
-    
-    for i, map in enumerate(concept_maps):
-        if map["id"] == map_id and map.get("user_id") == user_id and not map.get('deleted', False):
-            # Update the map
-            concept_maps[i] = {
-                "id": map_id,
-                "name": data.get('name', map['name']),
-                "nodes": data.get('nodes', map['nodes']),
-                "edges": data.get('edges', map['edges']),
-                "user_id": user_id
-            }
-            return jsonify(concept_maps[i]), 200
-    
-    return jsonify({"error": "Concept map not found"}), 404
 
-@app.route('/api/concept-maps/<int:map_id>', methods=['DELETE'])
+    data = request.json
+
+    # Find the concept map
+    concept_map = ConceptMap.query.filter_by(
+        id=map_id, user_id=user_id, is_deleted=False
+    ).first()
+
+    if not concept_map:
+        return jsonify({"error": "Concept map not found"}), 404
+
+    # Update the map properties
+    if "name" in data:
+        concept_map.name = data["name"]
+    if "description" in data:
+        concept_map.description = data["description"]
+    if "is_public" in data:
+        concept_map.is_public = data["is_public"]
+
+    # Update nodes if provided
+    if "nodes" in data and isinstance(data["nodes"], list):
+        # Delete existing nodes
+        Node.query.filter_by(concept_map_id=map_id).delete()
+
+        # Add new nodes
+        for node_data in data["nodes"]:
+            node = Node(
+                concept_map_id=map_id,
+                node_id=node_data.get("id", str(uuid.uuid4())),
+                label=node_data.get("label", ""),
+                position_x=node_data.get("position", {}).get("x"),
+                position_y=node_data.get("position", {}).get("y"),
+                properties=node_data.get("properties", {}),
+            )
+            db.session.add(node)
+
+    # Update edges if provided
+    if "edges" in data and isinstance(data["edges"], list):
+        # Delete existing edges
+        Edge.query.filter_by(concept_map_id=map_id).delete()
+
+        # Add new edges
+        for edge_data in data["edges"]:
+            edge = Edge(
+                concept_map_id=map_id,
+                edge_id=edge_data.get("id", str(uuid.uuid4())),
+                source=edge_data.get("source", ""),
+                target=edge_data.get("target", ""),
+                label=edge_data.get("label", ""),
+                properties=edge_data.get("properties", {}),
+            )
+            db.session.add(edge)
+
+    db.session.commit()
+
+    return jsonify(concept_map.to_dict()), 200
+
+
+@app.route("/api/concept-maps/<int:map_id>", methods=["DELETE"])
 def delete_concept_map(map_id):
     # Get the user ID from session
-    user_id = session.get('user_id')
-    
+    user_id = session.get("user_id")
+
     if not user_id:
         return jsonify({"error": "Not authenticated"}), 401
-        
-    for i, map in enumerate(concept_maps):
-        if map["id"] == map_id and map.get("user_id") == user_id and not map.get('deleted', False):
-            # Remove the map or mark as deleted
-            deleted_map = concept_maps[i]
-            deleted_map['deleted'] = True
-            return jsonify({"message": f"Concept map '{deleted_map['name']}' deleted successfully"}), 200
-    
-    return jsonify({"error": "Concept map not found"}), 404
+
+    # Find the concept map
+    concept_map = ConceptMap.query.filter_by(
+        id=map_id, user_id=user_id, is_deleted=False
+    ).first()
+
+    if not concept_map:
+        return jsonify({"error": "Concept map not found"}), 404
+
+    # Mark as deleted (soft delete)
+    concept_map.is_deleted = True
+    db.session.commit()
+
+    return (
+        jsonify({"message": f"Concept map '{concept_map.name}' deleted successfully"}),
+        200,
+    )
+
 
 # Serve uploaded files
-@app.route('/uploads/<filename>')
+@app.route("/uploads/<filename>")
 def uploaded_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
 
-@app.route('/api/users/<int:user_id>/recent-maps', methods=['GET'])
+
+@app.route("/api/users/<int:user_id>/recent-maps", methods=["GET"])
 def get_recent_maps(user_id):
     # Get the user ID from session
-    session_user_id = session.get('user_id')
-    
+    session_user_id = session.get("user_id")
+
     if not session_user_id:
         return jsonify({"error": "Not authenticated"}), 401
-        
-    # Can only view own recent maps
+
+    # Check if the user is requesting their own data
     if session_user_id != user_id:
         return jsonify({"error": "Unauthorized"}), 403
-        
+
     # Find user by ID
-    user = next((u for u in users if u.id == user_id and u.is_active), None)
-    
+    user = User.query.filter_by(id=user_id, is_active=True).first()
+
     if not user:
         return jsonify({"error": "User not found"}), 404
-        
-    # Get user's maps, sorted by most recent first (in a real app, this would be by last modified date)
-    user_maps = [m for m in concept_maps if m.get('user_id') == user_id and not m.get('deleted', False)]
-    
-    # Limit to 5 most recent maps and format for the response
+
+    # Get user's maps, sorted by most recent first
+    user_maps = (
+        ConceptMap.query.filter_by(user_id=user_id, is_deleted=False)
+        .order_by(ConceptMap.updated_at.desc())
+        .limit(5)
+        .all()
+    )
+
+    # Format for the response
     recent_maps = []
-    for map in user_maps[:5]:
-        recent_maps.append({
-            "id": map["id"],
-            "name": map["name"],
-            "url": f"/maps/{map['id']}"
-        })
-    
+    for map in user_maps:
+        recent_maps.append({"id": map.id, "name": map.name, "url": f"/maps/{map.id}"})
+
     return jsonify({"maps": recent_maps}), 200
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5001, debug=True) 
+
+# Health check endpoint
+@app.route("/api/health")
+def health_check():
+    return jsonify({"status": "healthy"}), 200
+
+
+# Create database tables within application context
+with app.app_context():
+    db.create_all()
+
+if __name__ == "__main__":
+    app.run(port=5001, debug=True)

@@ -4,9 +4,27 @@ Currently using in-memory storage, but structured to easily migrate to a databas
 """
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
+from flask_sqlalchemy import SQLAlchemy
 
-class User:
+# Initialize SQLAlchemy
+db = SQLAlchemy()
+
+class User(db.Model):
     """Model representing a user in the application."""
+    __tablename__ = 'users'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(256), nullable=False)
+    display_name = db.Column(db.String(100), nullable=False)
+    bio = db.Column(db.Text, nullable=True)
+    avatar_url = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    is_active = db.Column(db.Boolean, default=True)
+    
+    # Relationship with concept maps
+    concept_maps = db.relationship('ConceptMap', backref='user', lazy=True, cascade="all, delete-orphan")
     
     def __init__(self, email, password, user_id=None, display_name=None, bio=None, avatar_url=None):
         self.id = user_id
@@ -80,74 +98,79 @@ class User:
             
         return user
 
-
-class ConceptMap:
-    """Model representing a concept map structure."""
+# Node model for storing nodes in concept maps
+class Node(db.Model):
+    """Model representing a node in a concept map."""
+    __tablename__ = 'nodes'
     
-    def __init__(self, name, nodes=None, edges=None, map_id=None, user_id=None):
-        self.id = map_id
-        self.name = name
-        self.nodes = nodes or []
-        self.edges = edges or []
-        self.user_id = user_id  # Add user_id to associate maps with users
+    id = db.Column(db.Integer, primary_key=True)
+    concept_map_id = db.Column(db.Integer, db.ForeignKey('concept_maps.id', ondelete='CASCADE'), nullable=False)
+    node_id = db.Column(db.String(50), nullable=False)  # ID within the concept map
+    label = db.Column(db.String(100), nullable=False)
+    position_x = db.Column(db.Float, nullable=True)
+    position_y = db.Column(db.Float, nullable=True)
+    properties = db.Column(db.JSON, nullable=True)
+    
+    def to_dict(self):
+        """Convert the model to a dictionary representation."""
+        return {
+            "id": self.node_id,
+            "label": self.label,
+            "position": {"x": self.position_x, "y": self.position_y} if self.position_x is not None and self.position_y is not None else None,
+            "properties": self.properties or {}
+        }
+
+# Edge model for storing edges in concept maps
+class Edge(db.Model):
+    """Model representing an edge in a concept map."""
+    __tablename__ = 'edges'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    concept_map_id = db.Column(db.Integer, db.ForeignKey('concept_maps.id', ondelete='CASCADE'), nullable=False)
+    edge_id = db.Column(db.String(50), nullable=False)  # ID within the concept map
+    source = db.Column(db.String(50), nullable=False)
+    target = db.Column(db.String(50), nullable=False)
+    label = db.Column(db.String(100), nullable=True)
+    properties = db.Column(db.JSON, nullable=True)
+    
+    def to_dict(self):
+        """Convert the model to a dictionary representation."""
+        return {
+            "id": self.edge_id,
+            "source": self.source,
+            "target": self.target,
+            "label": self.label,
+            "properties": self.properties or {}
+        }
+
+class ConceptMap(db.Model):
+    """Model representing a concept map structure."""
+    __tablename__ = 'concept_maps'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    is_public = db.Column(db.Boolean, default=False)
+    is_deleted = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    nodes = db.relationship('Node', backref='concept_map', lazy=True, cascade="all, delete-orphan")
+    edges = db.relationship('Edge', backref='concept_map', lazy=True, cascade="all, delete-orphan")
     
     def to_dict(self):
         """Convert the model to a dictionary representation."""
         return {
             "id": self.id,
             "name": self.name,
-            "nodes": self.nodes,
-            "edges": self.edges,
-            "user_id": self.user_id
-        }
-    
-    @classmethod
-    def from_dict(cls, data, map_id=None):
-        """Create a ConceptMap instance from a dictionary."""
-        return cls(
-            name=data.get("name", ""),
-            nodes=data.get("nodes", []),
-            edges=data.get("edges", []),
-            map_id=map_id or data.get("id"),
-            user_id=data.get("user_id")
-        )
-
-
-class Node:
-    """Model representing a node in a concept map."""
-    
-    def __init__(self, node_id, label, position, properties=None):
-        self.id = node_id
-        self.label = label
-        self.position = position
-        self.properties = properties or {}
-    
-    def to_dict(self):
-        """Convert the model to a dictionary representation."""
-        return {
-            "id": self.id,
-            "label": self.label,
-            "position": self.position,
-            "properties": self.properties
-        }
-
-
-class Edge:
-    """Model representing an edge in a concept map."""
-    
-    def __init__(self, edge_id, source, target, label=None, properties=None):
-        self.id = edge_id
-        self.source = source
-        self.target = target
-        self.label = label
-        self.properties = properties or {}
-    
-    def to_dict(self):
-        """Convert the model to a dictionary representation."""
-        return {
-            "id": self.id,
-            "source": self.source,
-            "target": self.target,
-            "label": self.label,
-            "properties": self.properties
+            "description": self.description,
+            "user_id": self.user_id,
+            "is_public": self.is_public,
+            "is_deleted": self.is_deleted,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "nodes": [node.to_dict() for node in self.nodes],
+            "edges": [edge.to_dict() for edge in self.edges]
         } 
