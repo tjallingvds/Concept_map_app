@@ -40,8 +40,8 @@ export default function EditorPage() {
         setIsFavorite(mapData.isFavorite || false);
         
         // Set the input text from the map data
-        if (mapData.inputText && mapData.inputText.trim() !== '') {
-          setInputText(mapData.inputText);
+        if (mapData.input_text && mapData.input_text.trim() !== '') {
+          setInputText(mapData.input_text);
         } else {
           // Fallback to description if no input text
           setInputText(mapData.description || "");

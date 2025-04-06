@@ -120,7 +120,7 @@ export default function MyMapsPage() {
       const { shareUrl, shareId } = await conceptMapsApi.shareMap(id);
       
       // Update the map in the list with the share URL
-      setMaps(prevMaps => prevMaps.map(map => {
+      setMyMaps(prevMaps => prevMaps.map(map => {
         if (map.id === id) {
           return {
             ...map,
@@ -132,32 +132,17 @@ export default function MyMapsPage() {
         return map;
       }));
       
-      // Show success message with the shareable link
-      toast({
-        title: "Map shared successfully",
-        description: (
-          <div className="mt-2 flex flex-col gap-2">
-            <p>Anyone with this link can view your concept map:</p>
-            <div className="flex items-center gap-2 bg-muted p-2 rounded">
-              <code className="text-xs truncate flex-1">{shareUrl}</code>
-              <Button 
-                size="sm" 
-                variant="ghost" 
-                onClick={() => {
-                  navigator.clipboard.writeText(shareUrl);
-                  toast.success("Link copied to clipboard");
-                }}
-              >
-                Copy
-              </Button>
-            </div>
-          </div>
-        ),
-        duration: 5000,
-      });
+      // Show success message with the shareable link - using alert for now
+      alert(`Map shared successfully! Share URL: ${shareUrl}`);
+      
+      // Copy to clipboard
+      navigator.clipboard.writeText(shareUrl)
+        .then(() => alert("Link copied to clipboard"))
+        .catch(err => console.error("Could not copy link:", err));
+        
     } catch (err) {
       console.error("Failed to share map", err);
-      toast.error("Failed to share map. Please try again.");
+      alert("Failed to share map. Please try again.");
     }
   }
   

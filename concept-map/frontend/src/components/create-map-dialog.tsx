@@ -51,7 +51,7 @@ const formSchema = z.object({
   isPublic: z.boolean().default(false),
   contentSource: z.enum(["empty", "file", "text"]).default("empty"),
   fileUpload: z.any().optional(),
-  textContent: z.string().max(5000, "Text content must be less than 5000 characters").optional(),
+  textContent: z.string().max(1000000, "Text content must be less than 1,000,000 characters").optional(),
   tldrawContent: z.string().optional(),
 })
 
@@ -67,6 +67,7 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
   const [open, setOpen] = React.useState(false)
   const [isCreating, setIsCreating] = React.useState(false)
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null)
+  const [isProcessingFile, setIsProcessingFile] = React.useState(false)
   
   // Form setup
   const form = useForm<CreateMapData>({
@@ -85,18 +86,49 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
   const contentSource = form.watch("contentSource")
 
   // Handle file selection
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      setSelectedFile(e.target.files[0])
-      form.setValue("contentSource", "file")
+      const file = e.target.files[0];
+      
+      // Clear previous file and extracted text when uploading a new file
+      if (selectedFile && selectedFile.name !== file.name) {
+        form.setValue("textContent", "");
+      }
+      
+      setSelectedFile(file);
+      form.setValue("contentSource", "file");
+      
+      // Process the file immediately to extract text
+      try {
+        setIsProcessingFile(true);
+        toast.info("Processing document, please wait...");
+        
+        const result = await conceptMapsApi.processDocument(file);
+        
+        if (result && result.text) {
+          // Store the extracted text but stay in the file tab
+          // This addresses the user's request to keep extracted text in the upload tab
+          form.setValue("textContent", result.text);
+          // Keep contentSource as "file" so the text stays hidden but available for processing
+          form.setValue("contentSource", "file");
+          toast.success("Document processed successfully! You can now generate a concept map.");
+        }
+      } catch (error) {
+        console.error("Error processing file:", error);
+        toast.error("Failed to process document. Please try again or use text input instead.");
+      } finally {
+        setIsProcessingFile(false);
+      }
     }
   }
 
   // Remove selected file
   const handleRemoveFile = () => {
-    setSelectedFile(null)
+    setSelectedFile(null);
+    // Clear the extracted text when removing a file
+    form.setValue("textContent", "");
     if (contentSource === "file") {
-      form.setValue("contentSource", "empty")
+      form.setValue("contentSource", "empty");
     }
   }
 
@@ -138,10 +170,9 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
       let svgContent = "";
       
       // Handle different content sources
-      if (data.contentSource === "file" && selectedFile) {
-        // Read file content
-        const fileContent = await selectedFile.text();
-        textContent = fileContent;
+      if (data.contentSource === "file" && data.textContent) {
+        // Use the text extracted from the file processing
+        textContent = data.textContent;
       } else if (data.contentSource === "text" && data.textContent) {
         textContent = data.textContent;
       }
@@ -222,6 +253,20 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
       }
       
       toast.success("Concept map created successfully!");
+      
+      // Clear the form data after successful creation
+      form.reset({
+        title: "",
+        learningObjective: "",
+        description: "",
+        mapType: "mindmap",
+        isPublic: false,
+        contentSource: "empty",
+        textContent: "",
+      });
+      
+      // Clear selected file and extracted text
+      setSelectedFile(null);
       
       // Close the dialog
       setOpen(false);
@@ -394,19 +439,56 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
                       <TabsContent value="file" className="pt-4">
                         <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
                           {selectedFile ? (
-                            <div className="flex items-center justify-between p-2 bg-muted rounded">
-                              <div className="flex items-center gap-2">
-                                <FileUp className="h-5 w-5 text-primary" />
-                                <span className="text-sm truncate max-w-[400px]">{selectedFile.name}</span>
+                            <div className="flex flex-col gap-4">
+                              <div className="flex items-center justify-between p-2 bg-muted rounded">
+                                <div className="flex items-center gap-2">
+                                  <FileUp className="h-5 w-5 text-primary" />
+                                  <span className="text-sm truncate max-w-[400px]">{selectedFile.name}</span>
+                                </div>
+                                <Button 
+                                  type="button" 
+                                  variant="ghost" 
+                                  size="icon"
+                                  onClick={handleRemoveFile}
+                                  disabled={isProcessingFile}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
                               </div>
-                              <Button 
-                                type="button" 
-                                variant="ghost" 
-                                size="icon"
-                                onClick={handleRemoveFile}
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
+                              
+                              {isProcessingFile ? (
+                                <div className="text-center py-4">
+                                  <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full mx-auto mb-2"></div>
+                                  <p className="text-sm text-muted-foreground">Processing document...</p>
+                                </div>
+                              ) : (
+                                <div>
+                                  {form.watch("textContent") ? (
+                                    <div className="space-y-3">
+                                      <div className="p-3 bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-300 rounded flex items-center gap-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-600">
+                                          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                          <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                                        </svg>
+                                        <div>
+                                          <p className="text-sm font-medium">Processing Complete</p>
+                                          <p className="text-xs mt-0.5">Text has been successfully extracted from your document</p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      className="w-full"
+                                      onClick={() => handleFileSelect({ target: { files: [selectedFile] } } as any)}
+                                      disabled={isProcessingFile}
+                                    >
+                                      Process Document Again
+                                    </Button>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           ) : (
                             <>
@@ -420,6 +502,7 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
                                 variant="outline"
                                 className="mt-4"
                                 onClick={() => document.getElementById('file-upload')?.click()}
+                                disabled={isProcessingFile}
                               >
                                 Select File
                               </Button>
@@ -427,12 +510,35 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
                                 id="file-upload"
                                 type="file"
                                 className="hidden"
-                                accept=".pdf,.doc,.docx,.txt"
+                                accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg"
                                 onChange={handleFileSelect}
                               />
                             </>
                           )}
                         </div>
+                        
+                        {/* Extracted Text Display Section - shown below the upload area */}
+                        {form.watch("textContent") && selectedFile && (
+                          <div className="mt-6 border rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <h3 className="text-base font-semibold">Extracted Text</h3>
+                              <p className="text-xs text-muted-foreground">
+                                {(form.watch("textContent")?.length || 0).toLocaleString()} characters
+                              </p>
+                            </div>
+                            <div className="max-h-[200px] overflow-y-auto bg-muted/30 p-3 rounded text-sm text-muted-foreground whitespace-pre-wrap border">
+                              {form.watch("textContent")?.substring(0, 500) || ""}
+                              {(form.watch("textContent")?.length || 0) > 500 && (
+                                <>
+                                  <span>...</span>
+                                  <p className="text-xs italic mt-2">
+                                    (Showing first 500 characters only. Full text will be used to generate your concept map.)
+                                  </p>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </TabsContent>
                       <TabsContent value="text" className="pt-4">
                         <FormField
@@ -493,8 +599,17 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" className="px-8" disabled={isCreating}>
-                {isCreating ? "Creating..." : "Create Map"}
+              <Button 
+                type="submit" 
+                className="px-8" 
+                disabled={isCreating}
+                variant={form.watch("contentSource") === "file" && form.watch("textContent") ? "default" : "default"}
+              >
+                {isCreating ? "Creating..." : 
+                  form.watch("contentSource") === "file" && form.watch("textContent") 
+                    ? "Generate Map from Document" 
+                    : "Create Map"
+                }
               </Button>
             </DialogFooter>
           </form>

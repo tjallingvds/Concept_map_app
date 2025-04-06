@@ -26,13 +26,14 @@ def setup_gemini(api_key: str) -> None:
 #                    Utility: Text Chunking (Optional)                     #
 ##############################################################################
 
-def split_text_into_chunks(text: str, max_length: int = 800) -> List[str]:
+def split_text_into_chunks(text: str, max_length: int = 12000) -> List[str]:
     """
     Splits the input text into smaller chunks.
     
     Args:
         text (str): The input text.
         max_length (int): Maximum length of each chunk (in tokens or characters).
+                         Default is now 12000 to leverage Gemini's large context window.
     
     Returns:
         List[str]: A list of text chunks.
@@ -73,47 +74,29 @@ def extract_triples_from_text(text: str, model: genai.GenerativeModel) -> List[T
         # Return a default triple for very short inputs
         return [("Concept", "is", "Empty or too short")]
     
-    prompt = """
-    Extract subject-predicate-object triples from the following text. 
-    Focus on key concepts and their relationships. 
-    Format your response as a JSON array of arrays, where each inner array is a triple [subject, predicate, object].
-    
-    Even if the text is very short or simple, try to extract at least one meaningful triple.
-    If the text only mentions a single concept, create a triple that relates that concept to its definition or property.
-    
-    For example:
-    - If the text mentions "Photosynthesis converts sunlight into chemical energy", 
-      one triple would be ["Photosynthesis", "converts", "sunlight into chemical energy"].
-    - If the text only says "Artificial Intelligence", a triple could be ["Artificial Intelligence", "is", "a field of computer science"].
-    - If the text is "Dogs are mammals", the triple would be ["Dogs", "are", "mammals"].
-    
-    Text: {}
-    
-    Output only the JSON array without any additional text or explanation.
-    """.format(text)
+    prompt = f"""
+Extract all key conceptual triples (Subject | Relation | Object) from the following text.
+Return them in the format:
+
+Subject | Relation | Object
+(one per line, exactly as shown).
+
+Text:
+\"\"\"{text}\"\"\"
+"""
     
     try:
         response = model.generate_content(prompt)
         response_text = response.text
         
-        # Extract JSON content (assuming it's enclosed in ```json and ```, or just as plain JSON)
-        json_start = response_text.find('```json')
-        json_end = response_text.rfind('```')
-        
-        if json_start != -1 and json_end != -1:
-            json_content = response_text[json_start + 7:json_end].strip()
-        else:
-            # If not in code block, try to extract JSON directly
-            json_content = response_text
-        
-        # Parse the JSON content
-        triples_data = json.loads(json_content)
-        
-        # Validate the structure
+        # Parse the response lines for triple notation
         triples = []
-        for triple in triples_data:
-            if len(triple) == 3:
-                triples.append((triple[0], triple[1], triple[2]))
+        for line in response_text.strip().split("\n"):
+            line = line.strip()
+            if "|" in line:
+                parts = [p.strip() for p in line.split("|")]
+                if len(parts) == 3:
+                    triples.append((parts[0], parts[1], parts[2]))
         
         # If no valid triples were extracted, create a fallback triple
         if not triples and text.strip():
@@ -140,45 +123,48 @@ def extract_triples_from_text(text: str, model: genai.GenerativeModel) -> List[T
 
 def generate_concept_map_json(triples: List[Tuple[str, str, str]], model: genai.GenerativeModel) -> Dict[str, Any]:
     """
-    Generates a concept map JSON structure from the extracted triples.
+    Generates a unified concept map JSON structure from the extracted triples.
     
     Args:
         triples (List[Tuple[str, str, str]]): A list of subject-predicate-object triples.
         model (genai.GenerativeModel): An instance of the Gemini model.
     
     Returns:
-        Dict[str, Any]: A JSON structure representing the concept map.
+        Dict[str, Any]: A JSON structure representing the unified concept map.
     """
-    # Format the triples for the prompt
-    triples_text = "\n".join([f"['{s}', '{p}', '{o}']" for s, p, o in triples])
+    # Convert triples list to a textual format for the prompt
+    triple_text = "\n".join([f"{s} | {r} | {o}" for s, r, o in triples])
     
-    prompt = """
-    Convert the following subject-predicate-object triples into a concept map JSON structure.
-    
-    Triples:
-    {}
-    
-    Generate a JSON with the following structure:
-    {{"concept_maps": [{{"nodes": [...], "edges": [...], "central_concept": "...", "title": "..."}}]}}
-    
-    Where:
-    - "nodes" is an array of objects, each with "id" (string), "label" (string), and "type" (string, one of: "central", "primary", "secondary")
-    - "edges" is an array of objects, each with "source" (node id), "target" (node id), and "label" (the predicate)
-    - "central_concept" is the most important concept in the map
-    - "title" is a concise title for the concept map
-    
-    
-    Ensure that:
-    1. Each unique subject or object becomes a node
-    2. The predicates become edge labels
-    3. The most frequently mentioned concept becomes the central node
-    4. Nodes directly connected to the central node are "primary" type
-    5. Nodes connected to primary nodes are "secondary" type
-    
-    
-    Output only the JSON without any additional text or explanation.
-    
-    """.format(triples_text)
+    prompt = f"""
+You have the following conceptual triples extracted from text:
+{triple_text}
+
+Your task:
+1. Combine all references into a SINGLE integrated concept map, unifying duplicates.
+2. If there are multiple seemingly unrelated root concepts, try to discover or create
+   bridging relationships so that the final map is truly one big interconnected web
+   (no isolated sub-maps).
+3. Each concept may appear as a "Subject" in some triples and as an "Object" in others.
+   If so, unify them into the same concept node.
+4. Produce valid JSON with exactly one top-level key: "concept_map".
+   Example minimal structure (showing the shape, not your data):
+
+{{
+  "concept_map": {{
+    "Concept1": {{
+      "RelationA": ["ChildA", "ChildB"],
+      "RelationB": ["ChildC"]
+    }},
+    "Concept2": {{
+      "RelationC": ["ChildD"]
+    }}
+  }}
+}}
+
+- No extra text or explanations.
+- If bridging relationships are implied or can be logically inferred, add them.
+- Return ONLY valid JSON.
+"""
     
     try:
         response = model.generate_content(prompt)
@@ -191,76 +177,55 @@ def generate_concept_map_json(triples: List[Tuple[str, str, str]], model: genai.
         if json_start != -1 and json_end != -1:
             raw_response = raw_response[json_start + 7:json_end].strip()
         
+        # Clean out trailing commas, etc.
+        raw_response = re.sub(r",\s*]", "]", raw_response)
+        raw_response = re.sub(r",\s*}", "}", raw_response)
+        
         # Try to parse the JSON, with fallback for malformed responses
         try:
             concept_map = json.loads(raw_response)
             
-            # Validate the structure has the expected keys
-            if not isinstance(concept_map, dict) or 'concept_maps' not in concept_map:
-                raise ValueError("Missing 'concept_maps' key in response")
-                
-            # Ensure there's at least one concept map
-            if not concept_map['concept_maps'] or not isinstance(concept_map['concept_maps'], list):
-                raise ValueError("'concept_maps' is empty or not a list")
-                
-            # Validate the first concept map has the required fields
-            first_map = concept_map['concept_maps'][0]
-            if not all(k in first_map for k in ['nodes', 'edges', 'central_concept', 'title']):
-                raise ValueError("Concept map missing required fields")
-                
+            # Validate the structure has the expected key
+            if not isinstance(concept_map, dict) or 'concept_map' not in concept_map:
+                raise ValueError("Missing 'concept_map' key in response")
+            
             return concept_map
             
         except (json.JSONDecodeError, ValueError) as json_err:
             logger.error(f"Error parsing concept map JSON: {str(json_err)}. Raw response: {raw_response[:100]}...")
             
             # Create a basic concept map from the triples
-            nodes = []
-            edges = []
-            node_ids = {}
-            node_count = 0
+            default_map = {"concept_map": {}}
             
-            # Extract a title from the first triple
-            title = triples[0][0] if triples else "Concept Map"
-            central_concept = title
-            
-            # Create nodes and edges from triples
-            for s, p, o in triples:
-                if s not in node_ids:
-                    node_ids[s] = f"node{node_count}"
-                    nodes.append({"id": node_ids[s], "label": s, "type": "central" if node_count == 0 else "primary"})
-                    node_count += 1
+            # If we have triples, create a simple tree structure
+            if triples:
+                root_concept = triples[0][0]
+                default_map["concept_map"][root_concept] = {}
+                
+                for s, r, o in triples:
+                    # If this is a new subject, add it to the map
+                    if s not in default_map["concept_map"]:
+                        default_map["concept_map"][s] = {}
                     
-                if o not in node_ids:
-                    node_ids[o] = f"node{node_count}"
-                    nodes.append({"id": node_ids[o], "label": o, "type": "secondary"})
-                    node_count += 1
+                    # Add the relation and object
+                    if r not in default_map["concept_map"][s]:
+                        default_map["concept_map"][s][r] = []
                     
-                edges.append({"source": node_ids[s], "target": node_ids[o], "label": p})
+                    default_map["concept_map"][s][r].append(o)
+            else:
+                default_map["concept_map"]["Error"] = {"occurred during": ["concept map generation"]}
             
-            return {
-                "concept_maps": [{
-                    "nodes": nodes,
-                    "edges": edges,
-                    "central_concept": central_concept,
-                    "title": title
-                }]
-            }
+            return default_map
+            
     except Exception as e:
         logger.error(f"Error generating concept map JSON: {str(e)}")
         # Create a minimal valid concept map structure for error cases
-        error_title = "Error: Failed to generate concept map"
         return {
-            "concept_maps": [{
-                "nodes": [
-                    {"id": "node0", "label": "Error", "type": "central"},
-                    {"id": "node1", "label": "Please try again", "type": "primary"}
-                ],
-                "edges": [
-                    {"source": "node0", "target": "node1", "label": "suggests"}
-                ],
-                "central_concept": "Error",
-                "title": error_title
-            }]
+            "concept_map": {
+                "Error": {
+                    "suggests": ["Please try again"]
+                }
+            }
         }
 
 
@@ -268,9 +233,17 @@ def generate_concept_map_json(triples: List[Tuple[str, str, str]], model: genai.
 #                    SVG Generation from Concept Map                       #
 ##############################################################################
 
+def add_node(dot, node_id, added_nodes):
+    """
+    Adds a node to the Graphviz graph if it hasn't already been added.
+    """
+    if node_id not in added_nodes:
+        dot.node(node_id, node_id, shape="box", style="filled", fillcolor="lightblue")
+        added_nodes.add(node_id)
+
 def generate_concept_map_svg(concept_map_json: Dict[str, Any]) -> str:
     """
-    Generates an SVG visualization of the concept map using Graphviz.
+    Generates an SVG visualization of the unified concept map using Graphviz.
     
     Args:
         concept_map_json (Dict[str, Any]): The JSON structure of the concept map.
@@ -279,41 +252,31 @@ def generate_concept_map_svg(concept_map_json: Dict[str, Any]) -> str:
         str: Base64 encoded SVG representation of the concept map.
     """
     try:
-        if "concept_maps" not in concept_map_json:
-            raise ValueError("Invalid JSON: 'concept_maps' key not found.")
-        concept_data = concept_map_json["concept_maps"]
+        if "concept_map" not in concept_map_json:
+            raise ValueError("Invalid JSON: 'concept_map' key not found.")
         
-        if not concept_data or not isinstance(concept_data, list) or len(concept_data) == 0:
-            raise ValueError("Invalid JSON: 'concept_maps' is empty or not a list.")
-        
-        # Get the first concept map
-        concept_map = concept_data[0]
+        unified_map = concept_map_json["concept_map"]
         
         # Create a new directed graph
-        dot = graphviz.Digraph(format='svg')
-        dot.attr(rankdir='TB', size='8,5', overlap='false', splines='true')
+        dot = graphviz.Digraph(format="svg")
+        dot.attr(rankdir="TB", splines="polyline", nodesep="1", ranksep="2", 
+                 size="8,5", overlap="false")
         
-        # Add nodes
-        for node in concept_map.get("nodes", []):
-            node_id = str(node.get("id", ""))
-            label = node.get("label", "")
-            node_type = node.get("type", "")
-            
-            # Style based on node type
-            if node_type == "central":
-                dot.node(node_id, label, style="filled", fillcolor="#4CAF50", fontcolor="white", shape="ellipse", fontsize="16")
-            elif node_type == "primary":
-                dot.node(node_id, label, style="filled", fillcolor="#2196F3", fontcolor="white", shape="ellipse")
-            else:  # secondary
-                dot.node(node_id, label, style="filled", fillcolor="#FFC107", fontcolor="black", shape="ellipse")
+        added_nodes = set()
         
-        # Add edges
-        for edge in concept_map.get("edges", []):
-            source = str(edge.get("source", ""))
-            target = str(edge.get("target", ""))
-            label = edge.get("label", "")
+        # Process each concept in the map
+        for concept, relations_dict in unified_map.items():
+            add_node(dot, concept, added_nodes)
             
-            dot.edge(source, target, label=label, fontsize="10")
+            if isinstance(relations_dict, dict):
+                for relation, children in relations_dict.items():
+                    # Use a subgraph with rank="same" for related children
+                    with dot.subgraph() as sub:
+                        sub.attr(rank="same")
+                        for child in children:
+                            add_node(dot, child, added_nodes)
+                            dot.edge(concept, child, label=relation, color="black", penwidth="2")
+                            sub.node(child)
         
         # Render the graph to SVG
         svg_data = dot.pipe()
@@ -322,7 +285,14 @@ def generate_concept_map_svg(concept_map_json: Dict[str, Any]) -> str:
         return base64.b64encode(svg_data).decode('utf-8')
     except Exception as e:
         logger.error(f"Error generating SVG: {str(e)}")
-        raise
+        # Create a minimal error graph
+        try:
+            dot = graphviz.Digraph(format="svg")
+            dot.node("Error", "Error generating concept map", shape="box", style="filled", fillcolor="red")
+            svg_data = dot.pipe()
+            return base64.b64encode(svg_data).decode('utf-8')
+        except:
+            raise
 
 
 ##############################################################################
@@ -331,7 +301,7 @@ def generate_concept_map_svg(concept_map_json: Dict[str, Any]) -> str:
 
 def generate_concept_map(input_text: str, model: genai.GenerativeModel, api_key: str) -> str:
     """
-    Main processing pipeline for concept map generation.
+    Main processing pipeline for concept map generation using unified approach.
     
     Args:
         input_text (str): The input text to generate the concept map from.
@@ -353,7 +323,7 @@ def generate_concept_map(input_text: str, model: genai.GenerativeModel, api_key:
             all_triples = [("Empty Input", "requires", "more content")]
         else:
             # Optionally, chunk the text if it's very long
-            chunks = split_text_into_chunks(input_text) if len(input_text) > 800 else [input_text]
+            chunks = split_text_into_chunks(input_text) if len(input_text) > 12000 else [input_text]
             all_triples = []
             for chunk in chunks:
                 triples = extract_triples_from_text(chunk, model)
@@ -368,9 +338,11 @@ def generate_concept_map(input_text: str, model: genai.GenerativeModel, api_key:
                 # Create a simple fallback triple
                 all_triples = [(title, "is related to", input_text[:50] + "...")]
 
+        # Generate the unified concept map
         concept_map = generate_concept_map_json(all_triples, model)
+        # Convert to SVG
         svg_b64 = generate_concept_map_svg(concept_map)
-        logger.info("Concept map generation successful.")
+        logger.info("Unified concept map generation successful.")
         return svg_b64
     except Exception as e:
         logger.exception("Concept map generation failed.")

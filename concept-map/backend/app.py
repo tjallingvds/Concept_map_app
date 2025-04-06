@@ -7,6 +7,7 @@ from werkzeug.utils import secure_filename
 import uuid
 from datetime import datetime, timedelta
 from concept_map_generation.routes import concept_map_bp
+from document_processor import DocumentProcessor
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(16))
@@ -16,8 +17,9 @@ CORS(app,
      supports_credentials=True,
      origins=['http://localhost:5173'],  # Frontend development server
      methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-     allow_headers=['Content-Type'],
-     expose_headers=['Content-Type'])
+     allow_headers=['Content-Type', 'Authorization', 'Accept'],
+     expose_headers=['Content-Type', 'Authorization'],
+     max_age=3600)  # Cache preflight requests for 1 hour
 
 # Configure session settings
 app.config['SESSION_COOKIE_SECURE'] = True  # Only send cookie over HTTPS
@@ -32,7 +34,7 @@ app.register_blueprint(concept_map_bp)
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5MB max file size
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max file size
 
 # Create uploads directory if it doesn't exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -40,6 +42,9 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 # In-memory storage (replace with database in production)
 concept_maps = []
 users = []  # List to store user objects
+
+# Initialize document processor
+document_processor = None
 
 def allowed_file(filename):
     """Check if the file extension is allowed."""
@@ -307,6 +312,7 @@ def create_concept_map():
         "image": data.get('image'),
         "format": data.get('format'),
         "is_public": data.get('is_public', False),
+        "is_favorite": data.get('is_favorite', False),
         "share_id": share_id,
         "created_at": datetime.utcnow().isoformat(),
         "updated_at": datetime.utcnow().isoformat(),
@@ -362,6 +368,7 @@ def update_concept_map(map_id):
                 "edges": data.get('edges', map['edges']),
                 "user_id": user_id,
                 "is_public": data.get('is_public', map.get('is_public', False)),
+                "is_favorite": data.get('is_favorite', map.get('is_favorite', False)),
                 "share_id": map.get('share_id'),
                 "image": data.get('image', map.get('image')),
                 "format": data.get('format', map.get('format')),
@@ -482,6 +489,96 @@ def share_concept_map(map_id):
             }), 200
     
     return jsonify({"error": "Concept map not found"}), 404
+
+@app.route('/api/process-document', methods=['POST'])
+def process_document():
+    """
+    Process uploaded document and extract text content
+    """
+    global document_processor
+    
+    # Initialize document processor on first request
+    if document_processor is None:
+        document_processor = DocumentProcessor()
+    
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file uploaded'}), 400
+        
+    file = request.files['file']
+    
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+        
+    filename = secure_filename(file.filename)
+    file_ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+    
+    # Check if file type is supported
+    if file_ext not in ['pdf', 'jpg', 'jpeg', 'png']:
+        return jsonify({'error': 'Unsupported file type. Please upload a PDF or image file.'}), 400
+    
+    try:
+        # Read file content
+        file_content = file.read()
+        
+        # Check if financial document processing is requested
+        doc_type = request.form.get('doc_type', 'standard')
+        
+        # Process document based on document type
+        if doc_type == 'financial':
+            extracted_text = document_processor.process_financial_document(file_content, file_ext)
+        else:
+            extracted_text = document_processor.process_document(file_content, file_ext)
+        
+        return jsonify({
+            'success': True,
+            'text': extracted_text
+        })
+        
+    except Exception as e:
+        print(f"Error processing document: {str(e)}")
+        return jsonify({'error': f'Failed to process document: {str(e)}'}), 500
+
+@app.route('/api/process-financial-document', methods=['POST'])
+def process_financial_document():
+    """
+    Process uploaded financial document with specialized OCR
+    """
+    global document_processor
+    
+    # Initialize document processor on first request
+    if document_processor is None:
+        document_processor = DocumentProcessor()
+    
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file uploaded'}), 400
+        
+    file = request.files['file']
+    
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+        
+    filename = secure_filename(file.filename)
+    file_ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+    
+    # Check if file type is supported
+    if file_ext not in ['pdf', 'jpg', 'jpeg', 'png']:
+        return jsonify({'error': 'Unsupported file type. Please upload a PDF or image file.'}), 400
+    
+    try:
+        # Read file content
+        file_content = file.read()
+        
+        # Process document with financial document specific processing
+        extracted_text = document_processor.process_financial_document(file_content, file_ext)
+        
+        return jsonify({
+            'success': True,
+            'text': extracted_text
+        })
+        
+    except Exception as e:
+        print(f"Error processing financial document: {str(e)}")
+        return jsonify({'error': f'Failed to process financial document: {str(e)}'}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)

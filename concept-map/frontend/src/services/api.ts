@@ -313,6 +313,31 @@ const conceptMapsApi = {
       console.error("Error fetching saved concept maps:", error);
       return [];
     }
+  },
+
+  // Process uploaded document and extract text
+  processDocument: async (file: File): Promise<{ text: string }> => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch(`${API_URL}/api/process-document`, {
+        method: 'POST',
+        credentials: "include",
+        body: formData,
+        // Don't set Content-Type header with FormData (browser sets it automatically with boundary)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to process document');
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error processing document:', error);
+      throw error;
+    }
   }
 };
 
