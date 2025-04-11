@@ -10,19 +10,66 @@ interface ConceptMapResponse {
   nodes: any[];
   edges: any[];
   user_id: number;
+  image?: string;
+  format?: string;
+  is_public?: boolean;
+  share_id?: string;
+  created_at?: string;
+  updated_at?: string;
+  input_text?: string;
 }
 
 // Function to convert backend concept map format to frontend MapItem format
 const mapResponseToMapItem = (response: ConceptMapResponse): MapItem => {
+  // Properly format the image data based on format
+  let svgContent = undefined;
+  try {
+    if (response.image) {
+      // Check if the image already has a data URL prefix
+      if (response.image.startsWith('data:')) {
+        svgContent = response.image;
+        console.log('Using existing data URL from backend');
+      } else {
+        // Add the appropriate data URL prefix based on format
+        const mimeType = response.format === 'svg' ? 'image/svg+xml' : 'image/png';
+        svgContent = `data:${mimeType};base64,${response.image}`;
+        console.log(`Created data URL with format: ${mimeType}, data length: ${response.image.length}`);
+      }
+    } else {
+      console.log('No image data found in response');
+    }
+  } catch (error) {
+    console.error('Error processing image data:', error);
+  }
+  
+  // Debug the svgContent
+  if (svgContent) {
+    console.log('SVG Content type:', typeof svgContent);
+    console.log('SVG Content prefix:', svgContent.substring(0, 30));
+  }
+
+  // Generate share URL if the map is public and has a share_id
+  let shareUrl = undefined;
+  if (response.is_public && response.share_id) {
+    shareUrl = `/shared/${response.share_id}`;
+  }
+
+  // Get actual node count from nodes array
+  const nodeCount = response.nodes ? response.nodes.length : 0;
+
   return {
     id: response.id,
     title: response.name,
-    description: response.nodes.length > 0 ? `A concept map with ${response.nodes.length} nodes` : "Empty concept map",
-    createdAt: new Date().toISOString(), // The backend doesn't provide these timestamps yet
-    lastEdited: new Date().toISOString(),
-    nodes: response.nodes.length,
-    isPublic: false, // Default to private, can be updated from backend later
-    isFavorite: false // Default to not favorite, can be updated from backend later
+    description: response.input_text || "Concept map",
+    createdAt: response.created_at || new Date().toISOString(),
+    lastEdited: response.updated_at || new Date().toISOString(),
+    nodes: nodeCount,
+    isPublic: response.is_public || false,
+    isFavorite: false, // Default to not favorite, can be updated from backend later
+    svgContent: svgContent,
+    shareId: response.share_id,
+    shareUrl: shareUrl,
+    inputText: response.input_text || ""
   };
 };
 
@@ -52,8 +99,32 @@ const conceptMapsApi = {
   },
 
   // Create a new concept map
-  createMap: async (mapData: { title: string, description?: string, isPublic?: boolean, useTemplate?: boolean }): Promise<MapItem | null> => {
+  createMap: async (mapData: { title: string, description?: string, isPublic?: boolean, useTemplate?: boolean, mapType?: string, text?: string }): Promise<MapItem | null> => {
     try {
+      // First generate the concept map if text is provided
+      let generatedMap = null;
+      if (mapData.text && mapData.mapType) {
+        const generateResponse = await fetch(`${API_URL}/concept-map/generate`, {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            text: mapData.text,
+            mapType: mapData.mapType,
+            title: mapData.title
+          }),
+        });
+
+        if (!generateResponse.ok) {
+          throw new Error("Failed to generate concept map");
+        }
+
+        generatedMap = await generateResponse.json();
+      }
+
+      // Then create the map entry
       const response = await fetch(`${API_URL}/concept-maps`, {
         method: "POST",
         credentials: "include",
@@ -64,10 +135,14 @@ const conceptMapsApi = {
           name: mapData.title,
           description: mapData.description || "",
           is_public: mapData.isPublic || false,
-          nodes: [],
-          edges: []
+          nodes: generatedMap ? generatedMap.nodes || [] : [],
+          edges: generatedMap ? generatedMap.edges || [] : [],
+          image: generatedMap ? `data:${generatedMap.format === 'svg' ? 'image/svg+xml' : 'image/png'};base64,${generatedMap.image}` : null,
+          format: generatedMap ? generatedMap.format : null,
+          input_text: mapData.text || ""
         }),
       });
+
 
       if (!response.ok) {
         throw new Error("Failed to create concept map");
@@ -164,12 +239,106 @@ const conceptMapsApi = {
     return true;
   },
 
-  // Placeholder for sharing a map (not yet implemented in backend)
-  shareMap: async (id: number): Promise<boolean> => {
-    // This will need to be implemented in the backend
-    console.log(`Sharing map ${id} (not yet implemented in backend)`);
-    return true;
+  // Share a concept map to generate a shareable link
+  shareMap: async (id: number): Promise<{ shareUrl: string, shareId: string }> => {
+    try {
+      const response = await fetch(`${API_URL}/concept-maps/${id}/share`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to share concept map with id ${id}`);
+      }
+
+      const data = await response.json();
+      return {
+        shareUrl: `${window.location.origin}${data.share_url}`,
+        shareId: data.share_id
+      };
+    } catch (error) {
+      console.error(`Error sharing concept map ${id}:`, error);
+      throw error;
+    }
+  },
+  
+  // Get a shared concept map by share ID
+  getSharedMap: async (shareId: string): Promise<MapItem | null> => {
+    try {
+      const response = await fetch(`${API_URL}/shared/concept-maps/${shareId}`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch shared concept map with id ${shareId}`);
+      }
+
+      const data: ConceptMapResponse = await response.json();
+      return mapResponseToMapItem(data);
+    } catch (error) {
+      console.error(`Error fetching shared concept map ${shareId}:`, error);
+      return null;
+    }
+  },
+  
+  // Get all saved maps for the current user
+  getSavedMaps: async (): Promise<MapItem[]> => {
+    try {
+      const user_id = sessionStorage.getItem('user_id'); // Assuming user_id is stored in session storage
+      if (!user_id) {
+        throw new Error("User not authenticated");
+      }
+      
+      const response = await fetch(`${API_URL}/users/${user_id}/saved-maps`, {
+        method: "GET",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch saved concept maps");
+      }
+
+      const data: ConceptMapResponse[] = await response.json();
+      return data.map(mapResponseToMapItem);
+    } catch (error) {
+      console.error("Error fetching saved concept maps:", error);
+      return [];
+    }
+  },
+
+  // Process uploaded document and extract text
+  processDocument: async (file: File): Promise<{ text: string }> => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch(`${API_URL}/api/process-document`, {
+        method: 'POST',
+        credentials: "include",
+        body: formData,
+        // Don't set Content-Type header with FormData (browser sets it automatically with boundary)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to process document');
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error processing document:', error);
+      throw error;
+    }
   }
 };
 
-export default conceptMapsApi; 
+export default conceptMapsApi;
