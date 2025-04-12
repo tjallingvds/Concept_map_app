@@ -274,6 +274,29 @@ async function deleteMap(mapId) {
   }
 }
 
+// Delete user account
+async function deleteAccount() {
+  try {
+    const response = await fetch(`${API_URL}/api/auth/account`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include'
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to delete account');
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error deleting account:', error);
+    throw error;
+  }
+}
+
 // Export an object with all API functions
 export default {
   processDocument,
@@ -282,5 +305,6 @@ export default {
   getMap,
   toggleFavorite,
   shareMap,
-  deleteMap
+  deleteMap,
+  deleteAccount
 };

@@ -28,17 +28,16 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "../components/ui/alert-dialog"
+import api from "../services/api"
 
 export default function SettingsPage() {
   const { user, logout } = useAuth()
   
-  // Handle account deletion (this would be implemented with backend integration)
+  // Handle account deletion
   const handleDeleteAccount = async () => {
     try {
-      // In a real app, you would call an API to delete the account
-      toast.success("Account deleted")
-      
-      // Logout after account deletion
+      await api.deleteAccount()
+      toast.success("Account deleted successfully")
       await logout()
     } catch (error) {
       toast.error("Failed to delete account")

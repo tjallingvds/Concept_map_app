@@ -338,7 +338,30 @@ const conceptMapsApi = {
       console.error('Error processing document:', error);
       throw error;
     }
-  }
+  },
+
+  // Delete user account
+  deleteAccount: async (): Promise<boolean> => {
+    try {
+      const response = await fetch(`${API_URL}/api/auth/account`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete account');
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      throw error;
+    }
+  },
 };
 
 export default conceptMapsApi;
