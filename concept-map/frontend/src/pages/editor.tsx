@@ -1,6 +1,6 @@
 import * as React from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Download, Share2, Star, StarOff } from "lucide-react";
+import { useParams, useNavigate, Link } from "react-router-dom";
+import { ArrowLeft, Download, Share2, Star, StarOff, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "../components/ui/button";
@@ -8,8 +8,29 @@ import { Card } from "../components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Separator } from "../components/ui/separator";
 import { ConceptMapViewer } from "../components/concept-map-viewer";
+import { TLDrawEditor } from "../components/tldraw-editor";
 import conceptMapsApi from "../services/api";
 import { MapItem } from "../components/file-system";
+
+// Create a full type for the OCR result to avoid linter issues
+interface OcrResult {
+  image: string;
+  format: string;
+  concepts: Array<{
+    id: string;
+    name: string;
+    description?: string;
+  }>;
+  relationships: Array<{
+    source: string;
+    target: string;
+    label?: string;
+  }>;
+  structure?: {
+    type: string;
+    root?: string;
+  };
+}
 
 export default function EditorPage() {
   const { id } = useParams<{ id: string }>();
@@ -18,6 +39,10 @@ export default function EditorPage() {
   const [loading, setLoading] = React.useState(true);
   const [isFavorite, setIsFavorite] = React.useState(false);
   const [inputText, setInputText] = React.useState<string>("");
+  const [isEditing, setIsEditing] = React.useState(false);
+  const [showDigitizeDialog, setShowDigitizeDialog] = React.useState(false);
+  const [currentMapType, setCurrentMapType] = React.useState<string>("mindmap");
+  const [error, setError] = React.useState<string | null>(null);
 
   // Fetch the map data when the component mounts
   React.useEffect(() => {
@@ -31,25 +56,22 @@ export default function EditorPage() {
       try {
         setLoading(true);
         const mapData = await conceptMapsApi.getMap(Number(id));
-        if (!mapData) {
-          toast.error("Failed to load map");
-          navigate("/maps");
-          return;
-        }
-        setMap(mapData);
-        setIsFavorite(mapData.isFavorite || false);
-        
-        // Set the input text from the map data
-        if (mapData.input_text && mapData.input_text.trim() !== '') {
-          setInputText(mapData.input_text);
+        if (mapData) {
+          setMap(mapData);
+          setIsFavorite(mapData.isFavorite || false);
+          // Store the map content if available
+          if (mapData.inputText) {
+            setInputText(mapData.inputText);
+          }
+          // Determine the map type (you could store this in the map metadata or infer it)
+          const mapType = determineMapType(mapData);
+          setCurrentMapType(mapType);
         } else {
-          // Fallback to description if no input text
-          setInputText(mapData.description || "");
+          setError("Map not found");
         }
       } catch (error) {
-        console.error("Error fetching map:", error);
-        toast.error("Failed to load map");
-        navigate("/maps");
+        setError("Error loading map");
+        console.error(error);
       } finally {
         setLoading(false);
       }
@@ -57,6 +79,16 @@ export default function EditorPage() {
 
     fetchMap();
   }, [id, navigate]);
+
+  // Helper function to determine map type from the map data
+  const determineMapType = (mapData: any): string => {
+    // You could have this stored in the map metadata or infer it
+    // For now we'll use a simple heuristic based on SVG content
+    if (mapData.svgContent && mapData.svgContent.includes("tldraw")) {
+      return "drawing";
+    }
+    return "mindmap"; // Default
+  };
 
   // Handle toggling favorite status
   const handleToggleFavorite = async () => {
@@ -121,6 +153,30 @@ export default function EditorPage() {
     toast.success("Map downloaded successfully");
   };
 
+  // Handle saving the map
+  const handleSave = async (svgContent: string) => {
+    if (!map?.id) return;
+    
+    try {
+      const updatedMap = await conceptMapsApi.updateMap(map.id, {
+        name: map.title,
+        image: svgContent,
+        format: 'svg',
+        nodes: map.nodes || [],
+        edges: map.edges || []
+      });
+      
+      if (updatedMap) {
+        setMap(updatedMap);
+        setIsEditing(false);
+        toast.success("Map saved successfully");
+      }
+    } catch (error) {
+      console.error("Error saving map:", error);
+      toast.error("Failed to save map");
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -153,6 +209,16 @@ export default function EditorPage() {
           <Button variant="outline" size="icon" onClick={handleDownload}>
             <Download className="h-5 w-5" />
           </Button>
+          {isEditing && currentMapType === "drawing" && (
+            <Button 
+              variant="outline" 
+              size="icon" 
+              title="Digitize drawing with OCR"
+              onClick={() => setShowDigitizeDialog(true)}
+            >
+              <Wand2 className="h-5 w-5" />
+            </Button>
+          )}
         </div>
       </div>
 
@@ -165,11 +231,59 @@ export default function EditorPage() {
         <TabsContent value="result">
           {/* Concept Map Viewer */}
           <Card className="p-6 overflow-auto bg-white">
-            {map?.svgContent ? (
-              <ConceptMapViewer svgContent={map.svgContent} />
+            {!isEditing ? (
+              <>
+                {map?.svgContent ? (
+                  <ConceptMapViewer 
+                    svgContent={map.svgContent} 
+                    onSave={handleSave}
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-[600px] text-muted-foreground">
+                    No preview available
+                  </div>
+                )}
+              </>
             ) : (
-              <div className="text-center py-12 text-muted-foreground">
-                <p>No visualization available for this concept map.</p>
+              <div className="border rounded-lg overflow-hidden bg-white">
+                <TLDrawEditor 
+                  className="h-[600px]" 
+                  onSave={handleSave}
+                  enableOcr={showDigitizeDialog}
+                  onOcrProcessed={async (result: OcrResult) => {
+                    setShowDigitizeDialog(false);
+                    
+                    try {
+                      // Save the digitized version
+                      if (result && result.image) {
+                        // Update the map with the digitized SVG
+                        const mapId = map?.id ? Number(map.id) : 0;
+                        
+                        // Ensure we have valid arrays
+                        const conceptNodes = Array.isArray(result.concepts) ? result.concepts : [];
+                        const relationshipEdges = Array.isArray(result.relationships) ? result.relationships : [];
+                        
+                        const updatedMap = await conceptMapsApi.updateMap(mapId, {
+                          name: map?.title || '',
+                          image: result.image,
+                          format: 'svg',
+                          nodes: conceptNodes,
+                          edges: relationshipEdges
+                        });
+                        
+                        if (updatedMap) {
+                          setMap(updatedMap);
+                          setIsEditing(false);
+                          setCurrentMapType("mindmap");
+                          toast.success("Drawing successfully digitized!");
+                        }
+                      }
+                    } catch (error) {
+                      console.error("Error saving digitized map:", error);
+                      toast.error("Failed to save digitized map");
+                    }
+                  }}
+                />
               </div>
             )}
           </Card>
@@ -186,6 +300,19 @@ export default function EditorPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Actions */}
+      <div className="mt-4 flex justify-end">
+        {isEditing ? (
+          <Button variant="outline" onClick={() => setIsEditing(false)}>
+            Cancel
+          </Button>
+        ) : (
+          <Button onClick={() => setIsEditing(true)}>
+            Edit
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

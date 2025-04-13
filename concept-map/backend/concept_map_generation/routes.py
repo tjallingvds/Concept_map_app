@@ -2,9 +2,10 @@ from flask import Blueprint, request, jsonify
 import os
 import google.generativeai as genai
 from dotenv import load_dotenv
-from .mind_map import generate_concept_map
+from .mind_map import generate_concept_map, generate_concept_map_svg
 from .word_cloud import process_text_for_wordcloud
 from .bubble_chart import process_text_for_bubble_chart
+from .ocr_concept_map import process_drawing_for_concept_map
 
 # Load environment variables
 load_dotenv()
@@ -131,3 +132,152 @@ def extract_concepts():
         return jsonify({
             'error': f'Error extracting concepts: {str(e)}'
         }), 500
+
+@concept_map_bp.route('/process-drawing', methods=['POST'])
+def process_drawing():
+    """Process a drawing (SVG or PNG) to extract concepts and generate a digital concept map"""
+    try:
+        print("*** Process Drawing API called ***")
+        data = request.json
+        
+        # Validate request data - accept either svgContent or imageContent
+        if not data:
+            print("Missing request data")
+            return jsonify({
+                'error': 'Missing request data'
+            }), 400
+            
+        # Check if we have image content (PNG, JPEG, etc.)
+        if 'imageContent' in data:
+            image_content = data['imageContent']
+            print(f"Received image content length: {len(image_content)}")
+            
+            # Check if content is provided
+            if not image_content.strip():
+                print("Image content is empty")
+                return jsonify({
+                    'error': 'Image content cannot be empty'
+                }), 400
+                
+            # Check if format parameters are provided
+            image_format = data.get('format', '').lower()
+            prevent_jpeg = data.get('preventJpegConversion', False)
+            
+            print(f"Image format: {image_format}, Prevent JPEG conversion: {prevent_jpeg}")
+            
+            # For PNG data URLs, we can now pass them directly to the OCR function
+            if image_content.startswith('data:image/png') or image_format == 'png':
+                print("Direct PNG processing")
+                svg_content = image_content  # Pass the PNG data URL directly
+            else:
+                # For compatibility, convert image data URL to SVG format our backend expects
+                print("Creating SVG wrapper for image")
+                svg_content = f'<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><image href="{image_content}" width="800" height="600"/></svg>'
+            
+            print(f"Prepared content for processing, length: {len(svg_content)}")
+            
+        # Check for SVG content (backwards compatibility)
+        elif 'svgContent' in data:
+            svg_content = data['svgContent']
+            print(f"Received SVG content length: {len(svg_content)}")
+            
+            # Check if content is provided
+            if not svg_content.strip():
+                print("SVG content is empty")
+                return jsonify({
+                    'error': 'SVG content cannot be empty'
+                }), 400
+        else:
+            print("Missing required field: imageContent or svgContent")
+            return jsonify({
+                'error': 'Missing required field: imageContent or svgContent'
+            }), 400
+        
+        # Initialize Gemini model
+        try:
+            print("Initializing Gemini model")
+            model = get_gemini_model()
+        except ValueError as e:
+            print(f"Error initializing Gemini model: {str(e)}")
+            return jsonify({
+                'error': str(e)
+            }), 500
+        
+        # Process the drawing with OCR and generate concept map
+        print("Processing drawing with OCR")
+        result = process_drawing_for_concept_map(svg_content, model)
+        
+        # Check if there was an error during processing
+        if 'error' in result:
+            print(f"Error processing drawing: {result['error']}")
+            return jsonify({
+                'error': result['error']
+            }), 500
+        
+        print(f"OCR processing successful with {len(result.get('concepts', []))} concepts")
+        return jsonify(result)
+        
+    except Exception as e:
+        print(f"Exception in process_drawing route: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'error': f'Error processing drawing: {str(e)}'
+        }), 500
+
+# Add a debug endpoint to visualize concept data directly
+@concept_map_bp.route('/debug/visualize-concepts', methods=['POST'])
+def debug_visualize_concepts():
+    """Debug endpoint to visualize concept data directly without OCR"""
+    try:
+        data = request.json
+        if not data or 'concepts' not in data or 'relationships' not in data:
+            return jsonify({'error': 'Missing required fields: concepts and relationships'}), 400
+        
+        # Get map style
+        style = data.get('mapType', 'mindmap')
+        
+        # Import the function to generate SVG
+        from .mind_map import generate_concept_map_svg
+        
+        # Build the concept map structure
+        concept_map = {
+            "nodes": [],
+            "edges": []
+        }
+        
+        # Add nodes from the provided concepts
+        for concept in data['concepts']:
+            concept_map["nodes"].append({
+                "id": concept.get("id"),
+                "label": concept.get("name"),
+                "description": concept.get("description", "")
+            })
+        
+        # Add edges from the provided relationships
+        for rel in data['relationships']:
+            concept_map["edges"].append({
+                "source": rel.get("source"),
+                "target": rel.get("target"),
+                "label": rel.get("label", "relates to")
+            })
+        
+        # Generate the SVG
+        layout_style = data.get('structure', {}).get('type', 'hierarchical')
+        if layout_style not in ['hierarchical', 'radial', 'network']:
+            layout_style = 'hierarchical'
+        
+        # Generate the SVG
+        svg_b64 = generate_concept_map_svg(concept_map, layout_style)
+        
+        # Return the visualization result
+        return jsonify({
+            "image": svg_b64,
+            "format": "svg",
+            "nodes": concept_map["nodes"],
+            "edges": concept_map["edges"]
+        })
+        
+    except Exception as e:
+        print(f"Error visualizing concepts: {str(e)}")
+        return jsonify({'error': f'Failed to visualize concepts: {str(e)}'}), 500

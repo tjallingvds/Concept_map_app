@@ -47,12 +47,16 @@ const formSchema = z.object({
   title: z.string().min(1, "Title is required").max(100, "Title must be less than 100 characters"),
   learningObjective: z.string().min(1, "Learning objective is required").max(200, "Learning objective must be less than 200 characters"),
   description: z.string().max(500, "Description must be less than 500 characters").optional(),
-  mapType: z.enum(["mindmap", "wordcloud", "bubblechart"]).default("mindmap"),
+  mapType: z.enum(["mindmap", "wordcloud", "bubblechart", "drawing"]).default("mindmap"),
   isPublic: z.boolean().default(false),
   contentSource: z.enum(["empty", "file", "text"]).default("empty"),
   fileUpload: z.any().optional(),
   textContent: z.string().max(1000000, "Text content must be less than 1,000,000 characters").optional(),
   tldrawContent: z.string().optional(),
+  isDigitized: z.boolean().default(false),
+  svgContent: z.string().optional(),
+  conceptData: z.any().optional(),
+  hasTLDrawContent: z.boolean().default(false),
 })
 
 export type CreateMapData = z.infer<typeof formSchema>
@@ -80,6 +84,8 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
       isPublic: false,
       contentSource: "empty",
       textContent: "",
+      isDigitized: false,
+      hasTLDrawContent: false
     },
   })
 
@@ -166,19 +172,56 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
     try {
       setIsCreating(true);
       
-      let textContent = "";
-      let svgContent = "";
+      // Log form values for debugging
+      console.log("Form submit values:", {
+        contentSource: data.contentSource,
+        mapType: data.mapType,
+        isDigitized: data.isDigitized,
+        hasTLDrawContent: !!data.tldrawContent || !!data.svgContent,
+        hasSVGContent: !!data.svgContent,
+        textLength: data.textContent?.length || 0
+      });
       
-      // Handle different content sources
-      if (data.contentSource === "file" && data.textContent) {
-        // Use the text extracted from the file processing
+      let textContent = "";
+      
+      // Validate content based on source
+      if (data.contentSource === "empty") {
+        // Check if we have any drawing content
+        if (!data.tldrawContent && !data.svgContent) {
+          throw new Error("Please draw something on the canvas before creating the map");
+        }
+        
+        // If we have drawing content that has been digitized, use that content
+        if (data.isDigitized && data.textContent) {
+          textContent = data.textContent;
+          console.log("Using digitized content text:", textContent.substring(0, 50));
+        }
+      } else if (data.contentSource === "file") {
+        if (!data.textContent) {
+          throw new Error("Please process a file before creating the map");
+        }
         textContent = data.textContent;
-      } else if (data.contentSource === "text" && data.textContent) {
+      } else if (data.contentSource === "text") {
+        if (!data.textContent) {
+          throw new Error("Please enter some text before creating the map");
+        }
         textContent = data.textContent;
       }
       
-      // If using TLDraw, include the SVG as the input text
-      const inputText = data.contentSource === "empty" && data.tldrawContent ? data.tldrawContent : textContent;
+      // For digitized drawings, set the map type to "drawing" to avoid text generation
+      if (data.isDigitized) {
+        console.log("Map is digitized, ensuring map type is set to drawing");
+        data.mapType = "drawing"; // Ensure mapType is explicitly set to drawing
+      }
+      
+      console.log("Creating map with:", {
+        title: data.title,
+        mapType: data.mapType,
+        isDigitized: data.isDigitized,
+        hasTLDrawContent: !!data.tldrawContent || !!data.svgContent,
+        hasSVGContent: !!data.svgContent,
+        textLength: textContent.length
+      });
       
       // Call API to create the map
       const newMap = await conceptMapsApi.createMap({
@@ -186,7 +229,15 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
         description: `${data.learningObjective}${data.description ? ` - ${data.description}` : ''}`,
         isPublic: data.isPublic,
         mapType: data.mapType,
-        text: inputText
+        text: textContent,
+        svgContent: data.svgContent,
+        tldrawContent: data.tldrawContent,
+        isDigitized: data.isDigitized,
+        conceptData: data.isDigitized && data.conceptData ? {
+          concepts: data.conceptData.concepts || [],
+          relationships: data.conceptData.relationships || [],
+          structure: data.conceptData.structure || { type: "hierarchical", root: data.conceptData.concepts?.[0]?.id || "c1" }
+        } : undefined
       });
       
       if (!newMap) {
@@ -252,6 +303,7 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
         }
       }
       
+      // Map creation successful
       toast.success("Concept map created successfully!");
       
       // Clear the form data after successful creation
@@ -281,7 +333,7 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
       
     } catch (error) {
       console.error("Error creating map:", error);
-      toast.error("Failed to create concept map. Please try again.");
+      toast.error(error instanceof Error ? error.message : "Failed to create concept map. Please try again.");
     } finally {
       setIsCreating(false);
     }
@@ -344,6 +396,7 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
                           <SelectItem value="mindmap">Mind Map</SelectItem>
                           <SelectItem value="wordcloud">Word Cloud</SelectItem>
                           <SelectItem value="bubblechart">Bubble Chart</SelectItem>
+                          <SelectItem value="drawing">Drawing</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormDescription>
@@ -431,7 +484,93 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
                         <div className="mt-4 border rounded-lg" style={{ height: '500px' }}>
                           <TLDrawEditor 
                             onSave={(svgContent) => {
+                              // Just store the drawing content
                               form.setValue("tldrawContent", svgContent);
+                              form.setValue("svgContent", svgContent); // Also store in svgContent
+                              form.setValue("mapType", "drawing");
+                              form.setValue("isDigitized", false); // Explicitly mark as not digitized
+                              console.log("Drawing saved as SVG URL:", svgContent.substring(0, 50));
+                              // Set a flag to indicate we have drawn content
+                              form.setValue("hasTLDrawContent", true);
+                              
+                              // Show success toast
+                              toast.success("Drawing saved successfully");
+                            }}
+                            enableOcr={true}
+                            debugMode={true}
+                            onOcrProcessed={(result) => {
+                              console.log("OCR processing result received:", result);
+                              
+                              // Store both the original drawing and the digitized version
+                              if (result.image) {
+                                form.setValue("tldrawContent", result.image);
+                                form.setValue("svgContent", result.image);
+                              }
+                              
+                              // Set flags for digitized content
+                              form.setValue("isDigitized", true);
+                              form.setValue("mapType", "drawing");
+                              form.setValue("hasTLDrawContent", true); // Mark that we have drawing content
+                              
+                              // Store the extracted concepts and relationships
+                              if (result.concepts && result.concepts.length > 0) {
+                                // Create a simple text summary from the concepts and relationships
+                                const conceptNames = result.concepts.map((c: { name: string }) => c.name).join(', ');
+                                // Include concept descriptions and relationships in the text
+                                const conceptDetails = result.concepts.map((c: { name: string, description: string, id: string }) => 
+                                  `${c.name}: ${c.description || 'No description'}`
+                                ).join('\n');
+                                
+                                const relationshipDetails = result.relationships.map((r: { source: string, target: string, label: string }) => {
+                                  // Find source and target concept names
+                                  const sourceConcept = result.concepts.find((c: { id: string }) => c.id === r.source);
+                                  const targetConcept = result.concepts.find((c: { id: string }) => c.id === r.target);
+                                  return `${sourceConcept?.name || r.source} ${r.label} ${targetConcept?.name || r.target}`;
+                                }).join('\n');
+                                
+                                const fullText = `Digitized concept map with concepts: ${conceptNames}\n\nConcepts:\n${conceptDetails}\n\nRelationships:\n${relationshipDetails}`;
+                                
+                                form.setValue("textContent", fullText);
+                                
+                                // Store the SVG content
+                                form.setValue("svgContent", result.image);
+                                
+                                // Make sure the concepts array is properly formatted with id, name, and description
+                                const formattedConcepts = result.concepts.map((c: any) => ({
+                                  id: c.id || `c${Math.floor(Math.random() * 1000)}`,
+                                  name: c.name || "Unnamed Concept",
+                                  description: c.description || ""
+                                }));
+                                
+                                // Make sure the relationships array is properly formatted
+                                const formattedRelationships = result.relationships.map((r: any) => ({
+                                  source: r.source,
+                                  target: r.target,
+                                  label: r.label || "relates to"
+                                }));
+                                
+                                // Make sure the structure is properly defined
+                                const structure = result.structure || { 
+                                  type: "hierarchical", 
+                                  root: formattedConcepts.length > 0 ? formattedConcepts[0].id : "c1" 
+                                };
+                                
+                                // Store the concepts and relationships data
+                                form.setValue("conceptData", {
+                                  concepts: formattedConcepts,
+                                  relationships: formattedRelationships,
+                                  structure: structure
+                                });
+                                
+                                console.log("Stored concept data:", {
+                                  concepts: formattedConcepts,
+                                  relationships: formattedRelationships,
+                                  structure: structure
+                                });
+                              }
+                              
+                              // Show success toast
+                              toast.success("Drawing digitized successfully!");
                             }}
                           />
                         </div>

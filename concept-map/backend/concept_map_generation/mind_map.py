@@ -233,73 +233,180 @@ Your task:
 #                    SVG Generation from Concept Map                       #
 ##############################################################################
 
-def add_node(dot, node_id, added_nodes):
+def add_node(dot, node_id, added_nodes, node_type="default"):
     """
     Adds a node to the Graphviz graph if it hasn't already been added.
-    """
-    if node_id not in added_nodes:
-        dot.node(node_id, node_id, shape="box", style="filled", fillcolor="lightblue")
-        added_nodes.add(node_id)
-
-def generate_concept_map_svg(concept_map_json: Dict[str, Any]) -> str:
-    """
-    Generates an SVG visualization of the unified concept map using Graphviz.
+    Styles node based on its type.
     
     Args:
-        concept_map_json (Dict[str, Any]): The JSON structure of the concept map.
+        dot: Graphviz graph object
+        node_id: ID of the node to add
+        added_nodes: Set of already added node IDs
+        node_type: Type of node (central, primary, secondary, default)
+    """
+    if node_id not in added_nodes:
+        # Define node styling based on type
+        if node_type == "central":
+            # Central concept - most prominent
+            dot.node(node_id, node_id, 
+                    shape="ellipse", 
+                    style="filled", 
+                    fillcolor="#FF5733", 
+                    color="#000000", 
+                    penwidth="2.0",
+                    fontsize="18", 
+                    fontname="Arial Bold",
+                    margin="0.4,0.3",
+                    height="1.2")
+        elif node_type == "primary":
+            # Primary concepts - important and direct relationships
+            dot.node(node_id, node_id, 
+                    shape="box", 
+                    style="filled,rounded", 
+                    fillcolor="#33A1DE", 
+                    fontcolor="#FFFFFF",
+                    fontsize="16", 
+                    fontname="Arial",
+                    margin="0.3,0.2")
+        elif node_type == "secondary":
+            # Secondary concepts
+            dot.node(node_id, node_id, 
+                    shape="box", 
+                    style="filled,rounded", 
+                    fillcolor="#50C878", 
+                    fontsize="14", 
+                    fontname="Arial",
+                    margin="0.2,0.1")
+        else:
+            # Default styling for any other nodes
+            dot.node(node_id, node_id, 
+                    shape="box", 
+                    style="filled,rounded", 
+                    fillcolor="#E6E6E6", 
+                    fontsize="14", 
+                    fontname="Arial",
+                    margin="0.2,0.1")
+        added_nodes.add(node_id)
+
+def generate_concept_map_svg(concept_map_json: Dict[str, Any], layout_style: str = "hierarchical") -> str:
+    """
+    Generate an SVG representation of a concept map from JSON data.
     
+    Args:
+        concept_map_json (Dict[str, Any]): The concept map data in JSON format
+        layout_style (str): The layout algorithm to use ('hierarchical', 'radial', 'force')
+        
     Returns:
-        str: Base64 encoded SVG representation of the concept map.
+        str: Base64 encoded SVG string
+        
+    Raises:
+        ValueError: If the concept map data is invalid or cannot be processed
     """
     try:
-        if "concept_map" not in concept_map_json:
-            raise ValueError("Invalid JSON: 'concept_map' key not found.")
-        
-        unified_map = concept_map_json["concept_map"]
-        
+        # Validate input data
+        if not concept_map_json:
+            raise ValueError("Empty concept map data")
+            
+        if not isinstance(concept_map_json, dict):
+            raise ValueError("Concept map data must be a dictionary")
+            
+        # Validate required fields
+        if 'nodes' not in concept_map_json or 'edges' not in concept_map_json:
+            raise ValueError("Concept map data must contain 'nodes' and 'edges' fields")
+            
+        if not isinstance(concept_map_json['nodes'], list) or not isinstance(concept_map_json['edges'], list):
+            raise ValueError("'nodes' and 'edges' must be lists")
+            
+        # Validate layout style
+        if layout_style not in ['hierarchical', 'radial', 'network']:
+            logger.warning(f"Invalid layout style '{layout_style}', defaulting to 'hierarchical'")
+            layout_style = 'hierarchical'
+            
         # Create a new directed graph
         dot = graphviz.Digraph(format="svg")
-        dot.attr(rankdir="TB", splines="polyline", nodesep="1", ranksep="2", 
-                 size="8,5", overlap="false")
+        dot.attr(rankdir="TB" if layout_style == "hierarchical" else "LR")
         
+        # Track added nodes to avoid duplicates
         added_nodes = set()
         
-        # Process each concept in the map
-        for concept, relations_dict in unified_map.items():
-            add_node(dot, concept, added_nodes)
+        # Process nodes and edges
+        try:
+            # First pass: add all nodes
+            for node in concept_map_json['nodes']:
+                if not isinstance(node, dict):
+                    logger.warning(f"Invalid node format: {node}")
+                    continue
+                    
+                node_id = node.get('id')
+                if not node_id:
+                    logger.warning("Node missing 'id' field")
+                    continue
+                    
+                add_node(dot, node_id, added_nodes)
+                
+            # Second pass: add all edges
+            for edge in concept_map_json['edges']:
+                if not isinstance(edge, dict):
+                    logger.warning(f"Invalid edge format: {edge}")
+                    continue
+                    
+                source = edge.get('source')
+                target = edge.get('target')
+                if not source or not target:
+                    logger.warning("Edge missing 'source' or 'target' field")
+                    continue
+                    
+                # Only add edge if both nodes exist
+                if source in added_nodes and target in added_nodes:
+                    dot.edge(
+                        source,
+                        target,
+                        label=edge.get('label', ''),
+                        color="#555555",
+                        penwidth="1.0",
+                        style="solid",
+                        arrowhead="normal",
+                        arrowsize="1.0",
+                        fontcolor="#333333",
+                        fontsize="11"
+                    )
+                else:
+                    logger.warning(f"Edge references non-existent nodes: {source} -> {target}")
+                    
+        except Exception as e:
+            logger.error(f"Error processing nodes and edges: {str(e)}")
+            raise ValueError(f"Failed to process concept map structure: {str(e)}")
             
-            if isinstance(relations_dict, dict):
-                for relation, children in relations_dict.items():
-                    # Use a subgraph with rank="same" for related children
-                    with dot.subgraph() as sub:
-                        sub.attr(rank="same")
-                        for child in children:
-                            add_node(dot, child, added_nodes)
-                            dot.edge(concept, child, label=relation, color="black", penwidth="2")
-                            sub.node(child)
-        
-        # Render the graph to SVG
-        svg_data = dot.pipe()
-        
-        # Convert to base64
-        return base64.b64encode(svg_data).decode('utf-8')
+        try:
+            # Render the graph to SVG
+            svg_data = dot.pipe()
+            if not svg_data:
+                raise ValueError("Empty SVG output")
+                
+            # Convert to base64
+            return base64.b64encode(svg_data).decode('utf-8')
+        except Exception as e:
+            logger.error(f"Error generating SVG: {str(e)}")
+            raise ValueError(f"Failed to generate SVG: {str(e)}")
+            
     except Exception as e:
-        logger.error(f"Error generating SVG: {str(e)}")
+        logger.error(f"Error in concept map generation: {str(e)}")
         # Create a minimal error graph
         try:
             dot = graphviz.Digraph(format="svg")
-            dot.node("Error", "Error generating concept map", shape="box", style="filled", fillcolor="red")
+            dot.attr(rankdir="TB")
+            dot.node("Error", f"Error: {str(e)}", shape="box", style="filled", fillcolor="red", fontcolor="white")
             svg_data = dot.pipe()
             return base64.b64encode(svg_data).decode('utf-8')
         except:
-            raise
+            raise ValueError(f"Failed to generate concept map: {str(e)}")
 
 
 ##############################################################################
 #                    Main Processing Pipeline                              #
 ##############################################################################
 
-def generate_concept_map(input_text: str, model: genai.GenerativeModel, api_key: str) -> str:
+def generate_concept_map(input_text: str, model: genai.GenerativeModel, api_key: str, layout_style: str = "hierarchical") -> str:
     """
     Main processing pipeline for concept map generation using unified approach.
     
@@ -307,6 +414,7 @@ def generate_concept_map(input_text: str, model: genai.GenerativeModel, api_key:
         input_text (str): The input text to generate the concept map from.
         model (genai.GenerativeModel): An instance of the Gemini model.
         api_key (str): The Gemini API key.
+        layout_style (str): The layout algorithm to use ('hierarchical', 'radial', 'force')
         
     Returns:
         str: Base64 encoded SVG representation of the concept map.
@@ -340,9 +448,9 @@ def generate_concept_map(input_text: str, model: genai.GenerativeModel, api_key:
 
         # Generate the unified concept map
         concept_map = generate_concept_map_json(all_triples, model)
-        # Convert to SVG
-        svg_b64 = generate_concept_map_svg(concept_map)
-        logger.info("Unified concept map generation successful.")
+        # Convert to SVG with the specified layout style
+        svg_b64 = generate_concept_map_svg(concept_map, layout_style)
+        logger.info(f"Unified concept map generation successful with {layout_style} layout.")
         return svg_b64
     except Exception as e:
         logger.exception("Concept map generation failed.")
