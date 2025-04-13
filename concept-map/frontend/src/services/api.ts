@@ -182,10 +182,12 @@ const conceptMapsApi = {
       // Check if this is a drawing type map
       const isDrawing = mapData.mapType === 'drawing';
       const hasDigitizedContent = mapData.isDigitized === true;
+      const hasTextInput = mapData.text && mapData.text.length > 0;
       
       console.log("API: Creating map with type:", mapData.mapType, 
         "isDrawing:", isDrawing, 
         "hasDigitizedContent:", hasDigitizedContent,
+        "hasTextInput:", hasTextInput,
         "text length:", mapData.text?.length || 0,
         "svgContent length:", mapData.svgContent?.length || 0,
         "tldrawContent length:", mapData.tldrawContent?.length || 0,
@@ -193,61 +195,22 @@ const conceptMapsApi = {
       
       // For drawings, SKIP the text generation step completely
       let generatedMap = null;
+      let imageContent = null;
       
       // Special handling for digitized content with concept data
       if (isDrawing && hasDigitizedContent && mapData.conceptData) {
-        try {
-          console.log("API: Using digitized content - directly visualizing concepts", mapData.conceptData);
-          
-          // Ensure we have valid concepts data with proper structure
-          const concepts = mapData.conceptData.concepts || [];
-          const relationships = mapData.conceptData.relationships || [];
-          const structure = mapData.conceptData.structure || { 
-            type: "hierarchical", 
-            root: concepts.length > 0 ? concepts[0].id : "c1" 
-          };
-          
-          console.log("API: Concepts:", concepts);
-          console.log("API: Relationships:", relationships);
-          console.log("API: Structure:", structure);
-          
-          // Call the visualization endpoint directly
-          generatedMap = await visualizeConcepts({
-            concepts: concepts,
-            relationships: relationships,
-            structure: structure
-          }, mapData.mapType);
-          
-          console.log("API: Got visualization result with image length:", generatedMap.image?.length || 0);
-        } catch (error) {
-          console.error("API: Failed to visualize concepts, falling back to synthetic map:", error);
-          
-          // Ensure we have valid concepts data
-          const concepts = mapData.conceptData.concepts || [];
-          const relationships = mapData.conceptData.relationships || [];
-          
-          // Fallback to synthetic map
-          generatedMap = {
-            nodes: concepts.map((concept: any) => ({
-              id: concept.id,
-              label: concept.name,
-              description: concept.description || ""
-            })),
-            edges: relationships.map((rel: any) => ({
-              source: rel.source,
-              target: rel.target,
-              label: rel.label || "relates to"
-            })),
-            format: "svg",
-            image: mapData.svgContent
-          };
-        }
+        console.log("API: Using provided concept data for digitized drawing");
+        
+        // Use the SVG content if available
+        imageContent = mapData.svgContent;
       }
-      // Regular text-based generation 
-      else if (mapData.text && mapData.text.trim() !== '' && !isDrawing) {
-        console.log("API: Generating concept map from text via API");
+      // For text input where we want to generate a mind map
+      else if (hasTextInput && !isDrawing) {
         try {
-          const generateResponse = await fetch(`${API_URL}/concept-map/generate`, {
+          console.log("API: Generating mind map from text input");
+          
+          // Generate the concept map from text
+          const genResponse = await fetch(`${API_URL}/concept-map/generate`, {
             method: "POST",
             credentials: "include",
             headers: {
@@ -255,123 +218,30 @@ const conceptMapsApi = {
             },
             body: JSON.stringify({
               text: mapData.text,
-              mapType: mapData.mapType,
-              title: mapData.title
+              mapType: mapData.mapType || "mindmap",
+              title: mapData.title,
             }),
           });
-
-          if (!generateResponse.ok) {
-            const errorText = await generateResponse.text();
-            console.error("API: Failed to generate concept map:", errorText);
-            throw new Error(`Failed to generate concept map visualization (${generateResponse.status}): ${errorText}`);
-          }
-
-          // Parse JSON safely
-          try {
-            const responseText = await generateResponse.text();
-            if (!responseText || responseText.trim() === '') {
-              throw new Error("Empty response from map generation API");
+          
+          if (genResponse.ok) {
+            generatedMap = await genResponse.json();
+            if (generatedMap && generatedMap.image) {
+              // Format SVG content as data URL if needed
+              if (generatedMap.format === 'svg' && !generatedMap.image.startsWith('data:')) {
+                imageContent = `data:image/svg+xml;base64,${generatedMap.image}`;
+              } else {
+                imageContent = generatedMap.image;
+              }
             }
-            
-            generatedMap = JSON.parse(responseText);
-            console.log("API: Successfully generated map from text");
-          } catch (error) {
-            console.error("API: Error parsing response:", error);
-            throw new Error("Invalid JSON response from server");
-          }
-        } catch (error) {
-          console.error("API: Error in concept map generation:", error);
-          throw error;
-        }
-      } else if (isDrawing) {
-        console.log("API: Skipping text generation for drawing type map");
-      }
-
-      // For drawing type, use the provided SVG content
-      let imageContent: string | null = null;
-      
-      if (isDrawing) {
-        if (mapData.svgContent && hasDigitizedContent) {
-          console.log("API: Using digitized SVG content for drawing");
-          // Check if it's a PNG data URL
-          if (mapData.svgContent.startsWith('data:image/png')) {
-            console.log("API: Image is already in PNG format");
-            imageContent = mapData.svgContent;
           } else {
-            console.log("API: Converting SVG content to PNG for compatibility");
-            try {
-              // Convert to PNG if it's an SVG
-              const img = new Image();
-              // Store the SVG content to ensure it doesn't become undefined
-              const originalSvgContent = mapData.svgContent || '';
-              img.src = originalSvgContent;
-              
-              // Create a promise to wait for image loading
-              const pngContent = await new Promise<string>((resolve, reject) => {
-                img.onload = () => {
-                  try {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = img.width || 800;
-                    canvas.height = img.height || 600;
-                    const ctx = canvas.getContext('2d', { alpha: false });
-                    
-                    if (ctx) {
-                      // Draw with white background
-                      ctx.fillStyle = 'white';
-                      ctx.fillRect(0, 0, canvas.width, canvas.height);
-                      ctx.drawImage(img, 0, 0);
-                      
-                      // Convert to PNG
-                      const pngUrl = canvas.toDataURL('image/png', 1.0);
-                      resolve(pngUrl);
-                    } else {
-                      // Fallback to original content
-                      resolve(originalSvgContent);
-                    }
-                  } catch (error) {
-                    console.error("API: Error converting to PNG:", error);
-                    resolve(originalSvgContent); // Fallback to original
-                  }
-                };
-                img.onerror = () => {
-                  console.error("API: Failed to load image for conversion");
-                  resolve(originalSvgContent); // Fallback to original
-                };
-              });
-              
-              imageContent = pngContent;
-            } catch (error) {
-              console.error("API: Error in PNG conversion:", error);
-              imageContent = mapData.svgContent; // Fallback to original
-            }
+            console.error("API: Failed to generate mind map from text");
           }
-        } else if (mapData.tldrawContent) {
-          // Similar conversion for tldrawContent
-          console.log("API: Using TLDraw content for drawing");
-          imageContent = mapData.tldrawContent;
-        } else {
-          console.warn("API: No SVG content for drawing type");
-          // Create a simple empty SVG as fallback
-          imageContent = `data:image/svg+xml;base64,${btoa('<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><rect width="100%" height="100%" fill="white"/><text x="50%" y="50%" font-family="Arial" font-size="20" text-anchor="middle">Empty Drawing</text></svg>')}`;
+        } catch (genError) {
+          console.error("API: Error generating mind map:", genError);
+          // Continue without the generated map
         }
-      } else if (mapData.svgContent) {
-        console.log("API: Using SVG content");
-        imageContent = mapData.svgContent;
-      } else if (generatedMap && generatedMap.image) {
-        console.log("API: Using generated map image");
-        imageContent = `data:${generatedMap.format === 'svg' ? 'image/svg+xml' : 'image/png'};base64,${generatedMap.image}`;
-      } else {
-        console.warn("API: No image content available");
       }
       
-      if (imageContent) {
-        console.log("API: Image content type:", typeof imageContent, 
-          "length:", imageContent.length,
-          "starts with:", imageContent.substring(0, 30));
-      } else {
-        console.warn("API: No image content to save");
-      }
-
       // Then create the map entry
       const response = await fetch(`${API_URL}/concept-maps`, {
         method: "POST",
@@ -383,21 +253,16 @@ const conceptMapsApi = {
           name: mapData.title,
           description: mapData.description || "",
           is_public: mapData.isPublic || false,
-          // Use nodes and edges from generatedMap or from concept data if available
-          nodes: generatedMap && generatedMap.nodes && generatedMap.nodes.length > 0 ? generatedMap.nodes : 
-                 (isDrawing && hasDigitizedContent && mapData.conceptData && mapData.conceptData.concepts) ? 
-                   mapData.conceptData.concepts.map((c: any) => ({
-                     id: c.id,
-                     label: c.name,
-                     description: c.description || ""
-                   })) : [],
-          edges: generatedMap && generatedMap.edges && generatedMap.edges.length > 0 ? generatedMap.edges : 
-                 (isDrawing && hasDigitizedContent && mapData.conceptData && mapData.conceptData.relationships) ? 
-                   mapData.conceptData.relationships.map((r: any) => ({
-                     source: r.source,
-                     target: r.target,
-                     label: r.label || "relates to"
-                   })) : [],
+          // Include nodes and edges from conceptData if available
+          ...(isDrawing && hasDigitizedContent && mapData.conceptData ? {
+            // Properly extract nodes and edges from conceptData
+            nodes: mapData.conceptData.nodes || [],
+            edges: mapData.conceptData.edges || []
+          } : {
+            // Otherwise fall back to generated map data or empty arrays
+            nodes: generatedMap?.nodes || [],
+            edges: generatedMap?.edges || []
+          }),
           image: imageContent,
           format: (isDrawing || mapData.svgContent) ? 'svg' : (generatedMap ? generatedMap.format : 'svg'),
           input_text: mapData.text || ""
@@ -411,6 +276,14 @@ const conceptMapsApi = {
       }
 
       const data: ConceptMapResponse = await response.json();
+      
+      // Check if the response has nodes and edges
+      if (data.nodes && data.nodes.length > 0 && data.edges && data.edges.length > 0) {
+        console.log("API: Received map with nodes and edges from backend");
+      } else {
+        console.warn("API: Received map without nodes and edges");
+      }
+      
       return mapResponseToMapItem(data);
     } catch (error) {
       console.error("API: Error creating concept map:", error);

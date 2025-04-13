@@ -413,13 +413,57 @@ export function TLDrawEditor({
           throw new Error("Invalid response structure from server");
         }
         
-        // Check for error in result
+        // Check if we have raw text but no structured data or if there was an error
+        // In this case, we'll try to process the raw text through the text-to-concept-map pipeline
+        if ((result.error || !result.concepts || result.concepts.length === 0) && result.raw_text) {
+          console.log("OCR produced text but not structured data, sending to text processing pipeline");
+          
+          // Call the text-to-concept-map endpoint with the raw text
+          const textEndpoint = 'http://localhost:5001/api/concept-map/generate';
+          
+          const textResponse = await fetch(textEndpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              text: result.raw_text,
+              mapType: 'mindmap'
+            }),
+          });
+          
+          if (!textResponse.ok) {
+            const textErrorText = await textResponse.text();
+            console.error(`Text processing endpoint failed: ${textErrorText}`);
+            throw new Error(`Text processing failed: ${textErrorText}`);
+          }
+          
+          const textResult = await textResponse.json();
+          
+          if (textResult && !textResult.error) {
+            console.log("Successfully processed OCR text through text pipeline");
+            
+            // Show success toast
+            if ((window as any).toast?.success) {
+              (window as any).toast.success("Drawing processed and digitalized via text pipeline");
+            }
+            
+            // Pass the processed result from the text pipeline to the parent component
+            onOcrProcessed(textResult);
+            return;
+          } else {
+            console.error("Text processing failed:", textResult?.error || "Unknown error");
+            throw new Error(`Text processing failed: ${textResult?.error || "Unknown error"}`);
+          }
+        }
+        
+        // If there's a general error in the result
         if (result.error) {
           throw new Error(result.error);
         }
         
-        // Success with main endpoint
-        console.log("Successfully processed OCR");
+        // Success with direct OCR endpoint
+        console.log("Successfully processed OCR with structured data");
         
         // Show success toast
         if ((window as any).toast?.success) {
@@ -460,15 +504,6 @@ export function TLDrawEditor({
         }}
       />
       <div className="absolute top-2 right-2 flex gap-2 z-10">
-        {onSave && (
-          <button 
-            className={`bg-primary text-primary-foreground px-3 py-1.5 rounded-md text-sm font-medium shadow-sm hover:bg-primary/90 ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
-            onClick={handleSave}
-            disabled={isSaving}
-          >
-            {isSaving ? 'Saving...' : 'Save'}
-          </button>
-        )}
         {enableOcr && onOcrProcessed && (
           <button 
             className={`bg-primary text-primary-foreground px-3 py-1.5 rounded-md text-sm font-medium shadow-sm hover:bg-primary/90 ${isDigitalizing ? 'opacity-50 cursor-not-allowed' : ''}`}

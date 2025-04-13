@@ -230,63 +230,208 @@ Your task:
 
 
 ##############################################################################
+#                    Text-Based Concept Map Extraction                     #
+##############################################################################
+
+def extract_concept_map_from_text(text: str) -> Dict[str, Any]:
+    """
+    Extracts concepts and relationships from text input in the format:
+    
+    Digitized concept map with concepts: a, b, c
+    
+    Concepts:
+    a: Rectangle at top
+    b: Rectangle at bottom left
+    c: Rectangle at bottom right
+    
+    Relationships:
+    a leads to b
+    a leads to c
+    
+    Args:
+        text (str): The input text with concepts and relationships
+        
+    Returns:
+        Dict[str, Any]: A dictionary containing concepts, relationships, and structure
+    """
+    result = {
+        "concepts": [],
+        "relationships": [],
+        "structure": {
+            "type": "hierarchical",
+            "root": "c1"
+        }
+    }
+    
+    if not text or len(text.strip()) < 10:
+        logger.warning("Input text too short for concept map extraction")
+        return result
+    
+    # Track the current section
+    current_section = None
+    concept_name_to_id = {}  # Map concept names to their IDs for easier reference
+    
+    try:
+        lines = text.strip().split('\n')
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+                
+            # Check if this is a section header
+            if line.lower() == "concepts:":
+                current_section = "concepts"
+                continue
+            elif line.lower() == "relationships:":
+                current_section = "relationships"
+                continue
+                
+            # Process concepts
+            if current_section == "concepts":
+                # Format expected: "name: description"
+                if ":" in line:
+                    parts = line.split(":", 1)
+                    name = parts[0].strip()
+                    description = parts[1].strip() if len(parts) > 1 else ""
+                    
+                    # Generate a unique ID for this concept
+                    concept_id = f"c{len(result['concepts'])+1}"
+                    
+                    # Add to concepts list
+                    result["concepts"].append({
+                        "id": concept_id,
+                        "name": name,
+                        "label": name,  # Ensure label field is set
+                        "description": description
+                    })
+                    
+                    # Store mapping from name to ID for relationship processing
+                    concept_name_to_id[name.lower()] = concept_id
+            
+            # Process relationships - simpler approach
+            elif current_section == "relationships":
+                # Format expected: "source_name relation_type target_name"
+                words = line.split()
+                if len(words) >= 3:
+                    # Extract source, relation, and target
+                    source_name = words[0].lower()
+                    target_name = words[-1].lower()
+                    relation = "relates to"  # Simplified relation
+                    
+                    # If the relation is specified and it's a simple one, use it
+                    if len(words) > 2:
+                        custom_relation = " ".join(words[1:-1]).lower()
+                        # Only use simple relations
+                        if len(custom_relation.split()) <= 3:  # Limit to 3 words
+                            relation = custom_relation
+                    
+                    # Find or create concept IDs
+                    if source_name in concept_name_to_id:
+                        source_id = concept_name_to_id[source_name]
+                    else:
+                        # Create new concept if needed
+                        source_id = f"c{len(result['concepts'])+1}"
+                        result["concepts"].append({
+                            "id": source_id,
+                            "name": source_name,
+                            "label": source_name,
+                            "description": ""
+                        })
+                        concept_name_to_id[source_name] = source_id
+                    
+                    if target_name in concept_name_to_id:
+                        target_id = concept_name_to_id[target_name]
+                    else:
+                        # Create new concept if needed
+                        target_id = f"c{len(result['concepts'])+1}"
+                        result["concepts"].append({
+                            "id": target_id,
+                            "name": target_name,
+                            "label": target_name,
+                            "description": ""
+                        })
+                        concept_name_to_id[target_name] = target_id
+                    
+                    # Add a simple relationship
+                    result["relationships"].append({
+                        "source": source_id,
+                        "target": target_id,
+                        "label": relation
+                    })
+        
+        # Set the root concept to the first concept if we have any
+        if result["concepts"]:
+            result["structure"]["root"] = result["concepts"][0]["id"]
+        
+        logger.info(f"Extracted {len(result['concepts'])} concepts and {len(result['relationships'])} relationships from text")
+        
+        # Convert to the format expected by generate_concept_map_svg
+        return {
+            "nodes": result["concepts"],
+            "edges": result["relationships"]
+        }
+        
+    except Exception as e:
+        logger.error(f"Error extracting concept map from text: {str(e)}")
+        return {
+            "nodes": result["concepts"],
+            "edges": result["relationships"]
+        }
+
+
+##############################################################################
 #                    SVG Generation from Concept Map                       #
 ##############################################################################
 
 def add_node(dot, node_id, added_nodes, node_type="default"):
     """
     Adds a node to the Graphviz graph if it hasn't already been added.
-    Styles node based on its type.
     
     Args:
         dot: Graphviz graph object
-        node_id: ID of the node to add
+        node_id: Unique identifier for the node or node object
         added_nodes: Set of already added node IDs
-        node_type: Type of node (central, primary, secondary, default)
+        node_type: Type of node for styling purposes
     """
-    if node_id not in added_nodes:
-        # Define node styling based on type
-        if node_type == "central":
-            # Central concept - most prominent
-            dot.node(node_id, node_id, 
-                    shape="ellipse", 
-                    style="filled", 
-                    fillcolor="#FF5733", 
-                    color="#000000", 
-                    penwidth="2.0",
-                    fontsize="18", 
-                    fontname="Arial Bold",
-                    margin="0.4,0.3",
-                    height="1.2")
-        elif node_type == "primary":
-            # Primary concepts - important and direct relationships
-            dot.node(node_id, node_id, 
-                    shape="box", 
-                    style="filled,rounded", 
-                    fillcolor="#33A1DE", 
-                    fontcolor="#FFFFFF",
-                    fontsize="16", 
-                    fontname="Arial",
-                    margin="0.3,0.2")
-        elif node_type == "secondary":
-            # Secondary concepts
-            dot.node(node_id, node_id, 
-                    shape="box", 
-                    style="filled,rounded", 
-                    fillcolor="#50C878", 
-                    fontsize="14", 
-                    fontname="Arial",
-                    margin="0.2,0.1")
+    # Get node information - we'll extract the node label from the id
+    node_properties = {}
+    actual_node_id = ""
+    
+    # For new node format, we're expecting node objects
+    if isinstance(node_id, dict):
+        node_properties = node_id
+        node_display = node_properties.get('label', 'Unknown')
+        actual_node_id = node_properties.get('id', f"node_{len(added_nodes)}")
+    else:
+        # If we just have a string ID, use it as both ID and display
+        node_display = node_id
+        actual_node_id = node_id
+    
+    # Check if this node has already been added (using the ID, not the entire node object)
+    if actual_node_id not in added_nodes:
+        # Set node styles based on type
+        if node_type == "root":
+            node_style = {
+                "shape": "box", 
+                "style": "filled,rounded", 
+                "fillcolor": "#D6EAF8", 
+                "fontsize": "14", 
+                "fontname": "Arial Bold",
+                "penwidth": "2"
+            }
         else:
-            # Default styling for any other nodes
-            dot.node(node_id, node_id, 
-                    shape="box", 
-                    style="filled,rounded", 
-                    fillcolor="#E6E6E6", 
-                    fontsize="14", 
-                    fontname="Arial",
-                    margin="0.2,0.1")
-        added_nodes.add(node_id)
+            node_style = {
+                "shape": "box", 
+                "style": "filled,rounded", 
+                "fillcolor": "#F5F5F5", 
+                "fontsize": "12", 
+                "fontname": "Arial"
+            }
+            
+        # Add the node with its display text
+        dot.node(str(actual_node_id), str(node_display), **node_style)
+        added_nodes.add(actual_node_id)
 
 def generate_concept_map_svg(concept_map_json: Dict[str, Any], layout_style: str = "hierarchical") -> str:
     """
@@ -303,19 +448,199 @@ def generate_concept_map_svg(concept_map_json: Dict[str, Any], layout_style: str
         ValueError: If the concept map data is invalid or cannot be processed
     """
     try:
+        # Debugging the incoming data
+        logger.debug(f"generate_concept_map_svg called with layout_style: {layout_style}")
+        logger.debug(f"concept_map_json type: {type(concept_map_json)}")
+        logger.debug(f"concept_map_json keys: {concept_map_json.keys() if isinstance(concept_map_json, dict) else 'Not a dict'}")
+        
         # Validate input data
         if not concept_map_json:
+            logger.error("Empty concept map data")
             raise ValueError("Empty concept map data")
             
         if not isinstance(concept_map_json, dict):
+            logger.error(f"Concept map data must be a dictionary, got {type(concept_map_json)}")
             raise ValueError("Concept map data must be a dictionary")
+            
+        # Check if we have the old format with "concept_map" key
+        if 'concept_map' in concept_map_json:
+            logger.info("Found 'concept_map' key - converting from old format to new format")
+            # Convert from old format to new format
+            nodes = []
+            edges = []
+            concept_map = concept_map_json['concept_map']
+            
+            # Process each concept in the old format
+            for concept, relations_dict in concept_map.items():
+                # Add the concept as a node
+                concept_id = f"n{len(nodes)+1}"
+                nodes.append({
+                    "id": concept_id,
+                    "label": concept,
+                    "description": ""
+                })
+                
+                # Add edges for each relationship
+                if isinstance(relations_dict, dict):
+                    for relation, children in relations_dict.items():
+                        for child in children:
+                            # Add the child as a node if not already added
+                            child_id = None
+                            for node in nodes:
+                                if node["label"] == child:
+                                    child_id = node["id"]
+                                    break
+                            
+                            if not child_id:
+                                child_id = f"n{len(nodes)+1}"
+                                nodes.append({
+                                    "id": child_id,
+                                    "label": child,
+                                    "description": ""
+                                })
+                            
+                            # Add the edge
+                            edges.append({
+                                "source": concept_id,
+                                "target": child_id,
+                                "label": relation
+                            })
+            
+            # Create new structure
+            concept_map_json = {
+                "nodes": nodes,
+                "edges": edges
+            }
+            
+        # Handle cases where nodes and edges might be nested in conceptData
+        if 'conceptData' in concept_map_json and isinstance(concept_map_json['conceptData'], dict):
+            logger.debug("Found conceptData field, extracting nodes and edges")
+            concept_data = concept_map_json['conceptData']
+            if 'nodes' in concept_data and 'edges' in concept_data:
+                concept_map_json = {
+                    'nodes': concept_data['nodes'],
+                    'edges': concept_data['edges']
+                }
+                logger.debug("Extracted nodes and edges from conceptData")
             
         # Validate required fields
         if 'nodes' not in concept_map_json or 'edges' not in concept_map_json:
-            raise ValueError("Concept map data must contain 'nodes' and 'edges' fields")
+            logger.error(f"Missing required fields. Keys present: {list(concept_map_json.keys())}")
+            
+            # If we get an object that already has node info but differently named
+            if any(k in concept_map_json for k in ['node', 'Node', 'NODES']):
+                for k in ['node', 'Node', 'NODES']:
+                    if k in concept_map_json:
+                        concept_map_json['nodes'] = concept_map_json[k]
+                        break
+                        
+            if any(k in concept_map_json for k in ['edge', 'Edge', 'EDGES']):
+                for k in ['edge', 'Edge', 'EDGES']:
+                    if k in concept_map_json:
+                        concept_map_json['edges'] = concept_map_json[k]
+                        break
+            
+            # Try to find nodes and edges at any level
+            if 'nodes' not in concept_map_json or 'edges' not in concept_map_json:
+                found_nodes = None
+                found_edges = None
+                
+                # Search for nodes and edges at root level
+                for key, value in concept_map_json.items():
+                    if isinstance(value, dict):
+                        if 'nodes' in value:
+                            found_nodes = value['nodes']
+                        if 'edges' in value:
+                            found_edges = value['edges']
+                
+                # If found, create a new structure with nodes and edges at the right level
+                if found_nodes and found_edges:
+                    logger.debug("Found nodes and edges in nested structure, reconstructing")
+                    concept_map_json = {
+                        'nodes': found_nodes,
+                        'edges': found_edges
+                    }
+                elif 'items' in concept_map_json and isinstance(concept_map_json['items'], list):
+                    # Attempt to create nodes/edges structure from a flat list of items
+                    nodes = []
+                    edges = []
+                    for item in concept_map_json['items']:
+                        if 'id' in item and ('name' in item or 'label' in item):
+                            # This looks like a node
+                            nodes.append({
+                                'id': item['id'],
+                                'label': item.get('name', item.get('label', 'Unknown')),
+                                'description': item.get('description', '')
+                            })
+                        elif 'source' in item and 'target' in item:
+                            # This looks like an edge
+                            edges.append({
+                                'source': item['source'],
+                                'target': item['target'],
+                                'label': item.get('label', 'relates to')
+                            })
+                    
+                    if nodes and edges:
+                        concept_map_json = {
+                            'nodes': nodes,
+                            'edges': edges
+                        }
+                    else:
+                        raise ValueError("Concept map data must contain 'nodes' and 'edges' fields")
+                else:
+                    # Create simple nodes/edges from the top-level keys themselves
+                    # This is a last resort fallback
+                    try:
+                        nodes = []
+                        edges = []
+                        
+                        # Add root node
+                        root_label = list(concept_map_json.keys())[0]
+                        root_id = "c1"
+                        nodes.append({
+                            "id": root_id,
+                            "label": root_label,
+                            "description": ""
+                        })
+                        
+                        # Add leaf nodes for all values
+                        for i, (key, value) in enumerate(concept_map_json.items(), 2):
+                            if i > 1:  # Skip the first item we already used as root
+                                node_id = f"c{i}"
+                                nodes.append({
+                                    "id": node_id,
+                                    "label": key,
+                                    "description": str(value)
+                                })
+                                
+                                # Add edge from root to this node
+                                edges.append({
+                                    "source": root_id,
+                                    "target": node_id,
+                                    "label": "has"
+                                })
+                        
+                        if nodes and edges:
+                            concept_map_json = {
+                                'nodes': nodes,
+                                'edges': edges
+                            }
+                        else:
+                            raise ValueError("Concept map data must contain 'nodes' and 'edges' fields")
+                    except:
+                        raise ValueError("Concept map data must contain 'nodes' and 'edges' fields")
             
         if not isinstance(concept_map_json['nodes'], list) or not isinstance(concept_map_json['edges'], list):
+            logger.error(f"nodes type: {type(concept_map_json['nodes'])}, edges type: {type(concept_map_json['edges'])}")
             raise ValueError("'nodes' and 'edges' must be lists")
+            
+        # Log the nodes and edges for debugging
+        logger.debug(f"Number of nodes: {len(concept_map_json['nodes'])}")
+        logger.debug(f"Number of edges: {len(concept_map_json['edges'])}")
+        if concept_map_json['nodes']:
+            logger.debug(f"First node: {concept_map_json['nodes'][0]}")
+        if concept_map_json['edges']:
+            logger.debug(f"First edge: {concept_map_json['edges'][0]}")
             
         # Validate layout style
         if layout_style not in ['hierarchical', 'radial', 'network']:
@@ -341,8 +666,10 @@ def generate_concept_map_svg(concept_map_json: Dict[str, Any], layout_style: str
                 if not node_id:
                     logger.warning("Node missing 'id' field")
                     continue
-                    
-                add_node(dot, node_id, added_nodes)
+                
+                # Pass the entire node object to add_node
+                node_type = "root" if len(added_nodes) == 0 else "default"
+                add_node(dot, node, added_nodes, node_type)
                 
             # Second pass: add all edges
             for edge in concept_map_json['edges']:
@@ -357,10 +684,10 @@ def generate_concept_map_svg(concept_map_json: Dict[str, Any], layout_style: str
                     continue
                     
                 # Only add edge if both nodes exist
-                if source in added_nodes and target in added_nodes:
+                if str(source) in added_nodes and str(target) in added_nodes:
                     dot.edge(
-                        source,
-                        target,
+                        str(source),
+                        str(target),
                         label=edge.get('label', ''),
                         color="#555555",
                         penwidth="1.0",
@@ -372,7 +699,7 @@ def generate_concept_map_svg(concept_map_json: Dict[str, Any], layout_style: str
                     )
                 else:
                     logger.warning(f"Edge references non-existent nodes: {source} -> {target}")
-                    
+        
         except Exception as e:
             logger.error(f"Error processing nodes and edges: {str(e)}")
             raise ValueError(f"Failed to process concept map structure: {str(e)}")

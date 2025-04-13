@@ -186,56 +186,78 @@ def extract_concepts_and_relations_from_image(image: Image.Image, model: genai.G
         Dict: A dictionary containing extracted concepts, relationships and structured data
     """
     prompt = """
-    You are a concept map analyzer. Analyze this hand-drawn concept map image and extract its structure precisely.
+    You are a concept map analyzer. Analyze this hand-drawn concept map image and extract its structure in a simple, straightforward way.
     Focus specifically on:
 
     1. CONCEPTS (Nodes):
        - Look for boxes, circles, or any enclosed shapes containing text
-       - Each concept should be clearly identified and given a unique ID
+       - Each concept should be assigned a simple ID (c1, c2, etc.)
        - Capture the exact text/label within each shape
-       - Note any visual emphasis (size, position, etc.)
 
     2. RELATIONSHIPS (Arrows/Lines):
-       - Identify all arrows or lines connecting concepts
-       - Note the direction of arrows (which concept points to which)
-       - Look for any text/labels on the arrows/lines
-       - If no explicit label exists, infer the relationship type from context
+       - Identify direct connections between concepts with arrows or lines
+       - Note the direction of arrows (which concept connects to which)
+       - Use simple relationship labels like "connects to" or "relates to" 
+       - If there's text on a connection, use that exact text as the label
 
-    3. HIERARCHY/STRUCTURE:
-       - Determine if there's a clear root/central concept
-       - Identify parent-child relationships
-       - Note any branching patterns or groupings
+    3. STRUCTURE:
+       - Keep the structure flat and straightforward
+       - Focus on direct connections between concepts
+       - Avoid creating complex hierarchies or nested relationships
 
-    Format your response as a precise JSON object:
+    Format your response as a simple JSON object:
     {
       "concepts": [
         {
           "id": "c1",
           "name": "exact text from shape",
-          "description": "any additional context or emphasis noted"
+          "description": "brief description or empty string"
         }
       ],
       "relationships": [
         {
           "source": "c1",
           "target": "c2",
-          "label": "exact text on arrow or inferred relationship",
-          "type": "explicit|inferred"
+          "label": "connects to"
         }
       ],
       "structure": {
-        "type": "hierarchical|network|radial",
+        "type": "network",
         "root": "c1"
       }
     }
 
     IMPORTANT:
-    - Be precise in capturing text exactly as written
-    - Assign IDs systematically (c1, c2, etc.)
-    - Don't miss any connections or concepts
-    - If text is unclear, note that in the description
-    - Ensure all relationship sources and targets reference valid concept IDs
+    - Keep relationships simple and direct
+    - Prefer generic labels like "connects to" or "relates to" unless there's clear text on the arrow
+    - Avoid creating complex relationship types or nested structures
+    - Use the exact text from the drawing for concept names
     - Return ONLY the JSON object, no additional text
+    """
+    
+    # Add a secondary prompt to ensure we get a raw text version too
+    secondary_prompt = """
+    Extract a simple text description of the concepts and their direct connections in this concept map.
+    
+    Format the output as follows:
+    
+    Digitized concept map with concepts: [list all concept names]
+    
+    Concepts:
+    [concept name 1]: [brief description or just repeat the name]
+    [concept name 2]: [brief description or just repeat the name]
+    ...
+    
+    Relationships:
+    [concept name 1] relates to [concept name 2]
+    [concept name 3] relates to [concept name 1]
+    ...
+    
+    Be extremely simple and direct. Use "relates to" as the default relationship 
+    unless there's clear text on an arrow showing a different relationship.
+    
+    Don't include the brackets in your response, replace them with the actual concept names.
+    List all concepts and direct connections you can see in the image.
     """
     
     try:
@@ -251,6 +273,7 @@ def extract_concepts_and_relations_from_image(image: Image.Image, model: genai.G
                 
             # Get the text from the response
             result = response.text.strip()
+            raw_response_text = result  # Store the original response
             
             # Clean and validate the response
             if result.startswith('```json'):
@@ -296,13 +319,41 @@ def extract_concepts_and_relations_from_image(image: Image.Image, model: genai.G
                     if rel['target'] not in concept_ids:
                         raise ValueError(f"Invalid target concept ID: {rel['target']}")
                 
+                # Now get a plain text representation for the text processing pipeline
+                try:
+                    text_response = model.generate_content([image, secondary_prompt])
+                    raw_text_format = text_response.text.strip()
+                    logger.info("Successfully extracted plain text representation")
+                except Exception as text_err:
+                    logger.warning(f"Failed to get plain text format: {str(text_err)}")
+                    # Create a simple text format from the structured data
+                    raw_text_format = "Concepts:\n"
+                    for concept in data['concepts']:
+                        raw_text_format += f"{concept['name']}: {concept.get('description', '')}\n"
+                    raw_text_format += "\nRelationships:\n"
+                    for rel in data['relationships']:
+                        source_name = next((c['name'] for c in data['concepts'] if c['id'] == rel['source']), rel['source'])
+                        target_name = next((c['name'] for c in data['concepts'] if c['id'] == rel['target']), rel['target'])
+                        raw_text_format += f"{source_name} {rel.get('label', 'related to')} {target_name}\n"
+                
+                # Add the raw text to the data
+                data['raw_text'] = raw_text_format
+                data['original_response'] = raw_response_text
+                
                 logger.info(f"Successfully extracted {len(data['concepts'])} concepts and {len(data['relationships'])} relationships")
                 return data
                 
             except json.JSONDecodeError as e:
                 logger.error(f"Failed to parse JSON response: {str(e)}")
                 logger.error(f"Raw response: {result}")
-                raise ValueError(f"Invalid JSON response: {str(e)}")
+                # If JSON parsing fails, return the raw text for the text processing pipeline
+                return {
+                    "error": f"Invalid JSON response: {str(e)}",
+                    "concepts": [],
+                    "relationships": [],
+                    "structure": {"type": "unknown"},
+                    "raw_text": raw_response_text
+                }
                 
         except Exception as e:
             logger.error(f"Error extracting concepts from image: {str(e)}")
@@ -314,12 +365,13 @@ def extract_concepts_and_relations_from_image(image: Image.Image, model: genai.G
             "error": f"Failed to extract concepts: {str(e)}",
             "concepts": [],
             "relationships": [],
-            "structure": {"type": "unknown"}
+            "structure": {"type": "unknown"},
+            "raw_text": f"Error extracting concepts: {str(e)}"
         }
 
 def generate_mind_map_from_ocr_results(ocr_data: Dict[str, Any], model: genai.GenerativeModel) -> str:
     """
-    Generate a mind map from OCR-extracted concept data using the existing mind map generator.
+    Generate a simplified mind map from OCR-extracted concept data.
     
     Args:
         ocr_data (Dict): The OCR extracted data
@@ -350,18 +402,22 @@ def generate_mind_map_from_ocr_results(ocr_data: Dict[str, Any], model: genai.Ge
                 "description": concept.get("description", "")
             })
         
-        # Add edges
+        # Add edges with simplified relationships
         for rel in relationships:
+            # Use simple relationship labels
+            label = rel.get("label", "relates to")
+            # If the label is complex (more than 3 words), simplify it
+            if len(label.split()) > 3:
+                label = "relates to"
+                
             concept_map["edges"].append({
                 "source": rel["source"],
                 "target": rel["target"],
-                "label": rel.get("label", "relates to")
+                "label": label
             })
         
-        # Generate the SVG
-        layout_style = ocr_data.get('structure', {}).get('type', 'hierarchical') 
-        if layout_style not in ['hierarchical', 'radial', 'network']:
-            layout_style = 'hierarchical'
+        # Use network layout for simpler visualization
+        layout_style = "network"
             
         svg_b64 = generate_concept_map_svg(concept_map, layout_style)
         return svg_b64
@@ -459,17 +515,36 @@ def process_drawing_for_concept_map(svg_content: str, model: genai.GenerativeMod
             if "error" in ocr_results:
                 return ocr_results
             
-            # Generate a mind map from the OCR results using the original model
-            mind_map_svg = generate_mind_map_from_ocr_results(ocr_results, model)
+            # Get raw text for text processing pipeline, if available
+            raw_text = ocr_results.get("raw_text", "")
             
-            # Return the results
-            return {
-                "concepts": ocr_results.get("concepts", []),
-                "relationships": ocr_results.get("relationships", []),
-                "structure": ocr_results.get("structure", {}),
-                "image": mind_map_svg,
-                "format": "svg"
-            }
+            # If we have structured data with concepts and relationships
+            if ocr_results.get("concepts") and len(ocr_results["concepts"]) > 0:
+                # Generate a mind map from the OCR results using the original model
+                mind_map_svg = generate_mind_map_from_ocr_results(ocr_results, model)
+                
+                # Return the structured results
+                return {
+                    "concepts": ocr_results.get("concepts", []),
+                    "relationships": ocr_results.get("relationships", []),
+                    "structure": ocr_results.get("structure", {}),
+                    "image": mind_map_svg,
+                    "format": "svg",
+                    "raw_text": raw_text
+                }
+            # If we have raw text but no structured data, return the raw text for text pipeline processing
+            elif raw_text:
+                logger.info("No structured data available, but raw text found for text pipeline processing")
+                return {
+                    "error": "No structured data available, using raw text for processing",
+                    "concepts": [],
+                    "relationships": [],
+                    "structure": {"type": "unknown"},
+                    "raw_text": raw_text
+                }
+            else:
+                logger.error("No structured data or raw text available from OCR")
+                return create_mock_ocr_result(svg_content)
             
         except Exception as e:
             logger.error(f"Error in OCR processing: {str(e)}")
@@ -490,21 +565,44 @@ def create_mock_ocr_result(svg_content: str) -> Dict[str, Any]:
         Dict: A mock OCR result
     """
     logger.warning("Creating mock OCR result")
-    mock_data = {
-        "concepts": [
-            {"id": "c1", "name": "Mock Concept 1", "description": "This is a mock concept"},
-            {"id": "c2", "name": "Mock Concept 2", "description": "Another mock concept"},
-            {"id": "c3", "name": "Mock Concept 3", "description": "Third mock concept"}
-        ],
-        "relationships": [
-            {"source": "c1", "target": "c2", "label": "relates to"},
-            {"source": "c2", "target": "c3", "label": "includes"}
-        ],
-        "structure": {
-            "type": "hierarchical",
-            "root": "c1"
-        },
-        "image": svg_content,
-        "format": "svg"
+    
+    # Create some simple mock concepts
+    mock_concepts = [
+        {"id": "c1", "name": "Concept 1", "description": "First concept"},
+        {"id": "c2", "name": "Concept 2", "description": "Second concept"}
+    ]
+    
+    # Create simple relationships
+    mock_relationships = [
+        {"source": "c1", "target": "c2", "label": "relates to"}
+    ]
+    
+    # Create a simple text representation for text processing pipeline
+    mock_text = """
+Digitized concept map with concepts: Concept 1, Concept 2
+
+Concepts:
+Concept 1: First concept
+Concept 2: Second concept
+
+Relationships:
+Concept 1 relates to Concept 2
+    """
+    
+    # Create a simple structure
+    mock_structure = {
+        "type": "network",
+        "root": "c1"
     }
+    
+    # Create the mock result
+    mock_data = {
+        "concepts": mock_concepts,
+        "relationships": mock_relationships,
+        "structure": mock_structure,
+        "image": svg_content,  # Just return the original SVG content
+        "format": "svg",
+        "raw_text": mock_text.strip()
+    }
+    
     return mock_data 

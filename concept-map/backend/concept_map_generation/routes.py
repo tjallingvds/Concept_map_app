@@ -267,6 +267,34 @@ def debug_visualize_concepts():
         if layout_style not in ['hierarchical', 'radial', 'network']:
             layout_style = 'hierarchical'
         
+        # Debug the concept map structure
+        print("DEBUG: Concept map structure before SVG generation:")
+        print(f"DEBUG: Type of concept_map: {type(concept_map)}")
+        print(f"DEBUG: Keys in concept_map: {concept_map.keys()}")
+        print(f"DEBUG: Number of nodes: {len(concept_map['nodes'])}")
+        print(f"DEBUG: Number of edges: {len(concept_map['edges'])}")
+        if concept_map['nodes']:
+            print(f"DEBUG: First node: {concept_map['nodes'][0]}")
+        if concept_map['edges']:
+            print(f"DEBUG: First edge: {concept_map['edges'][0]}")
+        
+        # Ensure the concept map structure is valid
+        if not concept_map['nodes'] or not concept_map['edges']:
+            print("WARNING: Empty nodes or edges list, creating placeholder")
+            # Add placeholder node and edge if needed
+            if not concept_map['nodes']:
+                concept_map['nodes'].append({
+                    "id": "placeholder",
+                    "label": "Placeholder Node",
+                    "description": "No valid nodes found"
+                })
+            if not concept_map['edges'] and len(concept_map['nodes']) >= 2:
+                concept_map['edges'].append({
+                    "source": concept_map['nodes'][0]['id'],
+                    "target": concept_map['nodes'][1]['id'],
+                    "label": "placeholder"
+                })
+        
         # Generate the SVG
         svg_b64 = generate_concept_map_svg(concept_map, layout_style)
         

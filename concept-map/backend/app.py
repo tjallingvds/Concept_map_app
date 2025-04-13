@@ -291,6 +291,27 @@ def create_concept_map():
         
     data = request.json
     
+    # Debug: Print the received data
+    print("DEBUG: Received concept map data:", data)
+    print("DEBUG: Type of data:", type(data))
+    print("DEBUG: Keys in data:", data.keys() if isinstance(data, dict) else "Not a dict")
+    
+    # Check for nodes and edges
+    if isinstance(data, dict):
+        print("DEBUG: Nodes present:", 'nodes' in data)
+        if 'nodes' in data:
+            print("DEBUG: Type of nodes:", type(data['nodes']))
+            print("DEBUG: Nodes length:", len(data['nodes']))
+            if data['nodes'] and len(data['nodes']) > 0:
+                print("DEBUG: First node:", data['nodes'][0])
+        
+        print("DEBUG: Edges present:", 'edges' in data)
+        if 'edges' in data:
+            print("DEBUG: Type of edges:", type(data['edges']))
+            print("DEBUG: Edges length:", len(data['edges']))
+            if data['edges'] and len(data['edges']) > 0:
+                print("DEBUG: First edge:", data['edges'][0])
+    
     # Basic validation
     if not data or 'name' not in data:
         return jsonify({"error": "Missing required fields"}), 400
@@ -298,19 +319,68 @@ def create_concept_map():
     # Generate a unique share ID
     share_id = secrets.token_urlsafe(8)
     
-    # Count the actual number of nodes
+    # Check if we need to process the input text to generate nodes and edges
     nodes = data.get('nodes', [])
-    node_count = len(nodes)
+    edges = data.get('edges', [])
+    
+    # If nodes and edges are not provided but we have input text, 
+    # process it to generate nodes and edges
+    if not nodes and not edges and 'input_text' in data and data['input_text']:
+        try:
+            # Import the text extraction function
+            from concept_map_generation.mind_map import extract_concept_map_from_text
+            
+            # Process the input text
+            concept_data = extract_concept_map_from_text(data['input_text'])
+            
+            # Convert the concepts and relationships to nodes and edges
+            for concept in concept_data.get("concepts", []):
+                node = {
+                    "id": concept.get("id", f"c{len(nodes)+1}"),
+                    "label": concept.get("name", "Unnamed Concept"),
+                    "description": concept.get("description", "")
+                }
+                nodes.append(node)
+            
+            for relationship in concept_data.get("relationships", []):
+                edge = {
+                    "source": relationship.get("source", ""),
+                    "target": relationship.get("target", ""),
+                    "label": relationship.get("label", "relates to")
+                }
+                edges.append(edge)
+                
+            # If we have nodes and edges generated, also create an SVG image
+            if nodes and edges:
+                try:
+                    from concept_map_generation.mind_map import generate_concept_map_svg
+                    
+                    # Create a concept map structure
+                    concept_map_json = {
+                        "nodes": nodes,
+                        "edges": edges
+                    }
+                    
+                    # Generate the SVG
+                    svg_b64 = generate_concept_map_svg(concept_map_json, "hierarchical")
+                    data['image'] = svg_b64
+                    data['format'] = "svg"
+                except Exception as img_error:
+                    print(f"Error generating SVG for concept map: {str(img_error)}")
+            
+        except Exception as e:
+            print(f"Error processing input text for concept map: {str(e)}")
+            # Continue without generating nodes and edges
     
     # Create a new concept map with a unique ID
     new_map = {
         "id": len(concept_maps) + 1,
         "name": data['name'],
         "nodes": nodes,
-        "edges": data.get('edges', []),
+        "edges": edges,
         "user_id": user_id,
         "image": data.get('image'),
-        "format": data.get('format'),
+        "format": data.get('format', 'mindmap'),
         "is_public": data.get('is_public', False),
         "is_favorite": data.get('is_favorite', False),
         "share_id": share_id,
