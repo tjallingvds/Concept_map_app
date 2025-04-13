@@ -116,7 +116,13 @@ export default function EditorPage() {
     if (!map?.id) return;
     
     try {
+      // Log before sharing
+      console.log("Attempting to share map with ID:", map.id);
+      
       const { shareUrl, shareId } = await conceptMapsApi.shareMap(map.id);
+      
+      // Log the received sharing data
+      console.log("Received share data:", { shareUrl, shareId });
       
       // Update the map in state with the share URL
       setMap(prevMap => {
@@ -132,10 +138,18 @@ export default function EditorPage() {
       // Show success message and copy to clipboard
       toast.success("Map shared successfully");
       
-      // Copy to clipboard
-      navigator.clipboard.writeText(shareUrl)
-        .then(() => toast.success("Link copied to clipboard"))
-        .catch(() => toast.error("Failed to copy link"));
+      // Show the share URL in a more visible toast
+      toast.info(`Share URL: ${shareUrl}`, {
+        duration: 5000, // Show for 5 seconds
+        action: {
+          label: 'Copy',
+          onClick: () => {
+            navigator.clipboard.writeText(shareUrl)
+              .then(() => toast.success("Link copied to clipboard"))
+              .catch(() => toast.error("Failed to copy link"));
+          }
+        }
+      });
       
     } catch (error) {
       console.error("Error sharing map:", error);

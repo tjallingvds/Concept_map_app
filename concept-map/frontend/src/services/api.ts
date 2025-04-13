@@ -51,7 +51,7 @@ const mapResponseToMapItem = (response: ConceptMapResponse): MapItem => {
   // Generate share URL if the map is public and has a share_id
   let shareUrl = undefined;
   if (response.is_public && response.share_id) {
-    shareUrl = `/shared/${response.share_id}`;
+    shareUrl = `${window.location.origin}/shared/${response.share_id}`;
   }
 
   // Get actual node count from nodes array
@@ -398,8 +398,15 @@ const conceptMapsApi = {
       }
 
       const data = await response.json();
+      
+      // Construct full URL with origin
+      const fullShareUrl = `${window.location.origin}${data.share_url}`;
+      
+      console.log('Share map response:', data);
+      console.log('Constructed share URL:', fullShareUrl);
+      
       return {
-        shareUrl: `${window.location.origin}${data.share_url}`,
+        shareUrl: fullShareUrl,
         shareId: data.share_id
       };
     } catch (error) {

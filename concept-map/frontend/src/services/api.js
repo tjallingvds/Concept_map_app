@@ -149,7 +149,7 @@ async function getMyMaps() {
       isFavorite: map.is_favorite || false,
       isPublic: map.is_public || false,
       shareId: map.share_id,
-      shareUrl: map.share_id ? `/shared/${map.share_id}` : null
+      shareUrl: map.share_id ? `${window.location.origin}/shared/${map.share_id}` : null
     }));
   } catch (error) {
     console.error('Error fetching maps:', error);
@@ -241,9 +241,17 @@ async function shareMap(mapId) {
     }
     
     const result = await response.json();
+    
+    // Add the frontend domain to the share URL to make it a complete URL
+    const frontendOrigin = window.location.origin;
+    const fullShareUrl = `${frontendOrigin}${result.share_url}`;
+    
+    console.log('Share response from backend:', result);
+    console.log('Constructed full share URL:', fullShareUrl);
+    
     return {
       shareId: result.share_id,
-      shareUrl: result.share_url
+      shareUrl: fullShareUrl
     };
   } catch (error) {
     console.error(`Error sharing map ${mapId}:`, error);
@@ -274,6 +282,54 @@ async function deleteMap(mapId) {
   }
 }
 
+// Get a shared map by share ID (for public viewing)
+async function getSharedMap(shareId) {
+  try {
+    console.log(`Fetching shared map with ID: ${shareId}`);
+    const response = await fetch(`${API_URL}/api/shared/concept-maps/${shareId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      }
+      // No credentials needed for public maps
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to fetch shared map');
+    }
+    
+    const mapData = await response.json();
+    console.log('Shared map data received:', mapData);
+    
+    // Format SVG content if it exists but isn't already formatted as a data URL
+    let formattedSvg = mapData.image || "";
+    if (formattedSvg && !formattedSvg.startsWith('data:')) {
+      const format = mapData.format || 'svg';
+      const mimeType = format === 'svg' ? 'image/svg+xml' : 'image/png';
+      formattedSvg = `data:${mimeType};base64,${formattedSvg}`;
+    }
+    
+    // Transform to match frontend expected format
+    return {
+      id: mapData.id,
+      title: mapData.name,
+      description: mapData.input_text || "",
+      createdAt: mapData.created_at,
+      lastEdited: mapData.updated_at,
+      nodes: mapData.nodes?.length || 0,
+      svgContent: formattedSvg,
+      inputText: mapData.input_text || "",
+      isPublic: true,
+      shareId: mapData.share_id,
+      shareUrl: mapData.share_id ? `${window.location.origin}/shared/${mapData.share_id}` : null
+    };
+  } catch (error) {
+    console.error(`Error fetching shared map ${shareId}:`, error);
+    throw error;
+  }
+}
+
 // Export an object with all API functions
 export default {
   processDocument,
@@ -282,5 +338,6 @@ export default {
   getMap,
   toggleFavorite,
   shareMap,
-  deleteMap
+  deleteMap,
+  getSharedMap
 };

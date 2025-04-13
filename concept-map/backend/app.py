@@ -549,12 +549,10 @@ def share_concept_map(map_id):
             concept_maps[i]["is_public"] = True
             concept_maps[i]["updated_at"] = datetime.utcnow().isoformat()
             
-            # Generate share URL
-            share_url = f"/shared/{map['share_id']}"
-            
+            # Return just the share_id, frontend will build complete URL
             return jsonify({
                 "message": "Concept map shared successfully",
-                "share_url": share_url,
+                "share_url": "/shared/" + map['share_id'],
                 "share_id": map['share_id']
             }), 200
     
