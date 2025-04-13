@@ -44,7 +44,8 @@ export type MapItem = {
   isFavorite?: boolean
   createdAt: string
   lastEdited: string
-  nodes: number
+  nodes: any[] | number
+  edges?: any[]
   author?: string
   tags?: string[]
   thumbnail?: string

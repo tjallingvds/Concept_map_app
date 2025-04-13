@@ -46,6 +46,11 @@ export default function EditorPage() {
 
   // Fetch the map data when the component mounts
   React.useEffect(() => {
+    // Debug the API object
+    console.log('conceptMapsApi object:', conceptMapsApi);
+    console.log('API methods available:', Object.keys(conceptMapsApi));
+    console.log('updateMap exists:', typeof conceptMapsApi.updateMap === 'function');
+    
     const fetchMap = async () => {
       if (!id) {
         toast.error("No map ID provided");
@@ -157,19 +162,78 @@ export default function EditorPage() {
   const handleSave = async (svgContent: string) => {
     if (!map?.id) return;
     
+    console.log('Editor page received SVG content for saving, type:', typeof svgContent);
+    console.log('SVG content preview:', svgContent.substring(0, 50) + '...');
+    console.log('SVG content length:', svgContent.length);
+    
     try {
-      const updatedMap = await conceptMapsApi.updateMap(map.id, {
-        name: map.title,
-        image: svgContent,
-        format: 'svg',
-        nodes: map.nodes || [],
-        edges: map.edges || []
-      });
+      // Ensure SVG content is in the right format (data URL)
+      let finalSvgContent = svgContent;
+      
+      // If it doesn't start with data:image/svg, try to fix it
+      if (!svgContent.startsWith('data:image/svg')) {
+        if (svgContent.startsWith('<svg') || svgContent.includes('<?xml')) {
+          // Convert raw SVG to data URL
+          finalSvgContent = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgContent)))}`;
+          console.log('Converted raw SVG to data URL');
+        } else {
+          console.error('SVG content is not in a recognized format');
+        }
+      }
+      
+      let updatedMap;
+      
+      // Check if the API method exists
+      if (typeof conceptMapsApi.updateMap === 'function') {
+        console.log('Using API updateMap method');
+        updatedMap = await conceptMapsApi.updateMap(map.id, {
+          name: map.title,
+          image: finalSvgContent,
+          format: 'svg',
+          // Use proper casting for nodes and edges
+          nodes: Array.isArray(map.nodes) ? map.nodes : [],
+          edges: Array.isArray(map.edges) ? map.edges : []
+        });
+      } else {
+        // Fallback implementation using fetch directly - matches the API implementation
+        console.log('API updateMap not found, using fallback implementation');
+        const API_URL = "http://localhost:5001/api";
+        
+        const response = await fetch(`${API_URL}/concept-maps/${map.id}`, {
+          method: "PUT",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: map.title,
+            image: finalSvgContent,
+            format: 'svg',
+            nodes: Array.isArray(map.nodes) ? map.nodes : [],
+            edges: Array.isArray(map.edges) ? map.edges : []
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to update concept map with id ${map.id}`);
+        }
+
+        // Parse the response
+        const responseData = await response.json();
+        
+        // Update the local map with the new SVG content
+        updatedMap = {
+          ...map,
+          svgContent: finalSvgContent
+        };
+      }
       
       if (updatedMap) {
         setMap(updatedMap);
         setIsEditing(false);
         toast.success("Map saved successfully");
+      } else {
+        throw new Error("Failed to update map");
       }
     } catch (error) {
       console.error("Error saving map:", error);
@@ -263,13 +327,56 @@ export default function EditorPage() {
                         const conceptNodes = Array.isArray(result.concepts) ? result.concepts : [];
                         const relationshipEdges = Array.isArray(result.relationships) ? result.relationships : [];
                         
-                        const updatedMap = await conceptMapsApi.updateMap(mapId, {
-                          name: map?.title || '',
-                          image: result.image,
-                          format: 'svg',
-                          nodes: conceptNodes,
-                          edges: relationshipEdges
-                        });
+                        let updatedMap;
+                        
+                        // Check if the API method exists
+                        if (typeof conceptMapsApi.updateMap === 'function') {
+                          console.log('Using API updateMap method for digitized map');
+                          updatedMap = await conceptMapsApi.updateMap(mapId, {
+                            name: map?.title || '',
+                            image: result.image,
+                            format: 'svg',
+                            nodes: conceptNodes,
+                            edges: relationshipEdges
+                          });
+                        } else {
+                          // Fallback implementation using fetch directly
+                          console.log('API updateMap not found, using fallback for digitized map');
+                          const API_URL = "http://localhost:5001/api";
+                          
+                          const response = await fetch(`${API_URL}/concept-maps/${mapId}`, {
+                            method: "PUT",
+                            credentials: "include",
+                            headers: {
+                              "Content-Type": "application/json",
+                            },
+                            body: JSON.stringify({
+                              name: map?.title || '',
+                              image: result.image,
+                              format: 'svg',
+                              nodes: conceptNodes,
+                              edges: relationshipEdges
+                            }),
+                          });
+
+                          if (!response.ok) {
+                            throw new Error(`Failed to update concept map with id ${mapId}`);
+                          }
+
+                          // Parse the response
+                          const responseData = await response.json();
+                          
+                          // Create a minimal updated map
+                          updatedMap = {
+                            id: mapId,
+                            title: map?.title || '',
+                            description: '',
+                            createdAt: new Date().toISOString(),
+                            lastEdited: new Date().toISOString(),
+                            nodes: conceptNodes.length,
+                            svgContent: result.image
+                          };
+                        }
                         
                         if (updatedMap) {
                           setMap(updatedMap);
