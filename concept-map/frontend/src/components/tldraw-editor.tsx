@@ -25,10 +25,7 @@ export function TLDrawEditor({
   backgroundImage = null,
   initialContent = null
 }: TLDrawEditorProps) {
-  console.log('TLDrawEditor: Component initializing');
-  
   const store = React.useMemo(() => {
-    console.log('TLDrawEditor: Creating store');
     return createTLStore();
   }, []);
 
@@ -48,11 +45,9 @@ export function TLDrawEditor({
     }
 
     const editor = editorRef.current;
-    console.log('getEditorSvg: Accessing editor instance', editor);
     
     // Get all shapes on the canvas
     const shapes = editor.getCurrentPageShapes();
-    console.log('getEditorSvg: Retrieved shapes', shapes);
     
     if (!shapes || shapes.length === 0) {
       throw new Error("Please draw something before saving");
@@ -64,7 +59,6 @@ export function TLDrawEditor({
     
     try {
       // Try to get SVG using the editor API - handle if it returns a Promise
-      console.log('getEditorSvg: Getting SVG from editor');
       const svgResult = editor.getSvg(shapes, {
         scale: 1,
         background: true,
@@ -104,14 +98,12 @@ export function TLDrawEditor({
       
       // Create a data URL for the SVG - directly encode as data URL instead of blob URL
       const svgDataUrl = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgString)))}`;
-      console.log('getEditorSvg: Successfully created SVG data URL');
       return svgDataUrl;
     } catch (e) {
       console.error("Error generating SVG:", e);
       
       // Try alternate method as fallback
       try {
-        console.log('getEditorSvg: Trying fallback SVG generation method');
         // Create a basic SVG manually if necessary
         const canvas = editor.getContainer();
         if (!canvas) throw new Error("Cannot access editor container");
@@ -136,7 +128,6 @@ export function TLDrawEditor({
         const svgString = new XMLSerializer().serializeToString(svgElem);
         // Return data URL instead of blob URL
         const svgDataUrl = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgString)))}`;
-        console.log("Using fallback SVG generation method");
         return svgDataUrl;
       } catch (fallbackError) {
         console.error("Fallback SVG generation failed:", fallbackError);
@@ -151,7 +142,6 @@ export function TLDrawEditor({
       if (!backgroundImage || !editorRef.current || backgroundLoaded) return;
       
       try {
-        console.log('setupBackground: Setting up background image', { backgroundImage });
         const editor = editorRef.current;
         
         // Wait for editor to initialize
@@ -180,7 +170,6 @@ export function TLDrawEditor({
           }]);
           
           setBackgroundLoaded(true);
-          console.log("Background image added to editor");
         }
       } catch (error) {
         console.error("Error setting up background image:", error);
@@ -199,10 +188,8 @@ export function TLDrawEditor({
       if (backgroundImage) return;
       
       try {
-        console.log('loadInitialContent: Initial content provided but import not implemented', { initialContent });
         // This would require implementing import functionality
         // The exact approach depends on the TLDraw version and available APIs
-        console.log("Initial content provided but import not implemented");
         
         // For a production app, you'd implement proper content importing here
         // This might involve parsing SVG or JSON data and creating shapes
@@ -220,7 +207,6 @@ export function TLDrawEditor({
     
     setIsSaving(true);
     try {
-      console.log('handleSave: Saving drawing');
       const shapes = editorRef.current?.getCurrentPageShapes();
       if (!shapes || shapes.length === 0) {
         throw new Error("Please draw something before saving");
@@ -586,10 +572,6 @@ export function TLDrawEditor({
         autoFocus
         onMount={(editor) => {
           editorRef.current = editor;
-          // If you need to customize the editor further
-          if (debugMode) {
-            console.log("TLDraw Editor mounted in debug mode:", editor);
-          }
         }}
       />
       <div className="absolute top-2 right-2 flex gap-2 z-10">

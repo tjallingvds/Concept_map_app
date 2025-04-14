@@ -291,27 +291,6 @@ def create_concept_map():
         
     data = request.json
     
-    # Debug: Print the received data
-    print("DEBUG: Received concept map data:", data)
-    print("DEBUG: Type of data:", type(data))
-    print("DEBUG: Keys in data:", data.keys() if isinstance(data, dict) else "Not a dict")
-    
-    # Check for nodes and edges
-    if isinstance(data, dict):
-        print("DEBUG: Nodes present:", 'nodes' in data)
-        if 'nodes' in data:
-            print("DEBUG: Type of nodes:", type(data['nodes']))
-            print("DEBUG: Nodes length:", len(data['nodes']))
-            if data['nodes'] and len(data['nodes']) > 0:
-                print("DEBUG: First node:", data['nodes'][0])
-        
-        print("DEBUG: Edges present:", 'edges' in data)
-        if 'edges' in data:
-            print("DEBUG: Type of edges:", type(data['edges']))
-            print("DEBUG: Edges length:", len(data['edges']))
-            if data['edges'] and len(data['edges']) > 0:
-                print("DEBUG: First edge:", data['edges'][0])
-    
     # Basic validation
     if not data or 'name' not in data:
         return jsonify({"error": "Missing required fields"}), 400
@@ -386,7 +365,9 @@ def create_concept_map():
         "share_id": share_id,
         "created_at": datetime.utcnow().isoformat(),
         "updated_at": datetime.utcnow().isoformat(),
-        "input_text": data.get('input_text', '')  # Store the original input text
+        "input_text": data.get('input_text', ''),  # Store the original input text
+        "description": data.get('description', ''),  # Store description
+        "learning_objective": data.get('learning_objective', '')  # Store learning objective
     }
     
     concept_maps.append(new_map)
@@ -444,7 +425,9 @@ def update_concept_map(map_id):
                 "format": data.get('format', map.get('format')),
                 "created_at": map.get('created_at'),
                 "updated_at": datetime.utcnow().isoformat(),
-                "input_text": data.get('input_text', map.get('input_text', '')) # Preserve input text
+                "input_text": data.get('input_text', map.get('input_text', '')), # Preserve input text
+                "description": data.get('description', map.get('description', '')), # Preserve description
+                "learning_objective": data.get('learning_objective', map.get('learning_objective', '')) # Preserve learning objective
             }
             return jsonify(concept_maps[i]), 200
     

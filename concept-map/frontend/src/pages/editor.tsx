@@ -46,11 +46,6 @@ export default function EditorPage() {
 
   // Fetch the map data when the component mounts
   React.useEffect(() => {
-    // Debug the API object
-    console.log('conceptMapsApi object:', conceptMapsApi);
-    console.log('API methods available:', Object.keys(conceptMapsApi));
-    console.log('updateMap exists:', typeof conceptMapsApi.updateMap === 'function');
-    
     const fetchMap = async () => {
       if (!id) {
         toast.error("No map ID provided");
@@ -116,13 +111,7 @@ export default function EditorPage() {
     if (!map?.id) return;
     
     try {
-      // Log before sharing
-      console.log("Attempting to share map with ID:", map.id);
-      
       const { shareUrl, shareId } = await conceptMapsApi.shareMap(map.id);
-      
-      // Log the received sharing data
-      console.log("Received share data:", { shareUrl, shareId });
       
       // Update the map in state with the share URL
       setMap(prevMap => {
@@ -176,10 +165,6 @@ export default function EditorPage() {
   const handleSave = async (svgContent: string) => {
     if (!map?.id) return;
     
-    console.log('Editor page received SVG content for saving, type:', typeof svgContent);
-    console.log('SVG content preview:', svgContent.substring(0, 50) + '...');
-    console.log('SVG content length:', svgContent.length);
-    
     try {
       // Ensure SVG content is in the right format (data URL)
       let finalSvgContent = svgContent;
@@ -189,7 +174,6 @@ export default function EditorPage() {
         if (svgContent.startsWith('<svg') || svgContent.includes('<?xml')) {
           // Convert raw SVG to data URL
           finalSvgContent = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgContent)))}`;
-          console.log('Converted raw SVG to data URL');
         } else {
           console.error('SVG content is not in a recognized format');
         }
@@ -199,7 +183,6 @@ export default function EditorPage() {
       
       // Check if the API method exists
       if (typeof conceptMapsApi.updateMap === 'function') {
-        console.log('Using API updateMap method');
         updatedMap = await conceptMapsApi.updateMap(map.id, {
           name: map.title,
           image: finalSvgContent,
@@ -210,7 +193,6 @@ export default function EditorPage() {
         });
       } else {
         // Fallback implementation using fetch directly - matches the API implementation
-        console.log('API updateMap not found, using fallback implementation');
         const API_URL = "http://localhost:5001/api";
         
         const response = await fetch(`${API_URL}/concept-maps/${map.id}`, {
@@ -283,9 +265,6 @@ export default function EditorPage() {
           </Button>
           <Button variant="outline" size="icon" onClick={handleShare}>
             <Share2 className="h-5 w-5" />
-          </Button>
-          <Button variant="outline" size="icon" onClick={handleDownload}>
-            <Download className="h-5 w-5" />
           </Button>
           {isEditing && currentMapType === "drawing" && (
             <Button 
@@ -424,13 +403,9 @@ export default function EditorPage() {
 
       {/* Actions */}
       <div className="mt-4 flex justify-end">
-        {isEditing ? (
+        {isEditing && (
           <Button variant="outline" onClick={() => setIsEditing(false)}>
             Cancel
-          </Button>
-        ) : (
-          <Button onClick={() => setIsEditing(true)}>
-            Edit
           </Button>
         )}
       </div>

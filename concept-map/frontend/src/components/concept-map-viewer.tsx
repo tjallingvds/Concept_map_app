@@ -120,33 +120,24 @@ export function ConceptMapViewer({ svgContent, onSave }: ConceptMapViewerProps) 
   };
 
   const handleSave = (newSvgContent: string) => {
-    console.log('ConceptMapViewer: Saving new SVG content, type:', typeof newSvgContent);
-    console.log('ConceptMapViewer: Content preview:', newSvgContent.substring(0, 50) + '...');
-    console.log('ConceptMapViewer: Content length:', newSvgContent.length);
-    
     try {
       // If it's a data URL, pass it directly
       if (newSvgContent.startsWith('data:')) {
-        console.log('ConceptMapViewer: Passing data URL directly to parent');
         onSave?.(newSvgContent);
       }
       // If it's raw SVG content, convert it to a data URL
       else if (newSvgContent.startsWith('<svg') || newSvgContent.includes('<?xml')) {
         try {
-          console.log('ConceptMapViewer: Converting raw SVG to data URL');
           const dataUrl = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(newSvgContent)))}`;
-          console.log('ConceptMapViewer: Successfully converted SVG to data URL');
           onSave?.(dataUrl);
         } catch (error) {
           console.error('ConceptMapViewer: Error converting SVG to data URL:', error);
           // Fallback to raw content
-          console.log('ConceptMapViewer: Falling back to raw SVG content');
           onSave?.(newSvgContent);
         }
       }
       // Any other format, just pass it through
       else {
-        console.log('ConceptMapViewer: Passing content through as-is');
         onSave?.(newSvgContent);
       }
       

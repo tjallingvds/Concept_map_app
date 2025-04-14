@@ -21,6 +21,7 @@ interface ConceptMapResponse {
   input_text?: string;
   svgContent?: string;
   description?: string;
+  learning_objective?: string;
 }
 
 // Function to convert backend concept map format to frontend MapItem format
@@ -32,27 +33,17 @@ const mapResponseToMapItem = (response: ConceptMapResponse): MapItem => {
       // Check if the image already has a data URL prefix
       if (response.image.startsWith('data:')) {
         svgContent = response.image;
-        console.log('Using existing data URL from backend');
       } else {
         // Add the appropriate data URL prefix based on format
         const mimeType = response.format === 'svg' ? 'image/svg+xml' : 'image/png';
         svgContent = `data:${mimeType};base64,${response.image}`;
-        console.log(`Created data URL with format: ${mimeType}, data length: ${response.image.length}`);
       }
     } else if (response.svgContent) {
       // Use svgContent if available
       svgContent = response.svgContent;
-    } else {
-      console.log('No image data found in response');
     }
   } catch (error) {
     console.error('Error processing image data:', error);
-  }
-  
-  // Debug the svgContent
-  if (svgContent) {
-    console.log('SVG Content type:', typeof svgContent);
-    console.log('SVG Content prefix:', svgContent.substring(0, 30));
   }
 
   // Generate share URL if the map is public and has a share_id
@@ -63,11 +54,61 @@ const mapResponseToMapItem = (response: ConceptMapResponse): MapItem => {
 
   // Get actual node count from nodes array
   const nodeCount = response.nodes ? response.nodes.length : 0;
+  
+  // Extract learning objective from response
+  let description = response.description || "";
+  
+  // Sanitize description if it contains HTML or SVG
+  if (description && (description.includes('<') || description.includes('svg]') || description.includes('[&amp;_svg]'))) {
+    description = description
+      .replace(/<[^>]*>/g, '')  // Remove HTML tags
+      .replace(/svg\]:[^>]*>/g, '') // Remove svg attribute content
+      .replace(/\[&amp;_svg\][^<]*/g, '') // Remove more svg content
+      .trim();
+  }
+  
+  // Prioritize the dedicated learning_objective field
+  let learningObjective = response.learning_objective || undefined;
+  
+  // Sanitize learning objective if it exists
+  if (learningObjective) {
+    // Comprehensive sanitization for HTML tags and svg-related content
+    learningObjective = learningObjective
+      .replace(/<[^>]*>/g, '')  // Remove HTML tags
+      .replace(/svg\]:[^>]*>/g, '') // Remove svg attribute content
+      .replace(/\[&amp;_svg\][^<]*/g, '') // Remove more svg content
+      .trim();
+  }
+  
+  // If learning objective is not available, try to extract it from the description or input text
+  if (!learningObjective) {
+    // First try from description
+    if (description) {
+      // Check if description has learning objective format (with delimiter)
+      const parts = description.split(' - ');
+      if (parts.length > 1) {
+        learningObjective = parts[0].trim();
+        description = parts.slice(1).join(' - ').trim();
+      }
+    }
+    
+    // If still no learning objective, try from input text as last resort
+    if (!learningObjective && response.input_text) {
+      const inputLines = response.input_text.split('\n').filter(line => line.trim().length > 0);
+      if (inputLines.length > 0) {
+        const firstLine = inputLines[0].trim();
+        if (firstLine.length < 100) { // Only use it if reasonably short
+          learningObjective = firstLine;
+        }
+      }
+    }
+  }
 
   return {
     id: response.id,
     title: response.name,
-    description: response.description || response.input_text || "Concept map",
+    description: description,
+    learningObjective: learningObjective,
     createdAt: response.created_at || new Date().toISOString(),
     lastEdited: response.updated_at || new Date().toISOString(),
     nodes: nodeCount,
@@ -83,8 +124,6 @@ const mapResponseToMapItem = (response: ConceptMapResponse): MapItem => {
 // Add a function to directly visualize concept data
 const visualizeConcepts = async (conceptData: any, mapType: string = 'mindmap'): Promise<any> => {
   try {
-    console.log("API: Visualizing concepts directly");
-    
     // Ensure we have valid data structure
     const concepts = conceptData.concepts || [];
     const relationships = conceptData.relationships || [];
@@ -98,15 +137,6 @@ const visualizeConcepts = async (conceptData: any, mapType: string = 'mindmap'):
       console.warn("API: Empty or invalid concepts array:", concepts);
       throw new Error("No valid concepts to visualize");
     }
-    
-    // Log request data for debugging
-    console.log("API: Visualizing concepts with:", {
-      conceptsCount: concepts.length,
-      relationshipsCount: relationships.length,
-      structureType: structure.type,
-      structureRoot: structure.root,
-      mapType
-    });
     
     const response = await fetch(`${API_URL}/api/concept-map/debug/visualize-concepts`, {
       method: "POST",
@@ -130,7 +160,6 @@ const visualizeConcepts = async (conceptData: any, mapType: string = 'mindmap'):
 
     // Read response text first for debugging
     const responseText = await response.text();
-    console.log("API: Visualization response received, length:", responseText.length);
     
     // Parse the response if it's not empty
     if (!responseText || responseText.trim() === '') {
@@ -138,7 +167,6 @@ const visualizeConcepts = async (conceptData: any, mapType: string = 'mindmap'):
     }
     
     const result = JSON.parse(responseText);
-    console.log("API: Successfully visualized concepts, result has nodes:", result.nodes?.length || 0);
     
     return result;
   } catch (error) {
@@ -200,7 +228,8 @@ const conceptMapsApi = {
   // Create a new concept map
   createMap: async (mapData: { 
     title: string, 
-    description?: string, 
+    description?: string,
+    learningObjective?: string, 
     isPublic?: boolean, 
     useTemplate?: boolean, 
     mapType?: string, 
@@ -216,31 +245,18 @@ const conceptMapsApi = {
       const hasDigitizedContent = mapData.isDigitized === true;
       const hasTextInput = mapData.text && mapData.text.length > 0;
       
-      console.log("API: Creating map with type:", mapData.mapType, 
-        "isDrawing:", isDrawing, 
-        "hasDigitizedContent:", hasDigitizedContent,
-        "hasTextInput:", hasTextInput,
-        "text length:", mapData.text?.length || 0,
-        "svgContent length:", mapData.svgContent?.length || 0,
-        "tldrawContent length:", mapData.tldrawContent?.length || 0,
-        "has conceptData:", !!mapData.conceptData);
-      
       // For drawings, SKIP the text generation step completely
       let generatedMap = null;
       let imageContent = null;
       
       // Special handling for digitized content with concept data
       if (isDrawing && hasDigitizedContent && mapData.conceptData) {
-        console.log("API: Using provided concept data for digitized drawing");
-        
         // Use the SVG content if available
         imageContent = mapData.svgContent;
       }
       // For text input where we want to generate a mind map
       else if (hasTextInput && !isDrawing) {
         try {
-          console.log("API: Generating mind map from text input");
-          
           // Generate the concept map from text
           const genResponse = await fetch(`${API_URL}/api/concept-map/generate`, {
             method: "POST",
@@ -275,30 +291,33 @@ const conceptMapsApi = {
       }
       
       // Then create the map entry
+      const requestBody = {
+        name: mapData.title,
+        description: mapData.description || "",
+        learning_objective: mapData.learningObjective || "",
+        input_text: mapData.text || "",
+        is_public: mapData.isPublic || false,
+        // Include nodes and edges from conceptData if available
+        ...(isDrawing && hasDigitizedContent && mapData.conceptData ? {
+          // Properly extract nodes and edges from conceptData
+          nodes: mapData.conceptData.nodes || [],
+          edges: mapData.conceptData.edges || []
+        } : {
+          // Otherwise fall back to generated map data or empty arrays
+          nodes: generatedMap?.nodes || [],
+          edges: generatedMap?.edges || []
+        }),
+        image: imageContent,
+        format: (isDrawing || mapData.svgContent) ? 'svg' : (generatedMap ? generatedMap.format : 'svg')
+      };
+      
       const response = await fetch(`${API_URL}/api/concept-maps`, {
         method: "POST",
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          name: mapData.title,
-          description: mapData.description || "",
-          is_public: mapData.isPublic || false,
-          // Include nodes and edges from conceptData if available
-          ...(isDrawing && hasDigitizedContent && mapData.conceptData ? {
-            // Properly extract nodes and edges from conceptData
-            nodes: mapData.conceptData.nodes || [],
-            edges: mapData.conceptData.edges || []
-          } : {
-            // Otherwise fall back to generated map data or empty arrays
-            nodes: generatedMap?.nodes || [],
-            edges: generatedMap?.edges || []
-          }),
-          image: imageContent,
-          format: (isDrawing || mapData.svgContent) ? 'svg' : (generatedMap ? generatedMap.format : 'svg'),
-          input_text: mapData.text || ""
-        }),
+        body: JSON.stringify(requestBody)
       });
 
       if (!response.ok) {
@@ -308,13 +327,6 @@ const conceptMapsApi = {
       }
 
       const data: ConceptMapResponse = await response.json();
-      
-      // Check if the response has nodes and edges
-      if (data.nodes && data.nodes.length > 0 && data.edges && data.edges.length > 0) {
-        console.log("API: Received map with nodes and edges from backend");
-      } else {
-        console.warn("API: Received map without nodes and edges");
-      }
       
       return mapResponseToMapItem(data);
     } catch (error) {
@@ -467,9 +479,6 @@ const conceptMapsApi = {
         (data.share_url.startsWith('http') ? data.share_url : `${window.location.origin}${data.share_url}`) :
         `${window.location.origin}/shared/${data.share_id}`;
       
-      console.log('Share map response:', data);
-      console.log('Constructed share URL:', fullShareUrl);
-      
       return {
         shareUrl: fullShareUrl,
         shareId: data.share_id
@@ -483,7 +492,6 @@ const conceptMapsApi = {
   // Get a shared concept map by share ID
   getSharedMap: async (shareId: string): Promise<MapItem | null> => {
     try {
-      console.log(`Fetching shared map with ID: ${shareId}`);
       const response = await fetch(`${API_URL}/api/shared/concept-maps/${shareId}`, {
         method: "GET",
         headers: {
@@ -497,7 +505,6 @@ const conceptMapsApi = {
       }
 
       const mapData: ConceptMapResponse = await response.json();
-      console.log('Shared map data received:', mapData);
       
       // Format SVG content if it exists but isn't already formatted as a data URL
       if (mapData.image && !mapData.image.startsWith('data:')) {

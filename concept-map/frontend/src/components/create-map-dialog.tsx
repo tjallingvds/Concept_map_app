@@ -47,7 +47,7 @@ const formSchema = z.object({
   title: z.string().min(1, "Title is required").max(100, "Title must be less than 100 characters"),
   learningObjective: z.string().min(1, "Learning objective is required").max(200, "Learning objective must be less than 200 characters"),
   description: z.string().max(500, "Description must be less than 500 characters").optional(),
-  mapType: z.enum(["mindmap", "wordcloud", "bubblechart", "drawing"]).default("mindmap"),
+  mapType: z.enum(["mindmap", "wordcloud", "bubblechart"]).default("mindmap"),
   isPublic: z.boolean().default(false),
   contentSource: z.enum(["empty", "file", "text", "drawing"]).default("empty"),
   fileUpload: z.any().optional(),
@@ -205,7 +205,8 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
         // Create map with the structured concept data
         const newMap = await conceptMapsApi.createMap({
           title: data.title || "Concept Map",
-          description: `${data.learningObjective}${data.description ? ` - ${data.description}` : ''}`,
+          description: data.description || "",
+          learningObjective: data.learningObjective,
           isPublic: data.isPublic,
           mapType: "mindmap",
           text: data.textContent || "",
@@ -278,10 +279,10 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
         textContent = data.textContent;
       }
       
-      // For digitized drawings, set the map type to "drawing" to avoid text generation
+      // For digitized drawings, set the map type to "mindmap" to avoid text generation
       if (data.isDigitized) {
-        console.log("Map is digitized, ensuring map type is set to drawing");
-        data.mapType = "drawing"; // Ensure mapType is explicitly set to drawing
+        console.log("Map is digitized, ensuring map type is set to mindmap");
+        data.mapType = "mindmap"; // Ensure mapType is explicitly set to mindmap
       }
       
       console.log("Creating map with:", {
@@ -296,7 +297,8 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
       // Call API to create the map
       const newMap = await conceptMapsApi.createMap({
         title: data.title,
-        description: `${data.learningObjective}${data.description ? ` - ${data.description}` : ''}`,
+        description: data.description || "",
+        learningObjective: data.learningObjective,
         isPublic: data.isPublic,
         mapType: data.mapType,
         text: textContent,
@@ -466,7 +468,6 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
                           <SelectItem value="mindmap">Mind Map</SelectItem>
                           <SelectItem value="wordcloud">Word Cloud</SelectItem>
                           <SelectItem value="bubblechart">Bubble Chart</SelectItem>
-                          <SelectItem value="drawing">Drawing</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormDescription>
@@ -609,7 +610,7 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
                               
                               // Set flags for digitized content - using full options to ensure values are registered
                               form.setValue("isDigitized", true, { shouldDirty: true, shouldTouch: true });
-                              form.setValue("mapType", "drawing", { shouldDirty: true, shouldTouch: true });
+                              form.setValue("mapType", "mindmap", { shouldDirty: true, shouldTouch: true });
                               form.setValue("hasTLDrawContent", true, { shouldDirty: true, shouldTouch: true }); 
                               // Change contentSource from "empty" to indicate we have content
                               form.setValue("contentSource", "drawing", { 
