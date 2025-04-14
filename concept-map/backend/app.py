@@ -291,6 +291,27 @@ def create_concept_map():
         
     data = request.json
     
+    # Debug: Print the received data
+    print("DEBUG: Received concept map data:", data)
+    print("DEBUG: Type of data:", type(data))
+    print("DEBUG: Keys in data:", data.keys() if isinstance(data, dict) else "Not a dict")
+    
+    # Check for nodes and edges
+    if isinstance(data, dict):
+        print("DEBUG: Nodes present:", 'nodes' in data)
+        if 'nodes' in data:
+            print("DEBUG: Type of nodes:", type(data['nodes']))
+            print("DEBUG: Nodes length:", len(data['nodes']))
+            if data['nodes'] and len(data['nodes']) > 0:
+                print("DEBUG: First node:", data['nodes'][0])
+        
+        print("DEBUG: Edges present:", 'edges' in data)
+        if 'edges' in data:
+            print("DEBUG: Type of edges:", type(data['edges']))
+            print("DEBUG: Edges length:", len(data['edges']))
+            if data['edges'] and len(data['edges']) > 0:
+                print("DEBUG: First edge:", data['edges'][0])
+    
     # Basic validation
     if not data or 'name' not in data:
         return jsonify({"error": "Missing required fields"}), 400
@@ -298,19 +319,68 @@ def create_concept_map():
     # Generate a unique share ID
     share_id = secrets.token_urlsafe(8)
     
-    # Count the actual number of nodes
+    # Check if we need to process the input text to generate nodes and edges
     nodes = data.get('nodes', [])
-    node_count = len(nodes)
+    edges = data.get('edges', [])
+    
+    # If nodes and edges are not provided but we have input text, 
+    # process it to generate nodes and edges
+    if not nodes and not edges and 'input_text' in data and data['input_text']:
+        try:
+            # Import the text extraction function
+            from concept_map_generation.mind_map import extract_concept_map_from_text
+            
+            # Process the input text
+            concept_data = extract_concept_map_from_text(data['input_text'])
+            
+            # Convert the concepts and relationships to nodes and edges
+            for concept in concept_data.get("concepts", []):
+                node = {
+                    "id": concept.get("id", f"c{len(nodes)+1}"),
+                    "label": concept.get("name", "Unnamed Concept"),
+                    "description": concept.get("description", "")
+                }
+                nodes.append(node)
+            
+            for relationship in concept_data.get("relationships", []):
+                edge = {
+                    "source": relationship.get("source", ""),
+                    "target": relationship.get("target", ""),
+                    "label": relationship.get("label", "relates to")
+                }
+                edges.append(edge)
+                
+            # If we have nodes and edges generated, also create an SVG image
+            if nodes and edges:
+                try:
+                    from concept_map_generation.mind_map import generate_concept_map_svg
+                    
+                    # Create a concept map structure
+                    concept_map_json = {
+                        "nodes": nodes,
+                        "edges": edges
+                    }
+                    
+                    # Generate the SVG
+                    svg_b64 = generate_concept_map_svg(concept_map_json, "hierarchical")
+                    data['image'] = svg_b64
+                    data['format'] = "svg"
+                except Exception as img_error:
+                    print(f"Error generating SVG for concept map: {str(img_error)}")
+            
+        except Exception as e:
+            print(f"Error processing input text for concept map: {str(e)}")
+            # Continue without generating nodes and edges
     
     # Create a new concept map with a unique ID
     new_map = {
         "id": len(concept_maps) + 1,
         "name": data['name'],
         "nodes": nodes,
-        "edges": data.get('edges', []),
+        "edges": edges,
         "user_id": user_id,
         "image": data.get('image'),
-        "format": data.get('format'),
+        "format": data.get('format', 'mindmap'),
         "is_public": data.get('is_public', False),
         "is_favorite": data.get('is_favorite', False),
         "share_id": share_id,
@@ -579,6 +649,89 @@ def process_financial_document():
     except Exception as e:
         print(f"Error processing financial document: {str(e)}")
         return jsonify({'error': f'Failed to process financial document: {str(e)}'}), 500
+
+# Add debug endpoint for concept map processing 
+@app.route('/api/debug/process-drawing', methods=['POST'])
+def debug_process_drawing():
+    """Debug endpoint for drawing processing that always returns valid data"""
+    print("DEBUG: Process drawing API called")
+    data = request.json
+    
+    # Log received data
+    image_content = None
+    svg_content = None
+    
+    if data:
+        if 'imageContent' in data:
+            image_content = data['imageContent']
+            content_preview = image_content[:50] + "..." if len(image_content) > 50 else image_content
+            print(f"DEBUG: Received image content length: {len(image_content)}")
+            print(f"DEBUG: Image content preview: {content_preview}")
+            
+            # For compatibility with our mock response, create a minimal SVG wrapper
+            svg_content = f'<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><image href="{image_content}" width="800" height="600"/></svg>'
+        elif 'svgContent' in data:
+            svg_content = data['svgContent']
+            content_preview = svg_content[:100] + "..." if len(svg_content) > 100 else svg_content
+            print(f"DEBUG: Received SVG content length: {len(svg_content)}")
+            print(f"DEBUG: SVG content preview: {content_preview}")
+        else:
+            print("DEBUG: No image or SVG content received")
+            return jsonify({'error': 'No image or SVG content provided'}), 400
+    else:
+        print("DEBUG: No data received")
+        return jsonify({'error': 'No data provided'}), 400
+    
+    # Create a mock OCR response
+    mock_response = {
+        "concepts": [
+            {"id": "c1", "name": "Mock Concept 1", "description": "This is a mock concept"},
+            {"id": "c2", "name": "Mock Concept 2", "description": "Another mock concept"}
+        ],
+        "relationships": [
+            {"source": "c1", "target": "c2", "label": "relates to"}
+        ],
+        "image": svg_content,  # Return the original SVG content
+        "format": "svg",
+        "structure": {
+            "type": "hierarchical",
+            "root": "c1"
+        }
+    }
+    
+    # Return the mock response for testing
+    print("DEBUG: Returning mock OCR response")
+    return jsonify(mock_response)
+
+# Add debug endpoint to list available Gemini models
+@app.route('/api/debug/list-models', methods=['GET'])
+def list_models():
+    """Debug endpoint to list available Gemini models"""
+    import google.generativeai as genai
+    
+    try:
+        print("DEBUG: Listing available Gemini models")
+        models = genai.list_models()
+        model_info = []
+        
+        for model in models:
+            model_info.append({
+                "name": model.name,
+                "display_name": model.display_name,
+                "description": model.description,
+                "input_text": "text" in model.supported_generation_methods,
+                "input_image": hasattr(model, "input_image") and model.input_image
+            })
+        
+        return jsonify({
+            "models": model_info,
+            "count": len(model_info)
+        })
+    except Exception as e:
+        print(f"DEBUG: Error listing models: {str(e)}")
+        return jsonify({
+            "error": f"Failed to list models: {str(e)}"
+        }), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)

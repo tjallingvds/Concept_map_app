@@ -73,6 +73,73 @@ const mapResponseToMapItem = (response: ConceptMapResponse): MapItem => {
   };
 };
 
+// Add a function to directly visualize concept data
+const visualizeConcepts = async (conceptData: any, mapType: string = 'mindmap'): Promise<any> => {
+  try {
+    console.log("API: Visualizing concepts directly");
+    
+    // Ensure we have valid data structure
+    const concepts = conceptData.concepts || [];
+    const relationships = conceptData.relationships || [];
+    const structure = conceptData.structure || { 
+      type: "hierarchical", 
+      root: concepts.length > 0 ? concepts[0].id : "c1" 
+    };
+    
+    // Validate concepts data
+    if (!Array.isArray(concepts) || concepts.length === 0) {
+      console.warn("API: Empty or invalid concepts array:", concepts);
+      throw new Error("No valid concepts to visualize");
+    }
+    
+    // Log request data for debugging
+    console.log("API: Visualizing concepts with:", {
+      conceptsCount: concepts.length,
+      relationshipsCount: relationships.length,
+      structureType: structure.type,
+      structureRoot: structure.root,
+      mapType
+    });
+    
+    const response = await fetch(`${API_URL}/concept-map/debug/visualize-concepts`, {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        concepts: concepts,
+        relationships: relationships,
+        structure: structure,
+        mapType
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("API: Failed to visualize concepts:", errorText);
+      throw new Error(`Failed to visualize concepts (${response.status}): ${errorText}`);
+    }
+
+    // Read response text first for debugging
+    const responseText = await response.text();
+    console.log("API: Visualization response received, length:", responseText.length);
+    
+    // Parse the response if it's not empty
+    if (!responseText || responseText.trim() === '') {
+      throw new Error("Empty response from visualization API");
+    }
+    
+    const result = JSON.parse(responseText);
+    console.log("API: Successfully visualized concepts, result has nodes:", result.nodes?.length || 0);
+    
+    return result;
+  } catch (error) {
+    console.error("API: Error visualizing concepts:", error);
+    throw error;
+  }
+};
+
 // API service for concept maps
 const conceptMapsApi = {
   // Get all concept maps for the current user
@@ -99,31 +166,82 @@ const conceptMapsApi = {
   },
 
   // Create a new concept map
-  createMap: async (mapData: { title: string, description?: string, isPublic?: boolean, useTemplate?: boolean, mapType?: string, text?: string }): Promise<MapItem | null> => {
+  createMap: async (mapData: { 
+    title: string, 
+    description?: string, 
+    isPublic?: boolean, 
+    useTemplate?: boolean, 
+    mapType?: string, 
+    text?: string,
+    svgContent?: string,
+    tldrawContent?: string,
+    isDigitized?: boolean,
+    conceptData?: any
+  }): Promise<MapItem | null> => {
     try {
-      // First generate the concept map if text is provided
+      // Check if this is a drawing type map
+      const isDrawing = mapData.mapType === 'drawing';
+      const hasDigitizedContent = mapData.isDigitized === true;
+      const hasTextInput = mapData.text && mapData.text.length > 0;
+      
+      console.log("API: Creating map with type:", mapData.mapType, 
+        "isDrawing:", isDrawing, 
+        "hasDigitizedContent:", hasDigitizedContent,
+        "hasTextInput:", hasTextInput,
+        "text length:", mapData.text?.length || 0,
+        "svgContent length:", mapData.svgContent?.length || 0,
+        "tldrawContent length:", mapData.tldrawContent?.length || 0,
+        "has conceptData:", !!mapData.conceptData);
+      
+      // For drawings, SKIP the text generation step completely
       let generatedMap = null;
-      if (mapData.text && mapData.mapType) {
-        const generateResponse = await fetch(`${API_URL}/concept-map/generate`, {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            text: mapData.text,
-            mapType: mapData.mapType,
-            title: mapData.title
-          }),
-        });
-
-        if (!generateResponse.ok) {
-          throw new Error("Failed to generate concept map");
-        }
-
-        generatedMap = await generateResponse.json();
+      let imageContent = null;
+      
+      // Special handling for digitized content with concept data
+      if (isDrawing && hasDigitizedContent && mapData.conceptData) {
+        console.log("API: Using provided concept data for digitized drawing");
+        
+        // Use the SVG content if available
+        imageContent = mapData.svgContent;
       }
-
+      // For text input where we want to generate a mind map
+      else if (hasTextInput && !isDrawing) {
+        try {
+          console.log("API: Generating mind map from text input");
+          
+          // Generate the concept map from text
+          const genResponse = await fetch(`${API_URL}/concept-map/generate`, {
+            method: "POST",
+            credentials: "include",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              text: mapData.text,
+              mapType: mapData.mapType || "mindmap",
+              title: mapData.title,
+            }),
+          });
+          
+          if (genResponse.ok) {
+            generatedMap = await genResponse.json();
+            if (generatedMap && generatedMap.image) {
+              // Format SVG content as data URL if needed
+              if (generatedMap.format === 'svg' && !generatedMap.image.startsWith('data:')) {
+                imageContent = `data:image/svg+xml;base64,${generatedMap.image}`;
+              } else {
+                imageContent = generatedMap.image;
+              }
+            }
+          } else {
+            console.error("API: Failed to generate mind map from text");
+          }
+        } catch (genError) {
+          console.error("API: Error generating mind map:", genError);
+          // Continue without the generated map
+        }
+      }
+      
       // Then create the map entry
       const response = await fetch(`${API_URL}/concept-maps`, {
         method: "POST",
@@ -135,24 +253,41 @@ const conceptMapsApi = {
           name: mapData.title,
           description: mapData.description || "",
           is_public: mapData.isPublic || false,
-          nodes: generatedMap ? generatedMap.nodes || [] : [],
-          edges: generatedMap ? generatedMap.edges || [] : [],
-          image: generatedMap ? `data:${generatedMap.format === 'svg' ? 'image/svg+xml' : 'image/png'};base64,${generatedMap.image}` : null,
-          format: generatedMap ? generatedMap.format : null,
+          // Include nodes and edges from conceptData if available
+          ...(isDrawing && hasDigitizedContent && mapData.conceptData ? {
+            // Properly extract nodes and edges from conceptData
+            nodes: mapData.conceptData.nodes || [],
+            edges: mapData.conceptData.edges || []
+          } : {
+            // Otherwise fall back to generated map data or empty arrays
+            nodes: generatedMap?.nodes || [],
+            edges: generatedMap?.edges || []
+          }),
+          image: imageContent,
+          format: (isDrawing || mapData.svgContent) ? 'svg' : (generatedMap ? generatedMap.format : 'svg'),
           input_text: mapData.text || ""
         }),
       });
 
-
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error("API: Failed to create concept map:", errorText);
         throw new Error("Failed to create concept map");
       }
 
       const data: ConceptMapResponse = await response.json();
+      
+      // Check if the response has nodes and edges
+      if (data.nodes && data.nodes.length > 0 && data.edges && data.edges.length > 0) {
+        console.log("API: Received map with nodes and edges from backend");
+      } else {
+        console.warn("API: Received map without nodes and edges");
+      }
+      
       return mapResponseToMapItem(data);
     } catch (error) {
-      console.error("Error creating concept map:", error);
-      return null;
+      console.error("API: Error creating concept map:", error);
+      throw error;
     }
   },
 
@@ -180,7 +315,15 @@ const conceptMapsApi = {
   },
 
   // Update a concept map
-  updateMap: async (id: number, updatedData: Partial<{ name: string, nodes: any[], edges: any[] }>): Promise<MapItem | null> => {
+  updateMap: async (id: number, updatedData: Partial<{ 
+    name: string, 
+    nodes: any[], 
+    edges: any[],
+    image?: string,
+    format?: string,
+    input_text?: string,
+    is_public?: boolean
+  }>): Promise<MapItem | null> => {
     try {
       const response = await fetch(`${API_URL}/concept-maps/${id}`, {
         method: "PUT",
