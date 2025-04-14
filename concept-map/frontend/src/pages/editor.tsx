@@ -193,9 +193,9 @@ export default function EditorPage() {
         });
       } else {
         // Fallback implementation using fetch directly - matches the API implementation
-        const API_URL = "http://localhost:5001/api";
+        const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001";
         
-        const response = await fetch(`${API_URL}/concept-maps/${map.id}`, {
+        const response = await fetch(`${API_URL}/api/concept-maps/${map.id}`, {
           method: "PUT",
           credentials: "include",
           headers: {
@@ -335,9 +335,9 @@ export default function EditorPage() {
                         } else {
                           // Fallback implementation using fetch directly
                           console.log('API updateMap not found, using fallback for digitized map');
-                          const API_URL = "http://localhost:5001/api";
+                          const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001";
                           
-                          const response = await fetch(`${API_URL}/concept-maps/${mapId}`, {
+                          const response = await fetch(`${API_URL}/api/concept-maps/${mapId}`, {
                             method: "PUT",
                             credentials: "include",
                             headers: {
