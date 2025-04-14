@@ -12,6 +12,8 @@ interface TLDrawEditorProps {
   enableOcr?: boolean;
   onOcrProcessed?: (result: any) => void;
   debugMode?: boolean;
+  backgroundImage?: string | null;
+  initialContent?: string | null;
 }
 
 export function TLDrawEditor({ 
@@ -19,7 +21,9 @@ export function TLDrawEditor({
   onSave, 
   enableOcr = false,
   onOcrProcessed,
-  debugMode = false 
+  debugMode = false,
+  backgroundImage = null,
+  initialContent = null
 }: TLDrawEditorProps) {
   const store = React.useMemo(() => {
     return createTLStore();
@@ -31,10 +35,12 @@ export function TLDrawEditor({
   // Track processing states separately
   const [isSaving, setIsSaving] = React.useState(false);
   const [isDigitalizing, setIsDigitalizing] = React.useState(false);
+  const [backgroundLoaded, setBackgroundLoaded] = React.useState(false);
 
   // Function to get SVG from editor
   const getEditorSvg = React.useCallback(async () => {
     if (!editorRef.current) {
+      console.error("Editor reference is not available");
       throw new Error("Editor reference is not available");
     }
 
@@ -42,6 +48,7 @@ export function TLDrawEditor({
     
     // Get all shapes on the canvas
     const shapes = editor.getCurrentPageShapes();
+    
     if (!shapes || shapes.length === 0) {
       throw new Error("Please draw something before saving");
     }
@@ -121,7 +128,6 @@ export function TLDrawEditor({
         const svgString = new XMLSerializer().serializeToString(svgElem);
         // Return data URL instead of blob URL
         const svgDataUrl = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgString)))}`;
-        console.log("Using fallback SVG generation method");
         return svgDataUrl;
       } catch (fallbackError) {
         console.error("Fallback SVG generation failed:", fallbackError);
@@ -129,6 +135,71 @@ export function TLDrawEditor({
       }
     }
   }, []);
+
+  // Handle background image setup
+  React.useEffect(() => {
+    const setupBackground = async () => {
+      if (!backgroundImage || !editorRef.current || backgroundLoaded) return;
+      
+      try {
+        const editor = editorRef.current;
+        
+        // Wait for editor to initialize
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // Create a background image using the editor's API
+        // This approach may vary depending on TLDraw version, adjust as needed
+        const imageAsset = await editor.createImageAssetFromUrl({
+          src: backgroundImage,
+          // Use appropriate sizing
+          w: 800,
+          h: 600,
+          name: 'background-image'
+        });
+        
+        if (imageAsset) {
+          // Create an image shape with the asset
+          editor.createShapes([{
+            type: 'image',
+            assetId: imageAsset.id,
+            x: 0,
+            y: 0,
+            opacity: 0.7, // Semi-transparent to see annotations better
+            w: imageAsset.props.w,
+            h: imageAsset.props.h,
+          }]);
+          
+          setBackgroundLoaded(true);
+        }
+      } catch (error) {
+        console.error("Error setting up background image:", error);
+      }
+    };
+    
+    setupBackground();
+  }, [backgroundImage, editorRef.current, backgroundLoaded]);
+  
+  // Initialize with content if available
+  React.useEffect(() => {
+    const loadInitialContent = async () => {
+      if (!initialContent || !editorRef.current) return;
+      
+      // If we're using a background image, we don't need to load initial content
+      if (backgroundImage) return;
+      
+      try {
+        // This would require implementing import functionality
+        // The exact approach depends on the TLDraw version and available APIs
+        
+        // For a production app, you'd implement proper content importing here
+        // This might involve parsing SVG or JSON data and creating shapes
+      } catch (error) {
+        console.error("Error loading initial content:", error);
+      }
+    };
+    
+    loadInitialContent();
+  }, [initialContent, editorRef.current, backgroundImage]);
 
   // Handle save operation
   const handleSave = React.useCallback(async () => {

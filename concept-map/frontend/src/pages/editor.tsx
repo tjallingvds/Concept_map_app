@@ -127,10 +127,18 @@ export default function EditorPage() {
       // Show success message and copy to clipboard
       toast.success("Map shared successfully");
       
-      // Copy to clipboard
-      navigator.clipboard.writeText(shareUrl)
-        .then(() => toast.success("Link copied to clipboard"))
-        .catch(() => toast.error("Failed to copy link"));
+      // Show the share URL in a more visible toast
+      toast.info(`Share URL: ${shareUrl}`, {
+        duration: 5000, // Show for 5 seconds
+        action: {
+          label: 'Copy',
+          onClick: () => {
+            navigator.clipboard.writeText(shareUrl)
+              .then(() => toast.success("Link copied to clipboard"))
+              .catch(() => toast.error("Failed to copy link"));
+          }
+        }
+      });
       
     } catch (error) {
       console.error("Error sharing map:", error);
@@ -158,18 +166,70 @@ export default function EditorPage() {
     if (!map?.id) return;
     
     try {
-      const updatedMap = await conceptMapsApi.updateMap(map.id, {
-        name: map.title,
-        image: svgContent,
-        format: 'svg',
-        nodes: map.nodes || [],
-        edges: map.edges || []
-      });
+      // Ensure SVG content is in the right format (data URL)
+      let finalSvgContent = svgContent;
+      
+      // If it doesn't start with data:image/svg, try to fix it
+      if (!svgContent.startsWith('data:image/svg')) {
+        if (svgContent.startsWith('<svg') || svgContent.includes('<?xml')) {
+          // Convert raw SVG to data URL
+          finalSvgContent = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgContent)))}`;
+        } else {
+          console.error('SVG content is not in a recognized format');
+        }
+      }
+      
+      let updatedMap;
+      
+      // Check if the API method exists
+      if (typeof conceptMapsApi.updateMap === 'function') {
+        updatedMap = await conceptMapsApi.updateMap(map.id, {
+          name: map.title,
+          image: finalSvgContent,
+          format: 'svg',
+          // Use proper casting for nodes and edges
+          nodes: Array.isArray(map.nodes) ? map.nodes : [],
+          edges: Array.isArray(map.edges) ? map.edges : []
+        });
+      } else {
+        // Fallback implementation using fetch directly - matches the API implementation
+        const API_URL = "http://localhost:5001/api";
+        
+        const response = await fetch(`${API_URL}/concept-maps/${map.id}`, {
+          method: "PUT",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: map.title,
+            image: finalSvgContent,
+            format: 'svg',
+            nodes: Array.isArray(map.nodes) ? map.nodes : [],
+            edges: Array.isArray(map.edges) ? map.edges : []
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to update concept map with id ${map.id}`);
+        }
+
+        // Parse the response
+        const responseData = await response.json();
+        
+        // Update the local map with the new SVG content
+        updatedMap = {
+          ...map,
+          svgContent: finalSvgContent
+        };
+      }
       
       if (updatedMap) {
         setMap(updatedMap);
         setIsEditing(false);
         toast.success("Map saved successfully");
+      } else {
+        throw new Error("Failed to update map");
       }
     } catch (error) {
       console.error("Error saving map:", error);
@@ -205,9 +265,6 @@ export default function EditorPage() {
           </Button>
           <Button variant="outline" size="icon" onClick={handleShare}>
             <Share2 className="h-5 w-5" />
-          </Button>
-          <Button variant="outline" size="icon" onClick={handleDownload}>
-            <Download className="h-5 w-5" />
           </Button>
           {isEditing && currentMapType === "drawing" && (
             <Button 
@@ -263,13 +320,56 @@ export default function EditorPage() {
                         const conceptNodes = Array.isArray(result.concepts) ? result.concepts : [];
                         const relationshipEdges = Array.isArray(result.relationships) ? result.relationships : [];
                         
-                        const updatedMap = await conceptMapsApi.updateMap(mapId, {
-                          name: map?.title || '',
-                          image: result.image,
-                          format: 'svg',
-                          nodes: conceptNodes,
-                          edges: relationshipEdges
-                        });
+                        let updatedMap;
+                        
+                        // Check if the API method exists
+                        if (typeof conceptMapsApi.updateMap === 'function') {
+                          console.log('Using API updateMap method for digitized map');
+                          updatedMap = await conceptMapsApi.updateMap(mapId, {
+                            name: map?.title || '',
+                            image: result.image,
+                            format: 'svg',
+                            nodes: conceptNodes,
+                            edges: relationshipEdges
+                          });
+                        } else {
+                          // Fallback implementation using fetch directly
+                          console.log('API updateMap not found, using fallback for digitized map');
+                          const API_URL = "http://localhost:5001/api";
+                          
+                          const response = await fetch(`${API_URL}/concept-maps/${mapId}`, {
+                            method: "PUT",
+                            credentials: "include",
+                            headers: {
+                              "Content-Type": "application/json",
+                            },
+                            body: JSON.stringify({
+                              name: map?.title || '',
+                              image: result.image,
+                              format: 'svg',
+                              nodes: conceptNodes,
+                              edges: relationshipEdges
+                            }),
+                          });
+
+                          if (!response.ok) {
+                            throw new Error(`Failed to update concept map with id ${mapId}`);
+                          }
+
+                          // Parse the response
+                          const responseData = await response.json();
+                          
+                          // Create a minimal updated map
+                          updatedMap = {
+                            id: mapId,
+                            title: map?.title || '',
+                            description: '',
+                            createdAt: new Date().toISOString(),
+                            lastEdited: new Date().toISOString(),
+                            nodes: conceptNodes.length,
+                            svgContent: result.image
+                          };
+                        }
                         
                         if (updatedMap) {
                           setMap(updatedMap);
@@ -303,13 +403,9 @@ export default function EditorPage() {
 
       {/* Actions */}
       <div className="mt-4 flex justify-end">
-        {isEditing ? (
+        {isEditing && (
           <Button variant="outline" onClick={() => setIsEditing(false)}>
             Cancel
-          </Button>
-        ) : (
-          <Button onClick={() => setIsEditing(true)}>
-            Edit
           </Button>
         )}
       </div>

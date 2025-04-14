@@ -1,7 +1,7 @@
 import { MapItem } from "../components/file-system";
 
 // API base URL
-const API_URL = "http://localhost:5001/api";
+const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001";
 
 // Interface for the API response from the backend
 interface ConceptMapResponse {
@@ -13,10 +13,15 @@ interface ConceptMapResponse {
   image?: string;
   format?: string;
   is_public?: boolean;
+  is_favorite?: boolean;
   share_id?: string;
+  share_url?: string;
   created_at?: string;
   updated_at?: string;
   input_text?: string;
+  svgContent?: string;
+  description?: string;
+  learning_objective?: string;
 }
 
 // Function to convert backend concept map format to frontend MapItem format
@@ -28,44 +33,87 @@ const mapResponseToMapItem = (response: ConceptMapResponse): MapItem => {
       // Check if the image already has a data URL prefix
       if (response.image.startsWith('data:')) {
         svgContent = response.image;
-        console.log('Using existing data URL from backend');
       } else {
         // Add the appropriate data URL prefix based on format
         const mimeType = response.format === 'svg' ? 'image/svg+xml' : 'image/png';
         svgContent = `data:${mimeType};base64,${response.image}`;
-        console.log(`Created data URL with format: ${mimeType}, data length: ${response.image.length}`);
       }
-    } else {
-      console.log('No image data found in response');
+    } else if (response.svgContent) {
+      // Use svgContent if available
+      svgContent = response.svgContent;
     }
   } catch (error) {
     console.error('Error processing image data:', error);
-  }
-  
-  // Debug the svgContent
-  if (svgContent) {
-    console.log('SVG Content type:', typeof svgContent);
-    console.log('SVG Content prefix:', svgContent.substring(0, 30));
   }
 
   // Generate share URL if the map is public and has a share_id
   let shareUrl = undefined;
   if (response.is_public && response.share_id) {
-    shareUrl = `/shared/${response.share_id}`;
+    shareUrl = response.share_url || `${window.location.origin}/shared/${response.share_id}`;
   }
 
   // Get actual node count from nodes array
   const nodeCount = response.nodes ? response.nodes.length : 0;
+  
+  // Extract learning objective from response
+  let description = response.description || "";
+  
+  // Sanitize description if it contains HTML or SVG
+  if (description && (description.includes('<') || description.includes('svg]') || description.includes('[&amp;_svg]'))) {
+    description = description
+      .replace(/<[^>]*>/g, '')  // Remove HTML tags
+      .replace(/svg\]:[^>]*>/g, '') // Remove svg attribute content
+      .replace(/\[&amp;_svg\][^<]*/g, '') // Remove more svg content
+      .trim();
+  }
+  
+  // Prioritize the dedicated learning_objective field
+  let learningObjective = response.learning_objective || undefined;
+  
+  // Sanitize learning objective if it exists
+  if (learningObjective) {
+    // Comprehensive sanitization for HTML tags and svg-related content
+    learningObjective = learningObjective
+      .replace(/<[^>]*>/g, '')  // Remove HTML tags
+      .replace(/svg\]:[^>]*>/g, '') // Remove svg attribute content
+      .replace(/\[&amp;_svg\][^<]*/g, '') // Remove more svg content
+      .trim();
+  }
+  
+  // If learning objective is not available, try to extract it from the description or input text
+  if (!learningObjective) {
+    // First try from description
+    if (description) {
+      // Check if description has learning objective format (with delimiter)
+      const parts = description.split(' - ');
+      if (parts.length > 1) {
+        learningObjective = parts[0].trim();
+        description = parts.slice(1).join(' - ').trim();
+      }
+    }
+    
+    // If still no learning objective, try from input text as last resort
+    if (!learningObjective && response.input_text) {
+      const inputLines = response.input_text.split('\n').filter(line => line.trim().length > 0);
+      if (inputLines.length > 0) {
+        const firstLine = inputLines[0].trim();
+        if (firstLine.length < 100) { // Only use it if reasonably short
+          learningObjective = firstLine;
+        }
+      }
+    }
+  }
 
   return {
     id: response.id,
     title: response.name,
-    description: response.input_text || "Concept map",
+    description: description,
+    learningObjective: learningObjective,
     createdAt: response.created_at || new Date().toISOString(),
     lastEdited: response.updated_at || new Date().toISOString(),
     nodes: nodeCount,
     isPublic: response.is_public || false,
-    isFavorite: false, // Default to not favorite, can be updated from backend later
+    isFavorite: response.is_favorite || false,
     svgContent: svgContent,
     shareId: response.share_id,
     shareUrl: shareUrl,
@@ -76,8 +124,6 @@ const mapResponseToMapItem = (response: ConceptMapResponse): MapItem => {
 // Add a function to directly visualize concept data
 const visualizeConcepts = async (conceptData: any, mapType: string = 'mindmap'): Promise<any> => {
   try {
-    console.log("API: Visualizing concepts directly");
-    
     // Ensure we have valid data structure
     const concepts = conceptData.concepts || [];
     const relationships = conceptData.relationships || [];
@@ -92,16 +138,7 @@ const visualizeConcepts = async (conceptData: any, mapType: string = 'mindmap'):
       throw new Error("No valid concepts to visualize");
     }
     
-    // Log request data for debugging
-    console.log("API: Visualizing concepts with:", {
-      conceptsCount: concepts.length,
-      relationshipsCount: relationships.length,
-      structureType: structure.type,
-      structureRoot: structure.root,
-      mapType
-    });
-    
-    const response = await fetch(`${API_URL}/concept-map/debug/visualize-concepts`, {
+    const response = await fetch(`${API_URL}/api/concept-map/debug/visualize-concepts`, {
       method: "POST",
       credentials: "include",
       headers: {
@@ -123,7 +160,6 @@ const visualizeConcepts = async (conceptData: any, mapType: string = 'mindmap'):
 
     // Read response text first for debugging
     const responseText = await response.text();
-    console.log("API: Visualization response received, length:", responseText.length);
     
     // Parse the response if it's not empty
     if (!responseText || responseText.trim() === '') {
@@ -131,7 +167,6 @@ const visualizeConcepts = async (conceptData: any, mapType: string = 'mindmap'):
     }
     
     const result = JSON.parse(responseText);
-    console.log("API: Successfully visualized concepts, result has nodes:", result.nodes?.length || 0);
     
     return result;
   } catch (error) {
@@ -142,10 +177,35 @@ const visualizeConcepts = async (conceptData: any, mapType: string = 'mindmap'):
 
 // API service for concept maps
 const conceptMapsApi = {
+  // Process uploaded document and extract text
+  processDocument: async (file: File): Promise<{ text: string }> => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch(`${API_URL}/api/process-document`, {
+        method: 'POST',
+        credentials: "include",
+        body: formData,
+        // Don't set Content-Type header with FormData (browser sets it automatically with boundary)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to process document');
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error processing document:', error);
+      throw error;
+    }
+  },
+
   // Get all concept maps for the current user
   getMyMaps: async (): Promise<MapItem[]> => {
     try {
-      const response = await fetch(`${API_URL}/concept-maps`, {
+      const response = await fetch(`${API_URL}/api/concept-maps`, {
         method: "GET",
         credentials: "include", // Include cookies for auth
         headers: {
@@ -168,7 +228,8 @@ const conceptMapsApi = {
   // Create a new concept map
   createMap: async (mapData: { 
     title: string, 
-    description?: string, 
+    description?: string,
+    learningObjective?: string, 
     isPublic?: boolean, 
     useTemplate?: boolean, 
     mapType?: string, 
@@ -184,33 +245,20 @@ const conceptMapsApi = {
       const hasDigitizedContent = mapData.isDigitized === true;
       const hasTextInput = mapData.text && mapData.text.length > 0;
       
-      console.log("API: Creating map with type:", mapData.mapType, 
-        "isDrawing:", isDrawing, 
-        "hasDigitizedContent:", hasDigitizedContent,
-        "hasTextInput:", hasTextInput,
-        "text length:", mapData.text?.length || 0,
-        "svgContent length:", mapData.svgContent?.length || 0,
-        "tldrawContent length:", mapData.tldrawContent?.length || 0,
-        "has conceptData:", !!mapData.conceptData);
-      
       // For drawings, SKIP the text generation step completely
       let generatedMap = null;
       let imageContent = null;
       
       // Special handling for digitized content with concept data
       if (isDrawing && hasDigitizedContent && mapData.conceptData) {
-        console.log("API: Using provided concept data for digitized drawing");
-        
         // Use the SVG content if available
         imageContent = mapData.svgContent;
       }
       // For text input where we want to generate a mind map
       else if (hasTextInput && !isDrawing) {
         try {
-          console.log("API: Generating mind map from text input");
-          
           // Generate the concept map from text
-          const genResponse = await fetch(`${API_URL}/concept-map/generate`, {
+          const genResponse = await fetch(`${API_URL}/api/concept-map/generate`, {
             method: "POST",
             credentials: "include",
             headers: {
@@ -243,30 +291,33 @@ const conceptMapsApi = {
       }
       
       // Then create the map entry
-      const response = await fetch(`${API_URL}/concept-maps`, {
+      const requestBody = {
+        name: mapData.title,
+        description: mapData.description || "",
+        learning_objective: mapData.learningObjective || "",
+        input_text: mapData.text || "",
+        is_public: mapData.isPublic || false,
+        // Include nodes and edges from conceptData if available
+        ...(isDrawing && hasDigitizedContent && mapData.conceptData ? {
+          // Properly extract nodes and edges from conceptData
+          nodes: mapData.conceptData.nodes || [],
+          edges: mapData.conceptData.edges || []
+        } : {
+          // Otherwise fall back to generated map data or empty arrays
+          nodes: generatedMap?.nodes || [],
+          edges: generatedMap?.edges || []
+        }),
+        image: imageContent,
+        format: (isDrawing || mapData.svgContent) ? 'svg' : (generatedMap ? generatedMap.format : 'svg')
+      };
+      
+      const response = await fetch(`${API_URL}/api/concept-maps`, {
         method: "POST",
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          name: mapData.title,
-          description: mapData.description || "",
-          is_public: mapData.isPublic || false,
-          // Include nodes and edges from conceptData if available
-          ...(isDrawing && hasDigitizedContent && mapData.conceptData ? {
-            // Properly extract nodes and edges from conceptData
-            nodes: mapData.conceptData.nodes || [],
-            edges: mapData.conceptData.edges || []
-          } : {
-            // Otherwise fall back to generated map data or empty arrays
-            nodes: generatedMap?.nodes || [],
-            edges: generatedMap?.edges || []
-          }),
-          image: imageContent,
-          format: (isDrawing || mapData.svgContent) ? 'svg' : (generatedMap ? generatedMap.format : 'svg'),
-          input_text: mapData.text || ""
-        }),
+        body: JSON.stringify(requestBody)
       });
 
       if (!response.ok) {
@@ -276,13 +327,6 @@ const conceptMapsApi = {
       }
 
       const data: ConceptMapResponse = await response.json();
-      
-      // Check if the response has nodes and edges
-      if (data.nodes && data.nodes.length > 0 && data.edges && data.edges.length > 0) {
-        console.log("API: Received map with nodes and edges from backend");
-      } else {
-        console.warn("API: Received map without nodes and edges");
-      }
       
       return mapResponseToMapItem(data);
     } catch (error) {
@@ -294,7 +338,7 @@ const conceptMapsApi = {
   // Get a specific concept map by ID
   getMap: async (id: number): Promise<MapItem | null> => {
     try {
-      const response = await fetch(`${API_URL}/concept-maps/${id}`, {
+      const response = await fetch(`${API_URL}/api/concept-maps/${id}`, {
         method: "GET",
         credentials: "include",
         headers: {
@@ -306,8 +350,16 @@ const conceptMapsApi = {
         throw new Error(`Failed to fetch concept map with id ${id}`);
       }
 
-      const data: ConceptMapResponse = await response.json();
-      return mapResponseToMapItem(data);
+      const mapData: ConceptMapResponse = await response.json();
+      
+      // Format SVG content if it exists but isn't already formatted as a data URL
+      if (mapData.image && !mapData.image.startsWith('data:')) {
+        const format = mapData.format || 'svg';
+        const mimeType = format === 'svg' ? 'image/svg+xml' : 'image/png';
+        mapData.image = `data:${mimeType};base64,${mapData.image}`;
+      }
+      
+      return mapResponseToMapItem(mapData);
     } catch (error) {
       console.error(`Error fetching concept map ${id}:`, error);
       return null;
@@ -325,7 +377,7 @@ const conceptMapsApi = {
     is_public?: boolean
   }>): Promise<MapItem | null> => {
     try {
-      const response = await fetch(`${API_URL}/concept-maps/${id}`, {
+      const response = await fetch(`${API_URL}/api/concept-maps/${id}`, {
         method: "PUT",
         credentials: "include",
         headers: {
@@ -349,7 +401,7 @@ const conceptMapsApi = {
   // Delete a concept map
   deleteMap: async (id: number): Promise<boolean> => {
     try {
-      const response = await fetch(`${API_URL}/concept-maps/${id}`, {
+      const response = await fetch(`${API_URL}/api/concept-maps/${id}`, {
         method: "DELETE",
         credentials: "include",
         headers: {
@@ -368,24 +420,47 @@ const conceptMapsApi = {
     }
   },
 
-  // Placeholder for getting public maps (not yet implemented in backend)
+  // Get all public maps
   getPublicMaps: async (): Promise<MapItem[]> => {
     // This will need to be implemented in the backend
     console.log("Getting public maps (not yet implemented in backend)");
     return [];
   },
 
-  // Placeholder for favoriting a map (not yet implemented in backend)
+  // Toggle favorite status for a map
   toggleFavorite: async (id: number): Promise<boolean> => {
-    // This will need to be implemented in the backend
-    console.log(`Toggling favorite status for map ${id} (not yet implemented in backend)`);
-    return true;
+    try {
+      const map = await conceptMapsApi.getMap(id);
+      if (!map) {
+        throw new Error(`Map with id ${id} not found`);
+      }
+      
+      const response = await fetch(`${API_URL}/api/concept-maps/${id}`, {
+        method: "PUT",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          is_favorite: !map.isFavorite
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to toggle favorite status for map with id ${id}`);
+      }
+
+      return true;
+    } catch (error) {
+      console.error(`Error toggling favorite for map ${id}:`, error);
+      return false;
+    }
   },
 
   // Share a concept map to generate a shareable link
   shareMap: async (id: number): Promise<{ shareUrl: string, shareId: string }> => {
     try {
-      const response = await fetch(`${API_URL}/concept-maps/${id}/share`, {
+      const response = await fetch(`${API_URL}/api/concept-maps/${id}/share`, {
         method: "POST",
         credentials: "include",
         headers: {
@@ -398,8 +473,14 @@ const conceptMapsApi = {
       }
 
       const data = await response.json();
+      
+      // Construct full URL with origin
+      const fullShareUrl = data.share_url ? 
+        (data.share_url.startsWith('http') ? data.share_url : `${window.location.origin}${data.share_url}`) :
+        `${window.location.origin}/shared/${data.share_id}`;
+      
       return {
-        shareUrl: `${window.location.origin}${data.share_url}`,
+        shareUrl: fullShareUrl,
         shareId: data.share_id
       };
     } catch (error) {
@@ -411,19 +492,31 @@ const conceptMapsApi = {
   // Get a shared concept map by share ID
   getSharedMap: async (shareId: string): Promise<MapItem | null> => {
     try {
-      const response = await fetch(`${API_URL}/shared/concept-maps/${shareId}`, {
+      const response = await fetch(`${API_URL}/api/shared/concept-maps/${shareId}`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
         },
+        // No credentials needed for public maps
       });
 
       if (!response.ok) {
         throw new Error(`Failed to fetch shared concept map with id ${shareId}`);
       }
 
-      const data: ConceptMapResponse = await response.json();
-      return mapResponseToMapItem(data);
+      const mapData: ConceptMapResponse = await response.json();
+      
+      // Format SVG content if it exists but isn't already formatted as a data URL
+      if (mapData.image && !mapData.image.startsWith('data:')) {
+        const format = mapData.format || 'svg';
+        const mimeType = format === 'svg' ? 'image/svg+xml' : 'image/png';
+        mapData.image = `data:${mimeType};base64,${mapData.image}`;
+      }
+      
+      return mapResponseToMapItem({
+        ...mapData,
+        is_public: true
+      });
     } catch (error) {
       console.error(`Error fetching shared concept map ${shareId}:`, error);
       return null;
@@ -438,7 +531,7 @@ const conceptMapsApi = {
         throw new Error("User not authenticated");
       }
       
-      const response = await fetch(`${API_URL}/users/${user_id}/saved-maps`, {
+      const response = await fetch(`${API_URL}/api/users/${user_id}/saved-maps`, {
         method: "GET",
         credentials: "include",
         headers: {
@@ -457,31 +550,9 @@ const conceptMapsApi = {
       return [];
     }
   },
-
-  // Process uploaded document and extract text
-  processDocument: async (file: File): Promise<{ text: string }> => {
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      const response = await fetch(`${API_URL}/api/process-document`, {
-        method: 'POST',
-        credentials: "include",
-        body: formData,
-        // Don't set Content-Type header with FormData (browser sets it automatically with boundary)
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to process document');
-      }
-      
-      return await response.json();
-    } catch (error) {
-      console.error('Error processing document:', error);
-      throw error;
-    }
-  }
+  
+  // Direct access to the visualization function
+  visualizeConcepts
 };
 
 export default conceptMapsApi;
