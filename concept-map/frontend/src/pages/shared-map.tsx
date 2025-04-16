@@ -23,7 +23,13 @@ export default function SharedMapPage() {
       }
 
       try {
+        console.log('Attempting to fetch shared map with ID:', shareId);
+        console.log('API methods available:', Object.keys(conceptMapsApi));
+        console.log('getSharedMap exists:', typeof conceptMapsApi.getSharedMap === 'function');
+        
         const sharedMap = await conceptMapsApi.getSharedMap(shareId);
+        console.log('Shared map result:', sharedMap);
+        
         if (sharedMap) {
           setMap(sharedMap);
         } else {

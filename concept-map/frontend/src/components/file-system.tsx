@@ -40,11 +40,13 @@ export type MapItem = {
   id: number
   title: string
   description: string
+  learningObjective?: string
   isPublic?: boolean
   isFavorite?: boolean
   createdAt: string
   lastEdited: string
-  nodes: number
+  nodes: any[] | number
+  edges?: any[]
   author?: string
   tags?: string[]
   thumbnail?: string
@@ -236,14 +238,21 @@ export function FileSystem({
                       </DropdownMenu>
                     )}
                   </div>
-                  <CardDescription className="line-clamp-2">{item.description}</CardDescription>
+                  <CardDescription className="line-clamp-2">
+                    {item.learningObjective 
+                      ? typeof item.learningObjective === 'string' && item.learningObjective.trim().length > 0
+                        ? item.learningObjective
+                          .replace(/<[^>]*>/g, '')
+                          .replace(/svg\]:[^>]*>/g, '')
+                          .replace(/\[&amp;_svg\][^<]*/g, '')
+                          .replace(/Edit/g, '')
+                          .trim() 
+                        : 'No learning objective'
+                      : 'No learning objective'}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="pb-2">
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      <File className="h-3.5 w-3.5" />
-                      <span>{item.nodes} nodes</span>
-                    </div>
                     {showAuthor && item.author && (
                       <div className="flex items-center gap-1">
                         <Users className="h-3.5 w-3.5" />
@@ -279,7 +288,18 @@ export function FileSystem({
                     <File className="h-5 w-5 mr-3 text-muted-foreground" />
                     <div>
                       <h3 className="font-medium truncate">{item.title}</h3>
-                      <p className="text-sm text-muted-foreground truncate">{item.description}</p>
+                      <p className="text-sm text-muted-foreground truncate">
+                        {item.learningObjective 
+                          ? typeof item.learningObjective === 'string' && item.learningObjective.trim().length > 0
+                            ? item.learningObjective
+                              .replace(/<[^>]*>/g, '')
+                              .replace(/svg\]:[^>]*>/g, '')
+                              .replace(/\[&amp;_svg\][^<]*/g, '')
+                              .replace(/Edit/g, '')
+                              .trim() 
+                            : 'No learning objective'
+                          : 'No learning objective'}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -297,11 +317,6 @@ export function FileSystem({
                     </div>
                   )}
                   
-                  <div className="flex items-center gap-1">
-                    <File className="h-3.5 w-3.5" />
-                    <span>{item.nodes} nodes</span>
-                  </div>
-
                   {item.isFavorite && (
                     <Star className="h-4 w-4 text-amber-500" />
                   )}
