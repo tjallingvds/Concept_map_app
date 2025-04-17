@@ -8,6 +8,7 @@ import { Button } from "../components/ui/button"
 import { useAuth } from "../contexts/auth-context"
 import conceptMapsApi from "../services/api"
 import { CreateMapDialog } from "../components/create-map-dialog"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuItem } from "../components/ui/dropdown-menu" //
 
 // Mock data for personal concept maps
 const mockPersonalMaps: MapItem[] = [
@@ -70,6 +71,7 @@ export default function MyMapsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
+  const [sortMode, setSortMode] = useState<"az" | "za">("az") 
 
   // Fetch user's maps on component mount
   useEffect(() => {
@@ -211,6 +213,21 @@ export default function MyMapsPage() {
               <span className="text-sm font-medium text-gray-700 min-w-24">My Maps</span>
               <FileSearchBar searchQuery={searchQuery} onSearch={handleSearch} />
             </div>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" className="ml-2">Sort</Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => setSortMode("az")}>
+                  A–Z (Title)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setSortMode("za")}>
+                  Z-A(Title)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             <CreateMapDialog 
               trigger={
                 <Button size="sm" className="gap-1 ml-3">
@@ -242,7 +259,16 @@ export default function MyMapsPage() {
                   map.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                   map.description.toLowerCase().includes(searchQuery.toLowerCase()) 
                   : true
-                )}
+                )
+                .sort((a, b) => {
+                  if (sortMode === "az") {
+                    return a.title.localeCompare(b.title)
+                  } else {
+                    return b.title.localeCompare(a.title)
+                  }
+                  return 0
+                })
+              }
                 showAuthor={false}
                 showActions={true}
                 emptyMessage="You haven't created any maps yet"
