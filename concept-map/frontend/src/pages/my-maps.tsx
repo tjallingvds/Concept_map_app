@@ -8,6 +8,7 @@ import { Button } from "../components/ui/button"
 import { useAuth } from "../contexts/auth-context"
 import conceptMapsApi from "../services/api"
 import { CreateMapDialog } from "../components/create-map-dialog"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuItem } from "../components/ui/dropdown-menu" // ✅ NEW
 
 // Mock data for personal concept maps
 const mockPersonalMaps: MapItem[] = [
@@ -70,6 +71,7 @@ export default function MyMapsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
+  const [sortMode, setSortMode] = useState<"default" | "az">("default") // ✅ NEW
 
   // Fetch user's maps on component mount
   useEffect(() => {
@@ -90,9 +92,7 @@ export default function MyMapsPage() {
     fetchMaps()
   }, [])
 
-  // Handle map creation callback
   const handleMapCreated = (mapId: number) => {
-    // Navigate to the map editor for the new map
     navigate(`/editor/${mapId}`)
   }
   
@@ -100,7 +100,6 @@ export default function MyMapsPage() {
     try {
       const success = await conceptMapsApi.toggleFavorite(id)
       if (success) {
-        // Update the local state to reflect the change
         setMyMaps(maps => maps.map(map => 
           map.id === id ? { ...map, isFavorite: !map.isFavorite } : map
         ))
@@ -111,16 +110,30 @@ export default function MyMapsPage() {
   }
   
   const handleEdit = (id: number) => {
-    // Navigate to the map editor
     navigate(`/editor/${id}`)
   }
   
   const handleShare = async (id: number) => {
     try {
-      await conceptMapsApi.shareMap(id)
-      alert("Sharing options will be implemented soon!")
+      const { shareUrl, shareId } = await conceptMapsApi.shareMap(id);
+      setMyMaps(prevMaps => prevMaps.map(map => {
+        if (map.id === id) {
+          return {
+            ...map,
+            isPublic: true,
+            shareId: shareId,
+            shareUrl: shareUrl
+          };
+        }
+        return map;
+      }));
+      alert(`Map shared successfully! Share URL: ${shareUrl}`);
+      navigator.clipboard.writeText(shareUrl)
+        .then(() => alert("Link copied to clipboard"))
+        .catch(err => console.error("Could not copy link:", err));
     } catch (err) {
-      console.error("Failed to share map", err)
+      console.error("Failed to share map", err);
+      alert("Failed to share map. Please try again.");
     }
   }
   
@@ -129,7 +142,6 @@ export default function MyMapsPage() {
       try {
         const success = await conceptMapsApi.deleteMap(id)
         if (success) {
-          // Remove the deleted map from state
           setMyMaps(maps => maps.filter(map => map.id !== id))
         } else {
           alert("Failed to delete the map. Please try again.")
@@ -145,6 +157,31 @@ export default function MyMapsPage() {
     setSearchQuery(e.target.value)
   }
 
+  const handleDownload = async (id: number) => {
+    try {
+      const map = await conceptMapsApi.getMap(id);
+      if (!map) throw new Error("Could not retrieve map data");
+
+      if (map.svgContent) {
+        const blob = new Blob([map.svgContent], { type: 'image/svg+xml' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${map.title}.svg`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        alert("Map downloaded successfully");
+      } else {
+        alert("This map doesn't have SVG content available for download");
+      }
+    } catch (err) {
+      console.error("Failed to download map", err);
+      alert(`An error occurred during download: ${err instanceof Error ? err.message : 'Please try again'}`); 
+    }
+  };
+
   return (
     <SidebarProvider>
       <div className="flex h-screen w-full">
@@ -157,6 +194,22 @@ export default function MyMapsPage() {
               <span className="text-sm font-medium text-gray-700 min-w-24">My Maps</span>
               <FileSearchBar searchQuery={searchQuery} onSearch={handleSearch} />
             </div>
+
+            {/* ✅ NEW Sort Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" className="ml-2">Sort</Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => setSortMode("az")}>
+                  A–Z (Title)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setSortMode("default")}>
+                  Default
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             <CreateMapDialog 
               trigger={
                 <Button size="sm" className="gap-1 ml-3">
@@ -183,12 +236,21 @@ export default function MyMapsPage() {
               </div>
             ) : (
               <FileSystem
-                items={myMaps.filter(map => 
-                  searchQuery ? 
-                  map.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                  map.description.toLowerCase().includes(searchQuery.toLowerCase()) 
-                  : true
-                )}
+                items={
+                  [...myMaps]
+                    .filter(map => 
+                      searchQuery ? 
+                      map.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                      map.description.toLowerCase().includes(searchQuery.toLowerCase()) 
+                      : true
+                    )
+                    .sort((a, b) => {
+                      if (sortMode === "az") {
+                        return a.title.localeCompare(b.title)
+                      }
+                      return 0
+                    })
+                }
                 showAuthor={false}
                 showActions={true}
                 emptyMessage="You haven't created any maps yet"
@@ -196,6 +258,7 @@ export default function MyMapsPage() {
                 onEdit={handleEdit}
                 onShare={handleShare}
                 onDelete={handleDelete}
+                onDownload={handleDownload}
               />
             )}
           </div>
@@ -203,4 +266,4 @@ export default function MyMapsPage() {
       </div>
     </SidebarProvider>
   )
-} 
+}

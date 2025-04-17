@@ -1,11 +1,18 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { SidebarProvider, SidebarTrigger } from "../components/ui/sidebar"
 import { AppSidebar } from "../components/app-sidebar"
 import { useAuth } from "../contexts/auth-context"
 import { Button } from "../components/ui/button"
 import { Input } from "../components/ui/input"
-import { PlusIcon, Search } from "lucide-react"
+import { PlusIcon, Search, Clock } from "lucide-react"
 import { CreateMapDialog } from "../components/create-map-dialog"
+import { ImportMapDialog } from "../components/import-map-dialog"
+import { Badge } from "../components/ui/badge"
+import { formatDistanceToNow } from "date-fns"
+import { MapItem } from "../components/file-system"
+import conceptMapsApi from "../services/api"
+import { toast } from "sonner"
+import { useNavigate } from "react-router-dom"
 
 // Mock data for concept maps (to be replaced with real data later)
 const mockConceptMaps = [
@@ -16,9 +23,82 @@ const mockConceptMaps = [
   { id: 5, title: "Physics Mechanics", description: "Newton's laws and their applications", createdAt: "2023-09-05", lastEdited: "2023-10-10", nodes: 22 },
 ]
 
+const ConceptMapItem = ({ map, onSelect }: { map: MapItem; onSelect: () => void }) => {
+  return (
+    <div
+      onClick={onSelect}
+      className="border rounded-md p-4 cursor-pointer hover:bg-accent transition-colors"
+    >
+      <div className="flex justify-between items-start mb-2">
+        <h3 className="font-medium truncate">{map.title}</h3>
+        <div className="flex items-center gap-1">
+          {map.shareId && (
+            <Badge variant="outline" className="text-xs">
+              Shared
+            </Badge>
+          )}
+        </div>
+      </div>
+      <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+        {map.description}
+      </p>
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <Clock className="h-3 w-3" />
+        <span>Updated {formatDistanceToNow(new Date(map.lastEdited))} ago</span>
+      </div>
+    </div>
+  );
+};
+
 export default function DashboardPage() {
   const { user, logout } = useAuth()
-  
+  const [createMapOpen, setCreateMapOpen] = useState(false)
+  const [importMapOpen, setImportMapOpen] = useState(false)
+  const [maps, setMaps] = useState<MapItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    const fetchMaps = async () => {
+      try {
+        const userMaps = await conceptMapsApi.getMyMaps()
+        setMaps(userMaps)
+      } catch (error) {
+        console.error('Error fetching maps:', error)
+        toast.error('Failed to load your concept maps')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchMaps()
+  }, [])
+
+  const handleCreateMap = async (title: string, text: string) => {
+    try {
+      const newMap = await conceptMapsApi.createMap({
+        title: title,
+        text: text,
+        mapType: "default"
+      })
+      if (newMap) {
+        navigate(`/editor/${newMap.id}`)
+      } else {
+        toast.error('Failed to create concept map')
+      }
+    } catch (error) {
+      console.error('Error creating map:', error)
+      toast.error('Failed to create concept map')
+    }
+  }
+
+  const handleImportMap = (file: File) => {
+    // TODO: Implement file import logic
+    console.log('Importing file:', file.name)
+    setImportMapOpen(false)
+    toast.success(`Imported ${file.name}`)
+  }
+
   const handleLogout = async () => {
     await logout()
   }
@@ -69,17 +149,26 @@ export default function DashboardPage() {
                   }
                 />
                 
-                <div className="flex flex-col items-center p-6 border border-border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors">
-                  <div className="p-3 bg-primary/10 rounded-full mb-4">
-                    <svg className="h-6 w-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                  <h3 className="font-medium">Import Map</h3>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Import from file or URL
-                  </p>
-                </div>
+                <ImportMapDialog
+                  trigger={
+                    <div className="flex flex-col items-center p-6 border border-border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors">
+                      <div className="p-3 bg-primary/10 rounded-full mb-4">
+                        <svg className="h-6 w-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      <h3 className="font-medium">Import Map</h3>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Import from a local file 
+                      </p>
+                    </div>
+                  }
+                  onMapImported={(file) => {
+                    // Handle the imported file
+                    console.log('Imported file:', file)
+                    // TODO: Implement file processing logic
+                  }}
+                />
                 
                 <div className="flex flex-col items-center p-6 border border-border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors">
                   <div className="p-3 bg-primary/10 rounded-full mb-4">
@@ -99,4 +188,4 @@ export default function DashboardPage() {
       </div>
     </SidebarProvider>
   )
-} 
+}
