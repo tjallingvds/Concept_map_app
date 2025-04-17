@@ -57,9 +57,10 @@ function AppRoutes() {
           </div>
         )
       } />
+
       
       {/* Protected routes */}
-      <Route element={<ProtectedRoute />}>
+      {/* <Route element={<ProtectedRoute />}> */}
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/maps" element={<MyMapsPage />} />
         <Route path="/library" element={<PublicMapsPage />} />
@@ -68,7 +69,7 @@ function AppRoutes() {
         <Route path="/editor/:id" element={<EditorPage />} />
         <Route path="/shared/:shareId" element={<SharedMapPage />} />
         {/* Add more protected routes here */}
-      </Route>
+      {/* </Route> */}
     </Routes>
   );
 }

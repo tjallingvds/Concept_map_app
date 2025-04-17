@@ -71,7 +71,7 @@ export default function MyMapsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
-  const [sortMode, setSortMode] = useState<"default" | "az">("default") // ✅ NEW
+  const [sortMode, setSortMode] = useState<"default" | "az">("default") 
 
   // Fetch user's maps on component mount
   useEffect(() => {
