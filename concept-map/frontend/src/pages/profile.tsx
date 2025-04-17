@@ -31,10 +31,8 @@ import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
-import { Camera, Upload, Map, Share2, Edit, Download } from "lucide-react"
-import { useNavigate, Link } from "react-router-dom"
-import conceptMapsApi from "../services/api"
-import { MapItem } from "../components/file-system"
+import { Camera } from "lucide-react"
+import { useNavigate } from "react-router-dom"
 
 // Form validation schema
 const profileFormSchema = z.object({
@@ -51,30 +49,7 @@ export default function ProfilePage() {
   const [avatarSrc, setAvatarSrc] = useState<string>("/avatars/default.jpg")
   const [tempAvatarSrc, setTempAvatarSrc] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [userMaps, setUserMaps] = useState<MapItem[]>([])
-  const [loadingMaps, setLoadingMaps] = useState(true)
-  const [mapsError, setMapsError] = useState<string | null>(null)
   const navigate = useNavigate()
-  
-  // Fetch user's saved maps
-  useEffect(() => {
-    const fetchUserMaps = async () => {
-      if (!user) return;
-      
-      try {
-        setLoadingMaps(true);
-        const maps = await conceptMapsApi.getSavedMaps();
-        setUserMaps(maps);
-      } catch (error) {
-        console.error("Error fetching user maps:", error);
-        setMapsError("Failed to load your saved maps");
-      } finally {
-        setLoadingMaps(false);
-      }
-    };
-    
-    fetchUserMaps();
-  }, [user]);
   
   // Form setup
   const form = useForm<ProfileFormValues>({
@@ -318,122 +293,9 @@ export default function ProfilePage() {
                       </div>
                     </CardContent>
                   </Card>
-                  
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Account Statistics</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div className="p-4 bg-muted/50 rounded-lg text-center">
-                          <h3 className="text-xl font-bold">0</h3>
-                          <p className="text-sm text-muted-foreground">Concept Maps</p>
-                        </div>
-                        <div className="p-4 bg-muted/50 rounded-lg text-center">
-                          <h3 className="text-xl font-bold">{userMaps.filter(map => map.isPublic).length}</h3>
-                          <p className="text-sm text-muted-foreground">Public Maps</p>
-                        </div>
-                        <div className="p-4 bg-muted/50 rounded-lg text-center">
-                          <h3 className="text-xl font-bold">0</h3>
-                          <p className="text-sm text-muted-foreground">Saved Maps</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
                 </div>
               )}
             </div>
-          </div>
-          
-          {/* User's Saved Maps Section */}
-          <div className="mt-8">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-bold">Your Saved Concept Maps</h2>
-              <Button asChild variant="outline">
-                <Link to="/maps">
-                  <Map className="mr-2 h-4 w-4" />
-                  View All Maps
-                </Link>
-              </Button>
-            </div>
-            
-            {loadingMaps ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="border rounded-lg p-4 h-64">
-                    <div className="animate-pulse space-y-4">
-                      <div className="h-4 bg-muted rounded w-3/4"></div>
-                      <div className="h-32 bg-muted rounded"></div>
-                      <div className="h-4 bg-muted rounded w-1/2"></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : mapsError ? (
-              <div className="text-center p-8 border rounded-lg">
-                <p className="text-muted-foreground">{mapsError}</p>
-              </div>
-            ) : userMaps.length === 0 ? (
-              <div className="text-center p-8 border rounded-lg">
-                <p className="text-muted-foreground">You haven't created any concept maps yet.</p>
-                <Button asChild className="mt-4">
-                  <Link to="/dashboard">
-                    <Map className="mr-2 h-4 w-4" />
-                    Create Your First Map
-                  </Link>
-                </Button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {userMaps.slice(0, 6).map((map) => (
-                  <div key={map.id} className="border rounded-lg overflow-hidden">
-                    <div className="h-40 bg-muted flex items-center justify-center overflow-hidden">
-                      {map.svgContent ? (
-                        <div 
-                          className="w-full h-full" 
-                          dangerouslySetInnerHTML={{ __html: map.svgContent }}
-                        />
-                      ) : (
-                        <Map className="h-16 w-16 text-muted-foreground/50" />
-                      )}
-                    </div>
-                    <div className="p-4">
-                      <h3 className="font-medium truncate">{map.title}</h3>
-                      <p className="text-sm text-muted-foreground truncate">
-                        {map.nodes} nodes • Last edited {new Date(map.lastEdited).toLocaleDateString()}
-                      </p>
-                      <div className="flex items-center gap-2 mt-4">
-                        <Button size="sm" variant="outline" onClick={() => navigate(`/editor/${map.id}`)}>
-                          <Edit className="h-4 w-4 mr-1" />
-                          Edit
-                        </Button>
-                        {map.shareUrl ? (
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            onClick={() => {
-                              navigator.clipboard.writeText(`${window.location.origin}${map.shareUrl}`);
-                              toast.success("Share link copied to clipboard");
-                            }}
-                          >
-                            <Share2 className="h-4 w-4 mr-1" />
-                            Copy Link
-                          </Button>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            
-            {userMaps.length > 6 && (
-              <div className="mt-4 text-center">
-                <Button asChild variant="outline">
-                  <Link to="/maps">View All Maps</Link>
-                </Button>
-              </div>
-            )}
           </div>
         </main>
       </div>
