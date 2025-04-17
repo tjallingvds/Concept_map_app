@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { useAuth0 } from "@auth0/auth0-react";
 
 interface User {
   id: number;
@@ -18,8 +19,8 @@ interface UserProfileUpdate {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
+  login: () => Promise<void>;
+  register: () => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   updateUserProfile: (data: UserProfileUpdate) => Promise<void>;
@@ -28,127 +29,67 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user, isLoading, loginWithRedirect, logout, getAccessTokenSilently } = useAuth0();
+  const [localUser, setLocalUser] = useState<User | null>(null);
 
   const checkAuth = async () => {
-    try {
-      const response = await fetch("http://localhost:5001/api/auth/current-user", {
-        method: "GET",
-        credentials: "include",
+    if (user) {
+      setLocalUser({
+        id: user.sub,
+        email: user.email,
+        displayName: user.name || user.email.split('@')[0],
+        avatarUrl: user.picture,
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        // Ensure we set displayName if available from the backend
-        setUser({
-          ...data,
-          displayName: data.displayName || data.email.split('@')[0],
-        });
-      } else {
-        setUser(null);
-      }
-    } catch (error) {
-      console.error("Authentication check failed:", error);
-      setUser(null);
-    } finally {
-      setLoading(false);
+    } else {
+      setLocalUser(null);
     }
   };
 
   useEffect(() => {
     checkAuth();
-  }, []);
+  }, [user]);
 
   const login = async (email: string, password: string) => {
-    const response = await fetch("http://localhost:5001/api/auth/login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ email, password }),
-      credentials: "include",
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || "Login failed");
-    }
-
-    const data = await response.json();
-    setUser({
-      ...data.user,
-      displayName: data.user.displayName || data.user.email.split('@')[0],
+    await loginWithRedirect({
+      redirect_uri: window.location.origin,
+      login_hint: email,
+      password,
     });
   };
 
   const register = async (email: string, password: string) => {
-    const response = await fetch("http://localhost:5001/api/auth/register", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ email, password }),
-      credentials: "include",
+    await loginWithRedirect({
+      redirect_uri: window.location.origin,
+      screen_hint: "signup",
+      login_hint: email,
+      password,
     });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || "Registration failed");
-    }
   };
-
-  const logout = async () => {
-    await fetch("http://localhost:5001/api/auth/logout", {
-      method: "POST",
-      credentials: "include",
-    });
-    setUser(null);
+  const logoutUser = async () => {
+    logout({ returnTo: window.location.origin });
+    setLocalUser(null);
   };
 
   const updateUserProfile = async (data: UserProfileUpdate) => {
-    try {
-      // In a real application, you would call an API endpoint to update the user profile
-      // const response = await fetch("http://localhost:5001/api/auth/profile", {
-      //   method: "PUT",
-      //   headers: {
-      //     "Content-Type": "application/json",
-      //   },
-      //   body: JSON.stringify(data),
-      //   credentials: "include",
-      // });
-      
-      // if (!response.ok) {
-      //   const error = await response.json();
-      //   throw new Error(error.error || "Profile update failed");
-      // }
-
-      // const updatedUser = await response.json();
-      // setUser(updatedUser);
-      
-      // For now, just update the local state since backend isn't implemented
-      if (user) {
-        setUser({
-          ...user,
-          displayName: data.name || user.displayName,
-          email: data.email || user.email,
-          bio: data.bio !== undefined ? data.bio : user.bio,
-        });
-      }
-    } catch (error) {
-      console.error("Profile update failed:", error);
-      throw error;
+    // Update user profile logic here
+    if (localUser) {
+      setLocalUser({
+        ...localUser,
+        displayName: data.name || localUser.displayName,
+        email: data.email || localUser.email,
+        bio: data.bio !== undefined ? data.bio : localUser.bio,
+      });
     }
   };
 
   return (
     <AuthContext.Provider
       value={{
-        user,
-        loading,
+        user: localUser,
+        loading: isLoading,
         login,
         register,
-        logout,
+        logout: logoutUser,
         checkAuth,
         updateUserProfile,
       }}
@@ -164,4 +105,4 @@ export function useAuth() {
     throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
-} 
+}
