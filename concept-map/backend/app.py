@@ -15,7 +15,7 @@ app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(16))
 # Configure CORS with specific settings
 CORS(app, 
      supports_credentials=True,
-     origins=['http://localhost:5173'],  # Frontend development server
+     origins=[os.environ.get('FRONTEND_URL', 'http://localhost:5173')],  # Frontend server from env or default
      methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
      allow_headers=['Content-Type', 'Authorization', 'Accept'],
      expose_headers=['Content-Type', 'Authorization'],

@@ -119,6 +119,23 @@ The application follows a client-server architecture:
 
 7. The API server should now be running at http://localhost:5001
 
+### Environment Configuration
+
+The application uses environment variables for configuration to avoid hardcoding values and make deployment to different environments easier:
+
+#### Frontend Environment Variables (.env file)
+- `VITE_API_BASE_URL`: The URL of the backend API server (default: http://localhost:5001)
+
+#### Backend Environment Variables (.env file)
+- `FLASK_APP`: The main Flask application file (default: app.py)
+- `FLASK_ENV`: The environment to run Flask in (development/production)
+- `FLASK_DEBUG`: Enable/disable debug mode (1/0)
+- `PORT`: The port to run the API server on (default: 5001)
+- `GEMINI_API_KEY`: API key for Google's Gemini model
+- `FRONTEND_URL`: The URL of the frontend application (default: http://localhost:5173)
+
+**Important**: Always use environment variables for configuration instead of hardcoding URLs or other sensitive information in the codebase. This ensures the application can be deployed to different environments without code changes.
+
 ## 📋 Tasks and Project Management
 
 Project tasks, feature requests, and bug tracking are managed in our Notion workspace. You can find all current and upcoming tasks at:

@@ -30,10 +30,11 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001";
 
   const checkAuth = async () => {
     try {
-      const response = await fetch("http://localhost:5001/api/auth/current-user", {
+      const response = await fetch(`${API_URL}/api/auth/current-user`, {
         method: "GET",
         credentials: "include",
       });
@@ -61,7 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string) => {
-    const response = await fetch("http://localhost:5001/api/auth/login", {
+    const response = await fetch(`${API_URL}/api/auth/login`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -83,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const register = async (email: string, password: string) => {
-    const response = await fetch("http://localhost:5001/api/auth/register", {
+    const response = await fetch(`${API_URL}/api/auth/register`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -99,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
-    await fetch("http://localhost:5001/api/auth/logout", {
+    await fetch(`${API_URL}/api/auth/logout`, {
       method: "POST",
       credentials: "include",
     });
@@ -109,7 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const updateUserProfile = async (data: UserProfileUpdate) => {
     try {
       // In a real application, you would call an API endpoint to update the user profile
-      // const response = await fetch("http://localhost:5001/api/auth/profile", {
+      // const response = await fetch(`${API_URL}/api/auth/profile`, {
       //   method: "PUT",
       //   headers: {
       //     "Content-Type": "application/json",
