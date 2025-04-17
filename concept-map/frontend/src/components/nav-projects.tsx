@@ -36,17 +36,22 @@ export function NavProjects({
   title = "Projects",
   emptyMessage = "No projects found",
   isLoading = false,
+  actionButton,
 }: {
   projects: ProjectItem[];
   title?: string;
   emptyMessage?: string;
   isLoading?: boolean;
+  actionButton?: React.ReactNode;
 }) {
   const { isMobile } = useSidebar()
 
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
-      <SidebarGroupLabel>{title}</SidebarGroupLabel>
+      <div className="flex items-center justify-between">
+        <SidebarGroupLabel>{title}</SidebarGroupLabel>
+        {actionButton}
+      </div>
       <SidebarMenu>
         {isLoading ? (
           <>
