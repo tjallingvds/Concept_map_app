@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { fabric } from 'fabric';
+import * as fabric from "fabric"; // ✅ This is what actually works;
 import { Button } from '../ui/button';
 import { Edit, Move, PenLine, Square, Circle, Type, Eraser, Undo, Redo, Save } from 'lucide-react';
 
