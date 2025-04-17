@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   Map,
   PlusCircle,
+  Notebook,
   type LucideIcon
 } from "lucide-react"
 import { Link } from "react-router-dom"
@@ -135,6 +136,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <Link to="/library">
                   <Globe />
                   <span>Public concept maps</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+
+            {/* Stored Notes - Links to /notes page */}
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild>
+                <Link to="/notes">
+                  <Notebook />
+                  <span>Stored Notes</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
