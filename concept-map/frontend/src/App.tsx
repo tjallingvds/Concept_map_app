@@ -11,6 +11,7 @@ import ProfilePage from './pages/profile';
 import SettingsPage from './pages/settings';
 import EditorPage from './pages/editor';
 import SharedMapPage from './pages/shared-map';
+import WriteAndLearnPage from './pages/write-and-learn';
 
 // Protected route component that redirects to login if user is not authenticated
 function ProtectedRoute() {
@@ -67,6 +68,7 @@ function AppRoutes() {
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/editor/:id" element={<EditorPage />} />
         <Route path="/shared/:shareId" element={<SharedMapPage />} />
+        <Route path="/write-and-learn" element={<WriteAndLearnPage />} />
         {/* Add more protected routes here */}
       </Route>
     </Routes>

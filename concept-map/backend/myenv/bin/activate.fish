@@ -33,7 +33,7 @@ end
 # Unset irrelevant variables.
 deactivate nondestructive
 
-set -gx VIRTUAL_ENV "/Users/alhassanahmed/Desktop/concept_map_app/concept-map/backend/myenv"
+set -gx VIRTUAL_ENV "/Users/tjalling/Concept_map_app/concept-map/backend/myenv"
 
 set -gx _OLD_VIRTUAL_PATH $PATH
 set -gx PATH "$VIRTUAL_ENV/bin" $PATH

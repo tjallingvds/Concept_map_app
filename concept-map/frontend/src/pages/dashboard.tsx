@@ -4,7 +4,7 @@ import { AppSidebar } from "../components/app-sidebar"
 import { useAuth } from "../contexts/auth-context"
 import { Button } from "../components/ui/button"
 import { Input } from "../components/ui/input"
-import { PlusIcon, Search, Clock } from "lucide-react"
+import { PlusIcon, Search, Clock, PenLine } from "lucide-react"
 import { CreateMapDialog } from "../components/create-map-dialog"
 import { ImportMapDialog } from "../components/import-map-dialog"
 import { Badge } from "../components/ui/badge"
@@ -134,7 +134,7 @@ export default function DashboardPage() {
               </div>
               
               {/* Action Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 w-full">
                 <CreateMapDialog
                   trigger={
                     <div className="flex flex-col items-center p-6 border border-border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors">
@@ -169,6 +169,19 @@ export default function DashboardPage() {
                     // TODO: Implement file processing logic
                   }}
                 />
+                
+                <div 
+                  onClick={() => navigate('/write-and-learn')}
+                  className="flex flex-col items-center p-6 border border-border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+                >
+                  <div className="p-3 bg-primary/10 rounded-full mb-4">
+                    <PenLine className="h-6 w-6 text-primary" />
+                  </div>
+                  <h3 className="font-medium">Write and Learn</h3>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Start writing and learning
+                  </p>
+                </div>
                 
                 <div className="flex flex-col items-center p-6 border border-border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors">
                   <div className="p-3 bg-primary/10 rounded-full mb-4">
