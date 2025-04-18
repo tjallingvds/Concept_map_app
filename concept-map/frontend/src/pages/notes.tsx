@@ -3,10 +3,24 @@ import { Link } from "react-router-dom"
 import { SidebarProvider, SidebarTrigger } from "../components/ui/sidebar"
 import { AppSidebar } from "../components/app-sidebar"
 import { Button } from "../components/ui/button"
-import { ArrowLeft } from "lucide-react"
+
+// Import BlockNote components
+import "@blocknote/core/fonts/inter.css"
+import { BlockNoteView } from "@blocknote/mantine"
+import "@blocknote/mantine/style.css"
+import { useCreateBlockNote } from "@blocknote/react"
 
 export default function NotesPage() {
   const [activeTab, setActiveTab] = useState<"notes" | "learning">("notes")
+  
+  // Create a simple BlockNote editor instance
+  const editor = useCreateBlockNote()
+
+  // Simple placeholder for handling save
+  const handleSaveNotes = () => {
+    console.log("Saving notes")
+    // In a real app, you'd save the content here
+  }
 
   return (
     <SidebarProvider>
@@ -43,14 +57,16 @@ export default function NotesPage() {
               
               {activeTab === "notes" ? (
                 <div>
-                  <h1 className="text-3xl font-bold mb-6">Your Notes</h1>
-                  <div className="bg-white rounded-lg border p-6">
-                    <p className="text-muted-foreground text-center py-8">
-                      You don't have any notes yet. Start by creating a new note or importing one.
-                    </p>
-                    <div className="flex justify-center">
-                      <Button>Create New Note</Button>
-                    </div>
+                  <div className="flex justify-between items-center mb-4">
+                    <h1 className="text-3xl font-bold">Your Notes</h1>
+                    <Button onClick={handleSaveNotes}>Save Notes</Button>
+                  </div>
+                  <div className="bg-white rounded-lg border shadow-sm p-0 min-h-[600px]">
+                    {/* BlockNote Editor */}
+                    <BlockNoteView 
+                      editor={editor}
+                      theme="light"
+                    />
                   </div>
                 </div>
               ) : (
