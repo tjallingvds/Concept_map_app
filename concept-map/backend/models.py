@@ -11,7 +11,7 @@ class User:
     def __init__(self, email, password, user_id=None, display_name=None, bio=None, avatar_url=None):
         self.id = user_id
         self.email = email
-        self.password_hash = generate_password_hash(password)
+        self.password_hash = generate_password_hash(password, method='pbkdf2:sha256' )
         self.display_name = display_name or email.split('@')[0]
         self.bio = bio
         self.avatar_url = avatar_url
