@@ -33,8 +33,9 @@ import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 import { Camera, Upload, Map, Share2, Edit, Download } from "lucide-react"
 import { useNavigate, Link } from "react-router-dom"
-import conceptMapsApi from "../services/api"
 import { MapItem } from "../components/file-system"
+import {useConceptMapsApi} from "../services/api.ts";
+import {useUserApi} from "../services/userApi.ts";
 
 // Form validation schema
 const profileFormSchema = z.object({
@@ -46,7 +47,7 @@ const profileFormSchema = z.object({
 type ProfileFormValues = z.infer<typeof profileFormSchema>
 
 export default function ProfilePage() {
-  const { user, updateUserProfile } = useAuth()
+  const { user, updateUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false)
   const [avatarSrc, setAvatarSrc] = useState<string>("/avatars/default.jpg")
   const [tempAvatarSrc, setTempAvatarSrc] = useState<string | null>(null)
@@ -55,7 +56,10 @@ export default function ProfilePage() {
   const [loadingMaps, setLoadingMaps] = useState(true)
   const [mapsError, setMapsError] = useState<string | null>(null)
   const navigate = useNavigate()
-  
+  const { getSavedMaps } = useConceptMapsApi();
+  const {updateUserProfile} = useUserApi();
+
+
   // Fetch user's saved maps
   useEffect(() => {
     const fetchUserMaps = async () => {
@@ -63,7 +67,7 @@ export default function ProfilePage() {
       
       try {
         setLoadingMaps(true);
-        const maps = await conceptMapsApi.getSavedMaps();
+        const maps = await getSavedMaps();
         setUserMaps(maps);
       } catch (error) {
         console.error("Error fetching user maps:", error);
@@ -103,31 +107,44 @@ export default function ProfilePage() {
   }, [user, form]);
   
   // Save profile changes
+  function base64ToFile(base64: string, filename = 'avatar.png') {
+    const arr = base64.split(',');
+    const mime = arr[0].match(/:(.*?);/)?.[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new File([u8arr], filename, { type: mime });
+  }
   const onSubmit = async (data: ProfileFormValues) => {
     try {
       // Prepare update data
       const updateData = {
         name: data.name,
-        email: data.email,
         bio: data.bio,
-        avatarUrl: tempAvatarSrc || undefined
+        avatar: base64ToFile(tempAvatarSrc) || undefined,
       };
-      
-      await updateUserProfile(updateData);
-      
+
+      const updatedUser = await updateUserProfile(updateData);
+
+      // Update the user in the auth context
+      updateUser(updatedUser);
+
       // Update the avatar source if a new one was selected
       if (tempAvatarSrc) {
         setAvatarSrc(tempAvatarSrc);
         setTempAvatarSrc(null);
       }
-      
-      toast.success("Profile updated successfully")
-      setIsEditing(false)
+
+      toast.success("Profile updated successfully");
+      setIsEditing(false);
     } catch (error) {
-      toast.error("Failed to update profile")
-      console.error("Profile update error:", error)
+      toast.error("Failed to update profile");
+      console.error("Profile update error:", error);
     }
-  }
+  };
   
   // Handle avatar click to trigger file input
   const handleAvatarClick = () => {

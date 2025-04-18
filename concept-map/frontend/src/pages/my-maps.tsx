@@ -6,9 +6,9 @@ import { FileSystem, MapItem, FileSearchBar } from "../components/file-system"
 import { Plus } from "lucide-react"
 import { Button } from "../components/ui/button"
 import { useAuth } from "../contexts/auth-context"
-import conceptMapsApi from "../services/api"
 import { CreateMapDialog } from "../components/create-map-dialog"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuItem } from "../components/ui/dropdown-menu" // ✅ NEW
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuItem } from "../components/ui/dropdown-menu"
+import {useConceptMapsApi} from "../services/api.ts"; // ✅ NEW
 
 // Mock data for personal concept maps
 const mockPersonalMaps: MapItem[] = [
@@ -66,6 +66,8 @@ const mockPersonalMaps: MapItem[] = [
 
 export default function MyMapsPage() {
   const { user } = useAuth()
+  const { getMyMaps, toggleFavorite, shareMap, deleteMap, getMap } = useConceptMapsApi();
+
   const navigate = useNavigate()
   const [myMaps, setMyMaps] = useState<MapItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -78,7 +80,7 @@ export default function MyMapsPage() {
     const fetchMaps = async () => {
       try {
         setLoading(true)
-        const maps = await conceptMapsApi.getMyMaps()
+        const maps = await getMyMaps()
         setMyMaps(maps)
         setError(null)
       } catch (err) {
@@ -98,7 +100,7 @@ export default function MyMapsPage() {
   
   const handleFavorite = async (id: number) => {
     try {
-      const success = await conceptMapsApi.toggleFavorite(id)
+      const success = await toggleFavorite(id)
       if (success) {
         setMyMaps(maps => maps.map(map => 
           map.id === id ? { ...map, isFavorite: !map.isFavorite } : map
@@ -115,7 +117,7 @@ export default function MyMapsPage() {
   
   const handleShare = async (id: number) => {
     try {
-      const { shareUrl, shareId } = await conceptMapsApi.shareMap(id);
+      const { shareUrl, shareId } = await shareMap(id);
       setMyMaps(prevMaps => prevMaps.map(map => {
         if (map.id === id) {
           return {
@@ -140,7 +142,7 @@ export default function MyMapsPage() {
   const handleDelete = async (id: number) => {
     if (confirm("Are you sure you want to delete this map? This action cannot be undone.")) {
       try {
-        const success = await conceptMapsApi.deleteMap(id)
+        const success = await deleteMap(id)
         if (success) {
           setMyMaps(maps => maps.filter(map => map.id !== id))
         } else {
@@ -159,7 +161,7 @@ export default function MyMapsPage() {
 
   const handleDownload = async (id: number) => {
     try {
-      const map = await conceptMapsApi.getMap(id);
+      const map = await getMap(id);
       if (!map) throw new Error("Could not retrieve map data");
 
       if (map.svgContent) {

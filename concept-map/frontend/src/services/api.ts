@@ -1,5 +1,5 @@
 import {MapItem} from "../components/file-system";
-import {API_URL, authFetch} from "./baseApi.ts";
+import {API_URL, authFetch, useAuthFetch} from "./baseApi.ts";
 
 
 // Interface for the API response from the backend
@@ -22,6 +22,9 @@ interface ConceptMapResponse {
     description?: string;
     learning_objective?: string;
 }
+
+
+
 
 // Function to convert backend concept map format to frontend MapItem format
 const mapResponseToMapItem = (response: ConceptMapResponse): MapItem => {
@@ -173,6 +176,18 @@ const visualizeConcepts = async (conceptData: any, mapType: string = 'mindmap'):
         throw error;
     }
 };
+
+
+// 🔑 Token-injected fetch function (injected from useAuthFetch)
+let authFetch: typeof fetch = () => {
+    throw new Error("authFetch not initialized");
+};
+
+// ✅ One-time setter to be called from useConceptMapsApi
+export const setAuthFetch = (fetchFn: typeof fetch) => {
+    authFetch = fetchFn;
+};
+
 
 // API service for concept maps
 const conceptMapsApi = {
@@ -524,12 +539,7 @@ const conceptMapsApi = {
     // Get all saved maps for the current user
     getSavedMaps: async (): Promise<MapItem[]> => {
         try {
-            const user_id = sessionStorage.getItem('user_id'); // Assuming user_id is stored in session storage
-            if (!user_id) {
-                throw new Error("User not authenticated");
-            }
-
-            const response = await authFetch(`${API_URL}/api/users/${user_id}/saved-maps`, {
+            const response = await authFetch(`${API_URL}/api/user/saved-maps`, {
                 method: "GET",
                 credentials: "include",
                 headers: {
@@ -553,4 +563,9 @@ const conceptMapsApi = {
     visualizeConcepts
 };
 
-export default conceptMapsApi;
+export function useConceptMapsApi() {
+    const authFetch = useAuthFetch();
+    setAuthFetch(authFetch); // 🔥 inject the token-enabled fetch
+
+    return conceptMapsApi;
+}

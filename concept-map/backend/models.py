@@ -3,7 +3,6 @@ Models for the concept map application.
 Currently using in-memory storage, but structured to easily migrate to a database.
 """
 
-from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
 
@@ -17,7 +16,11 @@ class User(db.Model):
     __tablename__ = "users"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    auth0_id = db.Column(db.String(128), unique=True, nullable=True)
+    auth0_id = db.Column(
+        db.String(128),
+        db.UniqueConstraint(name="uq_users_auth0_id"),  # ✅ give the constraint a name
+        nullable=True
+    )
     email = db.Column(db.String(120), unique=True, nullable=False)
     display_name = db.Column(db.String(100), nullable=False)
     bio = db.Column(db.Text, nullable=True)
@@ -36,7 +39,6 @@ class User(db.Model):
     def __init__(
         self,
         email,
-        password,
         user_id=None,
         auth0_id=None,
         display_name=None,
@@ -46,7 +48,6 @@ class User(db.Model):
         self.id = user_id
         self.auth0_id=auth0_id
         self.email = email
-        self.password_hash = generate_password_hash(password)
         self.display_name = display_name or email.split("@")[0]
         self.bio = bio
         self.avatar_url = avatar_url

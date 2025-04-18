@@ -102,7 +102,7 @@ def upload_avatar():
         filepath = os.path.join(app.config["UPLOAD_FOLDER"], unique_filename)
         file.save(filepath)
 
-        avatar_url = f"/uploads/{unique_filename}"
+        avatar_url = f"{request.host_url.rstrip('/')}/uploads/{unique_filename}"
         user.update_profile(avatar_url=avatar_url)
         db.session.commit()
 
@@ -479,15 +479,12 @@ def uploaded_file(filename):
     return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
 
 
-@app.route("/api/users/<int:user_id>/recent-maps", methods=["GET"])
+@app.route("/api/user/recent-maps", methods=["GET"])
 @requires_auth
-def get_recent_maps(user_id):
+def get_recent_maps():
     #TODO: maybe it is better to just remove the user_id parameter?
     user = get_auth0_user()
-
-    # Check if the user is requesting their own data
-    if user.id != user_id:
-        return jsonify({"error": "Unauthorized"}), 403
+    user_id = user.id
 
     # Find user by ID
     user = User.query.filter_by(id=user_id, is_active=True).first()
@@ -535,15 +532,11 @@ def get_recent_maps(user_id):
     return jsonify({"maps": recent_maps}), 200
 
 
-@app.route("/api/users/<int:user_id>/saved-maps", methods=["GET"])
+@app.route("/api/user/saved-maps", methods=["GET"])
 @requires_auth
-def get_saved_maps(user_id):
+def get_saved_maps():
     user = get_auth0_user()
-
-    # Can only view own saved maps
-    if user.id != user_id:
-        return jsonify({"error": "Unauthorized"}), 403
-
+    user_id = user.id
     # Find user by ID
     user = next((u for u in users if u.id == user_id and u.is_active), None)
 
