@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import './App.css';
 import { RegisterForm } from './components/register-form';
+import { LoginForm } from './components/login-form';
 import DashboardPage from './pages/dashboard';
 import LandingPage from './pages/landing';
 import MyMapsPage from './pages/my-maps';
@@ -12,8 +13,6 @@ import SharedMapPage from './pages/shared-map';
 import NotesPage from './pages/notes';
 import EditorNotesPage from './pages/editor-notes';
 
-
-import NotesPage from './pages/notes';
 
 import { useAuth } from './contexts/auth-context';
 
