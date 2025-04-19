@@ -24,6 +24,60 @@ interface ConceptMapResponse {
   learning_objective?: string;
 }
 
+// Interface for note responses
+interface NoteResponse {
+  id: number;
+  title: string;
+  content: any;
+  user_id: number;
+  is_public: boolean;
+  share_id?: string;
+  created_at?: string;
+  updated_at?: string;
+  is_favorite: boolean;
+  tags: string[];
+  description?: string;
+  is_deleted: boolean;
+}
+
+// Interface for frontend note items
+export interface NoteItem {
+  id: number;
+  title: string;
+  content: any;
+  description?: string;
+  createdAt: string;
+  lastEdited: string;
+  isPublic: boolean;
+  isFavorite: boolean;
+  shareId?: string;
+  shareUrl?: string;
+  tags: string[];
+}
+
+// Function to convert backend note to frontend format
+const mapNoteResponseToNoteItem = (response: NoteResponse): NoteItem => {
+  // Generate share URL if the note is public and has a share_id
+  let shareUrl = undefined;
+  if (response.is_public && response.share_id) {
+    shareUrl = `${window.location.origin}/shared/notes/${response.share_id}`;
+  }
+
+  return {
+    id: response.id,
+    title: response.title,
+    content: response.content,
+    description: response.description,
+    createdAt: response.created_at || new Date().toISOString(),
+    lastEdited: response.updated_at || new Date().toISOString(),
+    isPublic: response.is_public || false,
+    isFavorite: response.is_favorite || false,
+    shareId: response.share_id,
+    shareUrl: shareUrl,
+    tags: response.tags || []
+  };
+};
+
 // Function to convert backend concept map format to frontend MapItem format
 const mapResponseToMapItem = (response: ConceptMapResponse): MapItem => {
   // Properly format the image data based on format
@@ -173,6 +227,240 @@ const visualizeConcepts = async (conceptData: any, mapType: string = 'mindmap'):
     console.error("API: Error visualizing concepts:", error);
     throw error;
   }
+};
+
+// API service for notes
+const notesApi = {
+  // Get all notes for the current user
+  getNotes: async (): Promise<NoteItem[]> => {
+    try {
+      const response = await fetch(`${API_URL}/api/notes`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch notes');
+      }
+
+      const data = await response.json();
+      return data.map(mapNoteResponseToNoteItem);
+    } catch (error) {
+      console.error('Error fetching notes:', error);
+      throw error;
+    }
+  },
+
+  // Get a specific note by ID
+  getNote: async (noteId: number): Promise<NoteItem> => {
+    try {
+      const response = await fetch(`${API_URL}/api/notes/${noteId}`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch note');
+      }
+
+      const data = await response.json();
+      return mapNoteResponseToNoteItem(data);
+    } catch (error) {
+      console.error(`Error fetching note ${noteId}:`, error);
+      throw error;
+    }
+  },
+
+  // Create a new note
+  createNote: async (noteData: { 
+    title: string; 
+    content: any; 
+    description?: string; 
+    tags?: string[];
+    is_public?: boolean;
+    is_favorite?: boolean;
+  }): Promise<NoteItem> => {
+    try {
+      const response = await fetch(`${API_URL}/api/notes`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(noteData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create note');
+      }
+
+      const data = await response.json();
+      return mapNoteResponseToNoteItem(data);
+    } catch (error) {
+      console.error('Error creating note:', error);
+      throw error;
+    }
+  },
+
+  // Update a note
+  updateNote: async (noteId: number, noteData: { 
+    title?: string; 
+    content?: any; 
+    description?: string; 
+    tags?: string[];
+    is_public?: boolean;
+    is_favorite?: boolean;
+  }): Promise<NoteItem> => {
+    try {
+      const response = await fetch(`${API_URL}/api/notes/${noteId}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(noteData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update note');
+      }
+
+      const data = await response.json();
+      return mapNoteResponseToNoteItem(data);
+    } catch (error) {
+      console.error(`Error updating note ${noteId}:`, error);
+      throw error;
+    }
+  },
+
+  // Delete a note
+  deleteNote: async (noteId: number): Promise<{ message: string }> => {
+    try {
+      const response = await fetch(`${API_URL}/api/notes/${noteId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete note');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error(`Error deleting note ${noteId}:`, error);
+      throw error;
+    }
+  },
+
+  // Convert a note to a concept map
+  convertNoteToConceptMap: async (noteId: number): Promise<MapItem> => {
+    try {
+      const response = await fetch(`${API_URL}/api/notes/${noteId}/convert`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to convert note to concept map');
+      }
+
+      const data = await response.json();
+      return mapResponseToMapItem(data.concept_map);
+    } catch (error) {
+      console.error(`Error converting note ${noteId} to concept map:`, error);
+      throw error;
+    }
+  },
+
+  // Get recent notes
+  getRecentNotes: async (userId: number): Promise<NoteItem[]> => {
+    try {
+      const response = await fetch(`${API_URL}/api/users/${userId}/recent-notes`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch recent notes');
+      }
+
+      const data = await response.json();
+      return data.map(mapNoteResponseToNoteItem);
+    } catch (error) {
+      console.error('Error fetching recent notes:', error);
+      throw error;
+    }
+  },
+
+  // Get favorite notes
+  getFavoriteNotes: async (userId: number): Promise<NoteItem[]> => {
+    try {
+      const response = await fetch(`${API_URL}/api/users/${userId}/favorite-notes`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch favorite notes');
+      }
+
+      const data = await response.json();
+      return data.map(mapNoteResponseToNoteItem);
+    } catch (error) {
+      console.error('Error fetching favorite notes:', error);
+      throw error;
+    }
+  },
+
+  // Generate a share link for a note
+  shareNote: async (noteId: number, options: { is_public?: boolean; regenerate?: boolean } = {}): Promise<{ share_id: string; share_url: string; is_public: boolean }> => {
+    try {
+      const response = await fetch(`${API_URL}/api/notes/${noteId}/share`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(options),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to share note');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error(`Error sharing note ${noteId}:`, error);
+      throw error;
+    }
+  },
 };
 
 // API service for concept maps
@@ -555,4 +843,7 @@ const conceptMapsApi = {
   visualizeConcepts
 };
 
+export { conceptMapsApi, notesApi, visualizeConcepts };
+
+// Also export conceptMapsApi as default for backward compatibility
 export default conceptMapsApi;
