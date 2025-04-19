@@ -6,20 +6,21 @@ import base64
 from datetime import datetime, timedelta
 
 from flask import Flask, request, jsonify, session, send_from_directory, abort
+
 from flask_cors import CORS
 from flask_migrate import Migrate
-from werkzeug.utils import secure_filename
 
-from auth import requires_auth, get_auth0_user
-from concept_map_generation.routes import concept_map_bp
-from document_processor import DocumentProcessor
-from models import db, User, ConceptMap, Node, Edge, Note
+from auth.routes import auth_bp
+from concept_map_generation.generation_routes import concept_map_bp
+from debug.routes import debug_bp
+from models import db
+from process.routes import process_bp
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(16))
 
 # Configure CORS with specific settings
-CORS(app, 
+CORS(app,
      supports_credentials=True,
      origins=[os.environ.get('FRONTEND_URL', 'http://localhost:5173')],  # Frontend server from env or default
      methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -37,9 +38,6 @@ app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(
     days=7
 )  # Session expires in 7 days
 
-# Register blueprints
-app.register_blueprint(concept_map_bp)
-
 # Configure database
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
     "DATABASE_URL", "sqlite:///concept_map.db"
@@ -50,11 +48,8 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db.init_app(app)
 migrate = Migrate(app, db)
 
-UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif"}
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50MB max file size
-
 # Create uploads directory if it doesn't exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 # In-memory storage (replace with database in production)
@@ -441,7 +436,6 @@ def delete_concept_map(map_id):
     )
 
 
-# Serve uploaded files
 @app.route("/uploads/<filename>")
 def uploaded_file(filename):
     return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
@@ -746,6 +740,7 @@ def list_models():
     except Exception as e:
         print(f"DEBUG: Error listing models: {str(e)}")
         return jsonify({"error": f"Failed to list models: {str(e)}"}), 500
+
 
 
 # Health check endpoint
