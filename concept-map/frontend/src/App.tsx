@@ -9,6 +9,9 @@ import ProfilePage from './pages/profile';
 import SettingsPage from './pages/settings';
 import EditorPage from './pages/editor';
 import SharedMapPage from './pages/shared-map';
+import NotesPage from './pages/notes';
+import EditorNotesPage from './pages/editor-notes';
+
 
 import NotesPage from './pages/notes';
 
@@ -31,6 +34,7 @@ function ProtectedRoute() {
 }
 
 function AppRoutes() {
+
   const { user, loading } = useAuth();
   
   if (loading) {
@@ -71,6 +75,9 @@ function AppRoutes() {
         <Route path="/editor/:id" element={<EditorPage />} />
         <Route path="/shared/:shareId" element={<SharedMapPage />} />
         <Route path="/notes" element={<NotesPage />} />
+        <Route path="/editor-notes" element={<EditorNotesPage />} />
+        <Route path="/editor-notes/:id" element={<EditorNotesPage />} />
+
         {/* Add more protected routes here */}
       </Route>
     </Routes>
