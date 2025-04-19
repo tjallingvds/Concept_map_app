@@ -65,9 +65,9 @@ def register():
     if not data or 'email' not in data or 'password' not in data:
         return jsonify({"error": "Missing required fields"}), 400
     
-    # Check if user already exists
+    # Check if active user already exists with this email
     for user in users:
-        if user.email == data['email']:
+        if user.email == data['email'] and user.is_active:
             return jsonify({"error": "Email already registered"}), 409
     
     # Create new user
