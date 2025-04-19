@@ -65,7 +65,7 @@ function AppRoutes() {
         <Route path="/shared/:shareId" element={<SharedMapPage />} />
         
         {/* Notes routes */}
-        <Route path="/notes" element={<NotesPage />} />
+        <Route path="/notes" element={<EditorNotesPage />} />
         <Route path="/notes/edit" element={<EditorNotesPage />} />
         <Route path="/notes/edit/:id" element={<EditorNotesPage />} />
         
