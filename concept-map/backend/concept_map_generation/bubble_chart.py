@@ -1,12 +1,13 @@
-import json
-import matplotlib.pyplot as plt
-import io
 import base64
-import matplotlib
-import packcircles
+import io
+import json
 
-from matplotlib.patches import Circle, Patch
+import matplotlib
+import matplotlib.pyplot as plt
 import numpy as np
+import packcircles
+from matplotlib.patches import Circle, Patch
+
 
 def load_gemini_output(gemini_json):
     """
@@ -24,11 +25,11 @@ def load_gemini_output(gemini_json):
     else:
         print("Error: Unsupported format for Gemini output.")
         return []
-    
+
     # Validate and ensure all required fields are present
     required_fields = ['concept', 'frequency', 'category', 'importance_score']
     validated_data = []
-    
+
     for item in data:
         if all(field in item for field in required_fields):
             # Ensure numeric fields have correct types
@@ -46,8 +47,9 @@ def load_gemini_output(gemini_json):
         else:
             print(f"Error: Missing required fields in item {item}")
             continue
-            
+
     return validated_data
+
 
 def generate_packed_bubble_chart(concepts, use_importance=False, title="Packed Bubble Chart"):
     """
@@ -121,7 +123,7 @@ def generate_packed_bubble_chart(concepts, use_importance=False, title="Packed B
         '#8BB7B7',  # muted cyan
         '#B78BB7',  # muted magenta
         '#B7958B',  # muted salmon
-        '#8B95B7'   # muted slate
+        '#8B95B7'  # muted slate
     ]
     cat_color_map = {cat: muted_colors[i % len(muted_colors)] for i, cat in enumerate(unique_cats)}
 
@@ -139,11 +141,11 @@ def generate_packed_bubble_chart(concepts, use_importance=False, title="Packed B
         color = cat_color_map.get(cat, '#999999')
 
         # Draw the circle with subtle border
-        circle_patch = Circle((x, y), r, 
-                            facecolor=color, 
-                            edgecolor='#ffffff',
-                            linewidth=2,
-                            alpha=0.85)
+        circle_patch = Circle((x, y), r,
+                              facecolor=color,
+                              edgecolor='#ffffff',
+                              linewidth=2,
+                              alpha=0.85)
         ax.add_patch(circle_patch)
 
         # Add concept name and value (for frequency-based chart)
@@ -152,7 +154,7 @@ def generate_packed_bubble_chart(concepts, use_importance=False, title="Packed B
             label_text = f"{concept_name}\n({value})"
         else:
             label_text = concept_name
-            
+
         ax.text(x, y, label_text,
                 ha="center", va="center",
                 fontsize=font_size,
@@ -180,6 +182,7 @@ def generate_packed_bubble_chart(concepts, use_importance=False, title="Packed B
     ax.axis("off")
     plt.tight_layout()
     plt.show()
+
 
 def process_text_for_bubble_chart(text, model):
     """
@@ -215,23 +218,23 @@ def process_text_for_bubble_chart(text, model):
     Here is the text:
     {}
     """.format(text)
-    
+
     try:
         # Call Gemini API
         response = model.generate_content(prompt)
-        
+
         # Extract JSON from response
         response_text = response.text
         # Find JSON content (assuming it's enclosed in ```json and ```)
         json_start = response_text.find('```json')
         json_end = response_text.rfind('```')
-        
+
         if json_start != -1 and json_end != -1:
             json_content = response_text[json_start + 7:json_end].strip()
         else:
             # If not in code block, try to extract JSON directly
             json_content = response_text
-        
+
         # Parse the JSON
         try:
             concepts_data = json.loads(json_content)
@@ -244,13 +247,13 @@ def process_text_for_bubble_chart(text, model):
                 concepts_data = json.loads(json_content)
             else:
                 raise ValueError('Failed to parse Gemini response as JSON')
-        
+
         # Process the concepts data
         concepts = load_gemini_output(concepts_data)
-        
+
         # Generate charts and convert to base64 for embedding
         charts = []
-        
+
         # Frequency-based chart
         freq_img_data = io.BytesIO()
         generate_packed_bubble_chart(
@@ -263,7 +266,7 @@ def process_text_for_bubble_chart(text, model):
         plt.close()
         freq_img_data.seek(0)
         freq_img_b64 = base64.b64encode(freq_img_data.read()).decode('utf-8')
-        
+
         # Importance-based chart
         imp_img_data = io.BytesIO()
         generate_packed_bubble_chart(
@@ -275,8 +278,8 @@ def process_text_for_bubble_chart(text, model):
         plt.close()
         imp_img_data.seek(0)
         imp_img_b64 = base64.b64encode(imp_img_data.read()).decode('utf-8')
-        
+
         return freq_img_b64, imp_img_b64
-        
+
     except Exception as e:
         raise RuntimeError(f'Error processing text: {str(e)}')
