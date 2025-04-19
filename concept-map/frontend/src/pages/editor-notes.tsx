@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom"
 import { SidebarProvider, SidebarTrigger } from "../components/ui/sidebar"
 import { AppSidebar } from "../components/app-sidebar"
 import { Button } from "../components/ui/button"
-import { ArrowLeft, Save } from "lucide-react"
+import { ArrowLeft, Save, GitMerge } from "lucide-react"
 
 // Import BlockNote components
 import "@blocknote/core/fonts/inter.css"
@@ -17,6 +17,7 @@ export default function EditorNotesPage() {
   const navigate = useNavigate()
   const [noteName, setNoteName] = useState(`Note ${id || ""}`)
   const [isSaving, setIsSaving] = useState(false)
+  const [isConverting, setIsConverting] = useState(false)
   
   // Create a BlockNote editor instance
   const editor = useCreateBlockNote()
@@ -33,6 +34,23 @@ export default function EditorNotesPage() {
       toast.error("Failed to save note")
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  // Handle converting to concept map
+  const handleConvertToConceptMap = async () => {
+    try {
+      setIsConverting(true)
+      // In a real app, you would convert note content to concept map here
+      await new Promise(resolve => setTimeout(resolve, 1000)) // Simulate API call
+      toast.success("Note converted to concept map!")
+      // Navigate to the concept map editor with the converted data
+      // navigate("/editor/new?from=note&id=" + id)
+    } catch (error) {
+      console.error("Error converting note:", error)
+      toast.error("Failed to convert note to concept map")
+    } finally {
+      setIsConverting(false)
     }
   }
   
@@ -56,16 +74,28 @@ export default function EditorNotesPage() {
                 placeholder="Untitled Note"
               />
             </div>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={handleSaveNotes} 
-              disabled={isSaving}
-              className="flex items-center gap-1"
-            >
-              <Save className="h-4 w-4" />
-              {isSaving ? "Saving..." : "Save"}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleConvertToConceptMap} 
+                disabled={isConverting}
+                className="flex items-center gap-1"
+              >
+                <GitMerge className="h-4 w-4" />
+                {isConverting ? "Converting..." : "Convert to Concept Map"}
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleSaveNotes} 
+                disabled={isSaving}
+                className="flex items-center gap-1"
+              >
+                <Save className="h-4 w-4" />
+                {isSaving ? "Saving..." : "Save"}
+              </Button>
+            </div>
           </div>
           
           {/* Editor - Full Page */}
