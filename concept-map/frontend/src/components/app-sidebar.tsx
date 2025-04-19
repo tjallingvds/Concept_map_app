@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   Map,
   PlusCircle,
+  BookOpen,
   type LucideIcon
 } from "lucide-react"
 import { Link } from "react-router-dom"
@@ -117,6 +118,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   </SidebarMenuButton>
                 }
               />
+            </SidebarMenuItem>
+            
+            {/* Notes & Learn - Links to /notes page */}
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild>
+                <Link to="/notes">
+                  <BookOpen />
+                  <span>Notes & Learn</span>
+                </Link>
+              </SidebarMenuButton>
             </SidebarMenuItem>
             
             {/* My concept maps - Links to /maps page */}

@@ -33,8 +33,9 @@ import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 import { Camera, Upload, Map, Share2, Edit, Download } from "lucide-react"
 import { useNavigate, Link } from "react-router-dom"
-import conceptMapsApi from "../services/api"
 import { MapItem } from "../components/file-system"
+import {useConceptMapsApi} from "../services/api.ts";
+import {useUserApi} from "../services/userApi.ts";
 
 // Form validation schema
 const profileFormSchema = z.object({
@@ -46,7 +47,7 @@ const profileFormSchema = z.object({
 type ProfileFormValues = z.infer<typeof profileFormSchema>
 
 export default function ProfilePage() {
-  const { user, updateUserProfile } = useAuth()
+  const { user, updateUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false)
   const [avatarSrc, setAvatarSrc] = useState<string>("/avatars/default.jpg")
   const [tempAvatarSrc, setTempAvatarSrc] = useState<string | null>(null)
@@ -55,7 +56,10 @@ export default function ProfilePage() {
   const [loadingMaps, setLoadingMaps] = useState(true)
   const [mapsError, setMapsError] = useState<string | null>(null)
   const navigate = useNavigate()
-  
+  const { getSavedMaps } = useConceptMapsApi();
+  const {updateUserProfile} = useUserApi();
+
+
   // Fetch user's saved maps
   useEffect(() => {
     const fetchUserMaps = async () => {
@@ -63,7 +67,7 @@ export default function ProfilePage() {
       
       try {
         setLoadingMaps(true);
-        const maps = await conceptMapsApi.getSavedMaps();
+        const maps = await getSavedMaps();
         setUserMaps(maps);
       } catch (error) {
         console.error("Error fetching user maps:", error);
@@ -103,31 +107,44 @@ export default function ProfilePage() {
   }, [user, form]);
   
   // Save profile changes
+  function base64ToFile(base64: string, filename = 'avatar.png') {
+    const arr = base64.split(',');
+    const mime = arr[0].match(/:(.*?);/)?.[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new File([u8arr], filename, { type: mime });
+  }
   const onSubmit = async (data: ProfileFormValues) => {
     try {
       // Prepare update data
       const updateData = {
         name: data.name,
-        email: data.email,
         bio: data.bio,
-        avatarUrl: tempAvatarSrc || undefined
+        avatar: base64ToFile(tempAvatarSrc) || undefined,
       };
-      
-      await updateUserProfile(updateData);
-      
+
+      const updatedUser = await updateUserProfile(updateData);
+
+      // Update the user in the auth context
+      updateUser(updatedUser);
+
       // Update the avatar source if a new one was selected
       if (tempAvatarSrc) {
         setAvatarSrc(tempAvatarSrc);
         setTempAvatarSrc(null);
       }
-      
-      toast.success("Profile updated successfully")
-      setIsEditing(false)
+
+      toast.success("Profile updated successfully");
+      setIsEditing(false);
     } catch (error) {
-      toast.error("Failed to update profile")
-      console.error("Profile update error:", error)
+      toast.error("Failed to update profile");
+      console.error("Profile update error:", error);
     }
-  }
+  };
   
   // Handle avatar click to trigger file input
   const handleAvatarClick = () => {
@@ -343,97 +360,6 @@ export default function ProfilePage() {
                 </div>
               )}
             </div>
-          </div>
-          
-          {/* User's Saved Maps Section */}
-          <div className="mt-8">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-bold">Your Saved Concept Maps</h2>
-              <Button asChild variant="outline">
-                <Link to="/maps">
-                  <Map className="mr-2 h-4 w-4" />
-                  View All Maps
-                </Link>
-              </Button>
-            </div>
-            
-            {loadingMaps ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="border rounded-lg p-4 h-64">
-                    <div className="animate-pulse space-y-4">
-                      <div className="h-4 bg-muted rounded w-3/4"></div>
-                      <div className="h-32 bg-muted rounded"></div>
-                      <div className="h-4 bg-muted rounded w-1/2"></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : mapsError ? (
-              <div className="text-center p-8 border rounded-lg">
-                <p className="text-muted-foreground">{mapsError}</p>
-              </div>
-            ) : userMaps.length === 0 ? (
-              <div className="text-center p-8 border rounded-lg">
-                <p className="text-muted-foreground">You haven't created any concept maps yet.</p>
-                <Button asChild className="mt-4">
-                  <Link to="/dashboard">
-                    <Map className="mr-2 h-4 w-4" />
-                    Create Your First Map
-                  </Link>
-                </Button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {userMaps.slice(0, 6).map((map) => (
-                  <div key={map.id} className="border rounded-lg overflow-hidden">
-                    <div className="h-40 bg-muted flex items-center justify-center overflow-hidden">
-                      {map.svgContent ? (
-                        <div 
-                          className="w-full h-full" 
-                          dangerouslySetInnerHTML={{ __html: map.svgContent }}
-                        />
-                      ) : (
-                        <Map className="h-16 w-16 text-muted-foreground/50" />
-                      )}
-                    </div>
-                    <div className="p-4">
-                      <h3 className="font-medium truncate">{map.title}</h3>
-                      <p className="text-sm text-muted-foreground truncate">
-                        {map.nodes} nodes • Last edited {new Date(map.lastEdited).toLocaleDateString()}
-                      </p>
-                      <div className="flex items-center gap-2 mt-4">
-                        <Button size="sm" variant="outline" onClick={() => navigate(`/editor/${map.id}`)}>
-                          <Edit className="h-4 w-4 mr-1" />
-                          Edit
-                        </Button>
-                        {map.shareUrl ? (
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            onClick={() => {
-                              navigator.clipboard.writeText(`${window.location.origin}${map.shareUrl}`);
-                              toast.success("Share link copied to clipboard");
-                            }}
-                          >
-                            <Share2 className="h-4 w-4 mr-1" />
-                            Copy Link
-                          </Button>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            
-            {userMaps.length > 6 && (
-              <div className="mt-4 text-center">
-                <Button asChild variant="outline">
-                  <Link to="/maps">View All Maps</Link>
-                </Button>
-              </div>
-            )}
           </div>
         </main>
       </div>
