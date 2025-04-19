@@ -6,68 +6,29 @@ import { FileSystem, MapItem, FileSearchBar } from "../components/file-system"
 import { Button } from "../components/ui/button"
 import { Plus, FileEdit } from "lucide-react"
 import { toast } from "sonner"
+import { notesApi, NoteItem } from "../services/api"
+import { useAuth } from "../contexts/auth-context"
 
-// Mock data for notes
-const mockNotes: MapItem[] = [
-  { 
-    id: 1, 
-    title: "History Class Notes", 
-    description: "World War II lecture notes and key events", 
-    createdAt: "2023-09-15", 
-    lastEdited: "2023-10-20", 
-    nodes: 32, 
+// Convert NoteItem to MapItem format for the FileSystem component
+const convertNoteToMapItem = (note: NoteItem): MapItem => {
+  return {
+    id: note.id,
+    title: note.title,
+    description: note.description || "",
+    createdAt: note.createdAt,
+    lastEdited: note.lastEdited,
+    nodes: 0, // Notes don't have nodes count
     author: "Me",
-    isFavorite: false,
-    isPublic: false
-  },
-  { 
-    id: 2, 
-    title: "Biology Study Guide", 
-    description: "Cell structure and DNA replication", 
-    createdAt: "2023-10-01", 
-    lastEdited: "2023-10-18", 
-    nodes: 24, 
-    author: "Me",
-    isFavorite: true,
-    isPublic: false
-  },
-  { 
-    id: 3, 
-    title: "Chemistry Formulas", 
-    description: "Important equations and periodic table notes", 
-    createdAt: "2023-08-22", 
-    lastEdited: "2023-09-30", 
-    nodes: 18, 
-    author: "Me",
-    isFavorite: false,
-    isPublic: false
-  },
-  { 
-    id: 4, 
-    title: "Project Ideas", 
-    description: "Brainstorming for semester project", 
-    createdAt: "2023-07-10", 
-    lastEdited: "2023-10-05", 
-    nodes: 15,
-    author: "Me",
-    isFavorite: false,
-    isPublic: false
-  },
-  { 
-    id: 5, 
-    title: "Mathematics Proofs", 
-    description: "Calculus theorems and proofs", 
-    createdAt: "2023-09-05", 
-    lastEdited: "2023-10-10", 
-    nodes: 22,
-    author: "Me",
-    isFavorite: false,
-    isPublic: false
+    isFavorite: note.isFavorite,
+    isPublic: note.isPublic,
+    shareId: note.shareId,
+    shareUrl: note.shareUrl
   }
-]
+}
 
 export default function NotesPage() {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [notes, setNotes] = useState<MapItem[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
@@ -78,11 +39,13 @@ export default function NotesPage() {
       try {
         setLoading(true)
         
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 800))
+        // Fetch notes from the API
+        const notesData = await notesApi.getNotes()
         
-        // Use mock data for now
-        setNotes(mockNotes)
+        // Convert to MapItem format for the FileSystem component
+        const notesAsMapItems = notesData.map(convertNoteToMapItem)
+        
+        setNotes(notesAsMapItems)
       } catch (err) {
         console.error("Failed to fetch notes", err)
         toast.error("Failed to load your notes. Please try again later.")
@@ -96,8 +59,14 @@ export default function NotesPage() {
   
   const handleFavorite = async (id: number) => {
     try {
-      // In a real app, you would call an API here
-      // const success = await notesApi.toggleFavorite(id)
+      // Find the note to update
+      const noteToUpdate = notes.find(note => note.id === id)
+      if (!noteToUpdate) return
+      
+      // Call the API to update the note
+      await notesApi.updateNote(id, {
+        is_favorite: !noteToUpdate.isFavorite
+      })
       
       // Update the local state to reflect the change
       setNotes(notes => notes.map(note => 
@@ -117,12 +86,12 @@ export default function NotesPage() {
 
   // Handle opening a note for editing
   const handleEditNote = (id: number) => {
-    navigate(`/editor-notes/${id}`)
+    navigate(`/notes/edit/${id}`)
   }
 
   // Handle creating a new note
   const handleCreateNewNote = () => {
-    navigate('/editor-notes')
+    navigate('/notes/edit')
   }
 
   return (
@@ -154,7 +123,7 @@ export default function NotesPage() {
                 items={notes.filter(note => 
                   searchQuery ? 
                   note.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                  note.description.toLowerCase().includes(searchQuery.toLowerCase())
+                  (note.description && note.description.toLowerCase().includes(searchQuery.toLowerCase()))
                   : true
                 )}
                 showAuthor={false}

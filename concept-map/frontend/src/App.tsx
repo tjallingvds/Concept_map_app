@@ -63,10 +63,16 @@ function AppRoutes() {
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/editor/:id" element={<EditorPage />} />
         <Route path="/shared/:shareId" element={<SharedMapPage />} />
+        
+        {/* Notes routes */}
         <Route path="/notes" element={<NotesPage />} />
-        <Route path="/editor-notes" element={<EditorNotesPage />} />
-        <Route path="/editor-notes/:id" element={<EditorNotesPage />} />
-
+        <Route path="/notes/edit" element={<EditorNotesPage />} />
+        <Route path="/notes/edit/:id" element={<EditorNotesPage />} />
+        
+        {/* Keep for backward compatibility but redirect to the new paths */}
+        <Route path="/editor-notes" element={<Navigate to="/notes/edit" replace />} />
+        <Route path="/editor-notes/:id" element={<Navigate to="/notes/edit/:id" replace />} />
+        
         {/* Add more protected routes here */}
       </Route>
     </Routes>

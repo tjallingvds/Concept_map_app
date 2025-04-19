@@ -253,3 +253,116 @@ class ConceptMap(db.Model):
             image=data.get("image"),
             format=data.get("format"),
         )
+
+
+class Note:
+    """Model representing a user's note."""
+    
+    def __init__(self, title, content, note_id=None, user_id=None, is_public=False, 
+                 share_id=None, created_at=None, updated_at=None, is_favorite=False, 
+                 tags=None, description=None):
+        self.id = note_id
+        self.title = title
+        self.content = content  # This would store the BlockNote editor content as JSON
+        self.user_id = user_id  # To associate notes with users
+        self.is_public = is_public  # Whether the note is publicly accessible
+        self.share_id = share_id  # Unique ID for sharing the note
+        self.created_at = created_at or datetime.utcnow()
+        self.updated_at = updated_at or datetime.utcnow()
+        self.is_favorite = is_favorite  # Whether the note is marked as favorite
+        self.tags = tags or []  # List of tags for the note
+        self.description = description  # Brief description of the note
+        self.is_deleted = False  # For soft deletion
+    
+    def to_dict(self):
+        """Convert the model to a dictionary representation."""
+        return {
+            "id": self.id,
+            "title": self.title,
+            "content": self.content,
+            "user_id": self.user_id,
+            "is_public": self.is_public,
+            "share_id": self.share_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "is_favorite": self.is_favorite,
+            "tags": self.tags,
+            "description": self.description,
+            "is_deleted": self.is_deleted
+        }
+    
+    @classmethod
+    def from_dict(cls, data, note_id=None):
+        """Create a Note instance from a dictionary."""
+        created_at = None
+        if "created_at" in data and data["created_at"]:
+            try:
+                created_at = datetime.fromisoformat(data["created_at"])
+            except (ValueError, TypeError):
+                pass
+                
+        updated_at = None
+        if "updated_at" in data and data["updated_at"]:
+            try:
+                updated_at = datetime.fromisoformat(data["updated_at"])
+            except (ValueError, TypeError):
+                pass
+                
+        note = cls(
+            title=data.get("title", ""),
+            content=data.get("content", {}),
+            note_id=note_id or data.get("id"),
+            user_id=data.get("user_id"),
+            is_public=data.get("is_public", False),
+            share_id=data.get("share_id"),
+            created_at=created_at,
+            updated_at=updated_at,
+            is_favorite=data.get("is_favorite", False),
+            tags=data.get("tags", []),
+            description=data.get("description")
+        )
+        
+        if "is_deleted" in data:
+            note.is_deleted = bool(data["is_deleted"])
+            
+        return note
+
+
+class Node:
+    """Model representing a node in a concept map."""
+    
+    def __init__(self, node_id, label, position, properties=None):
+        self.id = node_id
+        self.label = label
+        self.position = position
+        self.properties = properties or {}
+    
+    def to_dict(self):
+        """Convert the model to a dictionary representation."""
+        return {
+            "id": self.id,
+            "label": self.label,
+            "position": self.position,
+            "properties": self.properties
+        }
+
+
+class Edge:
+    """Model representing an edge in a concept map."""
+    
+    def __init__(self, edge_id, source, target, label=None, properties=None):
+        self.id = edge_id
+        self.source = source
+        self.target = target
+        self.label = label
+        self.properties = properties or {}
+    
+    def to_dict(self):
+        """Convert the model to a dictionary representation."""
+        return {
+            "id": self.id,
+            "source": self.source,
+            "target": self.target,
+            "label": self.label,
+            "properties": self.properties
+        }
