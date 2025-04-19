@@ -27,6 +27,8 @@ import {
 } from "../components/ui/sidebar"
 import { useAuth } from "../contexts/auth-context"
 import { CreateMapDialog } from "../components/create-map-dialog"
+import { Button } from "../components/ui/button"
+import { Skeleton } from "../components/ui/skeleton"
 
 // Define the type for concept maps from the backend
 interface ConceptMapData {
@@ -108,18 +110,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               </SidebarMenuButton>
             </SidebarMenuItem>
             
-            {/* New concept map - Opens create map dialog */}
-            <SidebarMenuItem>
-              <CreateMapDialog 
-                trigger={
-                  <SidebarMenuButton>
-                    <PlusCircle />
-                    <span>New concept map</span>
-                  </SidebarMenuButton>
-                }
-              />
-            </SidebarMenuItem>
-            
             {/* Notes & Learn - Links to /notes page */}
             <SidebarMenuItem>
               <SidebarMenuButton asChild>
@@ -152,13 +142,60 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarMenu>
         </SidebarGroup>
         
-        {/* Recent work section */}
-        <NavProjects 
-          projects={recentMaps} 
-          title="Your most recent work" 
-          emptyMessage="None yet" 
-          isLoading={loading}
-        />
+        {/* Recent work section with + button */}
+        <SidebarGroup className="group-data-[collapsible=icon]:hidden">
+          <div className="flex items-center justify-between pr-3">
+            <SidebarGroupLabel>Your most recent work</SidebarGroupLabel>
+            <CreateMapDialog 
+              trigger={
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-6 w-6"
+                >
+                  <PlusCircle className="h-4 w-4" />
+                  <span className="sr-only">New concept map</span>
+                </Button>
+              }
+            />
+          </div>
+          <SidebarMenu>
+            {loading ? (
+              <>
+                <SidebarMenuItem>
+                  <div className="flex items-center gap-3 py-2 px-3">
+                    <Skeleton className="h-5 w-5 rounded-md" />
+                    <Skeleton className="h-4 w-32" />
+                  </div>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <div className="flex items-center gap-3 py-2 px-3">
+                    <Skeleton className="h-5 w-5 rounded-md" />
+                    <Skeleton className="h-4 w-24" />
+                  </div>
+                </SidebarMenuItem>
+              </>
+            ) : recentMaps.length > 0 ? (
+              recentMaps.map((item) => (
+                <SidebarMenuItem key={item.name}>
+                  <SidebarMenuButton asChild>
+                    <a href={item.url}>
+                      <item.icon />
+                      <span>{item.name}</span>
+                    </a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))
+            ) : (
+              <SidebarMenuItem>
+                <SidebarMenuButton disabled className="opacity-70 cursor-default">
+                  <Map className="text-muted-foreground opacity-70" />
+                  <span className="text-muted-foreground">None yet</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
+          </SidebarMenu>
+        </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
         {/* Premium upgrade component */}
