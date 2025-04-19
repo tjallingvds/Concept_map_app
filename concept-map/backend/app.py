@@ -1,9 +1,11 @@
 import os
 import secrets
 import uuid
+import json
+import base64
 from datetime import datetime, timedelta
 
-from flask import Flask, request, jsonify, session, send_from_directory
+from flask import Flask, request, jsonify, session, send_from_directory, abort
 from flask_cors import CORS
 from flask_migrate import Migrate
 from werkzeug.utils import secure_filename
@@ -246,10 +248,12 @@ def create_concept_map():
     if nodes:
         for node_data in nodes:
             node = Node(
-                concept_map=new_map,
+                concept_map_id=new_map.id,
+                node_id=node_data.get("id", str(uuid.uuid4())),
                 label=node_data.get("label", ""),
-                x=node_data.get("x", 0),
-                y=node_data.get("y", 0),
+                position_x=node_data.get("position", {}).get("x"),
+                position_y=node_data.get("position", {}).get("y"),
+                properties=node_data.get("properties", {})
             )
             db.session.add(node)
 
@@ -257,10 +261,12 @@ def create_concept_map():
     if edges:
         for edge_data in edges:
             edge = Edge(
-                concept_map=new_map,
-                source_id=edge_data.get("source"),
-                target_id=edge_data.get("target"),
+                concept_map_id=new_map.id,
+                edge_id=edge_data.get("id", str(uuid.uuid4())),
+                source=edge_data.get("source", ""),
+                target=edge_data.get("target", ""),
                 label=edge_data.get("label", ""),
+                properties=edge_data.get("properties", {})
             )
             db.session.add(edge)
 
@@ -288,47 +294,6 @@ def create_concept_map():
         ),
         201,
     )
-
-    # Create a new concept map
-    new_map = ConceptMap(
-        name=data["name"],
-        description=data.get("description", ""),
-        user_id=user_id,
-        is_public=data.get("is_public", False),
-    )
-
-    db.session.add(new_map)
-    db.session.commit()
-
-    # Add nodes if provided
-    if "nodes" in data and isinstance(data["nodes"], list):
-        for node_data in data["nodes"]:
-            node = Node(
-                concept_map_id=new_map.id,
-                node_id=node_data.get("id", str(uuid.uuid4())),
-                label=node_data.get("label", ""),
-                position_x=node_data.get("position", {}).get("x"),
-                position_y=node_data.get("position", {}).get("y"),
-                properties=node_data.get("properties", {}),
-            )
-            db.session.add(node)
-
-    # Add edges if provided
-    if "edges" in data and isinstance(data["edges"], list):
-        for edge_data in data["edges"]:
-            edge = Edge(
-                concept_map_id=new_map.id,
-                edge_id=edge_data.get("id", str(uuid.uuid4())),
-                source=edge_data.get("source", ""),
-                target=edge_data.get("target", ""),
-                label=edge_data.get("label", ""),
-                properties=edge_data.get("properties", {}),
-            )
-            db.session.add(edge)
-
-    db.session.commit()
-
-    return jsonify(new_map.to_dict()), 201
 
 
 @app.route("/api/concept-maps/<int:map_id>", methods=["GET"])
@@ -427,7 +392,7 @@ def update_concept_map(map_id):
                 label=node_data.get("label", ""),
                 position_x=node_data.get("position", {}).get("x"),
                 position_y=node_data.get("position", {}).get("y"),
-                properties=node_data.get("properties", {}),
+                properties=node_data.get("properties", {})
             )
             db.session.add(node)
 
@@ -444,7 +409,7 @@ def update_concept_map(map_id):
                 source=edge_data.get("source", ""),
                 target=edge_data.get("target", ""),
                 label=edge_data.get("label", ""),
-                properties=edge_data.get("properties", {}),
+                properties=edge_data.get("properties", {})
             )
             db.session.add(edge)
 
@@ -783,10 +748,6 @@ def list_models():
         return jsonify({"error": f"Failed to list models: {str(e)}"}), 500
 
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5001, debug=True)
-
-
 # Health check endpoint
 @app.route("/api/health")
 def health_check():
@@ -800,26 +761,22 @@ with app.app_context():
 
 # Notes routes
 @app.route('/api/notes', methods=['GET'])
+@requires_auth
 def get_notes():
     """Get all notes for the current user."""
-    # Get the user ID from session
-    user_id = session.get('user_id')
-    
-    if not user_id:
-        return jsonify({"error": "Not authenticated"}), 401
+    user = get_auth0_user()
+    user_id = user.id
         
     # Filter notes by user_id and not deleted
     user_notes = [n.to_dict() for n in notes if n.user_id == user_id and not n.is_deleted]
     return jsonify(user_notes), 200
 
 @app.route('/api/notes', methods=['POST'])
+@requires_auth
 def create_note():
     """Create a new note."""
-    # Get the user ID from session
-    user_id = session.get('user_id')
-    
-    if not user_id:
-        return jsonify({"error": "Not authenticated"}), 401
+    user = get_auth0_user()
+    user_id = user.id
         
     data = request.json
     
@@ -847,13 +804,11 @@ def create_note():
     return jsonify(new_note.to_dict()), 201
 
 @app.route('/api/notes/<int:note_id>', methods=['GET'])
+@requires_auth
 def get_note(note_id):
     """Get a specific note by ID."""
-    # Get the user ID from session
-    user_id = session.get('user_id')
-    
-    if not user_id:
-        return jsonify({"error": "Not authenticated"}), 401
+    user = get_auth0_user()
+    user_id = user.id
         
     note = next((n for n in notes if n.id == note_id and n.user_id == user_id and not n.is_deleted), None)
     
@@ -874,13 +829,11 @@ def get_shared_note(share_id):
     return jsonify(note.to_dict()), 200
 
 @app.route('/api/notes/<int:note_id>', methods=['PUT'])
+@requires_auth
 def update_note(note_id):
     """Update a specific note."""
-    # Get the user ID from session
-    user_id = session.get('user_id')
-    
-    if not user_id:
-        return jsonify({"error": "Not authenticated"}), 401
+    user = get_auth0_user()
+    user_id = user.id
         
     data = request.json
     
@@ -909,13 +862,11 @@ def update_note(note_id):
     return jsonify(note.to_dict()), 200
 
 @app.route('/api/notes/<int:note_id>', methods=['DELETE'])
+@requires_auth
 def delete_note(note_id):
     """Delete a specific note (soft delete)."""
-    # Get the user ID from session
-    user_id = session.get('user_id')
-    
-    if not user_id:
-        return jsonify({"error": "Not authenticated"}), 401
+    user = get_auth0_user()
+    user_id = user.id
         
     note = next((n for n in notes if n.id == note_id and n.user_id == user_id and not n.is_deleted), None)
     
@@ -929,13 +880,11 @@ def delete_note(note_id):
     return jsonify({"message": f"Note '{note.title}' deleted successfully"}), 200
 
 @app.route('/api/notes/<int:note_id>/share', methods=['POST'])
+@requires_auth
 def share_note(note_id):
     """Generate or update a sharing link for a note."""
-    # Get the user ID from session
-    user_id = session.get('user_id')
-    
-    if not user_id:
-        return jsonify({"error": "Not authenticated"}), 401
+    user = get_auth0_user()
+    user_id = user.id
         
     note = next((n for n in notes if n.id == note_id and n.user_id == user_id and not n.is_deleted), None)
     
@@ -961,13 +910,11 @@ def share_note(note_id):
     }), 200
 
 @app.route('/api/notes/<int:note_id>/convert', methods=['POST'])
+@requires_auth
 def convert_note_to_concept_map(note_id):
     """Convert a note to a concept map."""
-    # Get the user ID from session
-    user_id = session.get('user_id')
-    
-    if not user_id:
-        return jsonify({"error": "Not authenticated"}), 401
+    user = get_auth0_user()
+    user_id = user.id
         
     note = next((n for n in notes if n.id == note_id and n.user_id == user_id and not n.is_deleted), None)
     
@@ -1065,13 +1012,11 @@ def convert_note_to_concept_map(note_id):
         return jsonify({"error": f"Failed to convert note to concept map: {str(e)}"}), 500
 
 @app.route('/api/users/<int:user_id>/recent-notes', methods=['GET'])
+@requires_auth
 def get_recent_notes(user_id):
     """Get the most recent notes for a user."""
-    # Get the user ID from session
-    session_user_id = session.get('user_id')
-    
-    if not session_user_id:
-        return jsonify({"error": "Not authenticated"}), 401
+    user = get_auth0_user()
+    session_user_id = user.id
     
     # Check if the user is requesting their own notes
     if session_user_id != user_id:
@@ -1084,13 +1029,11 @@ def get_recent_notes(user_id):
     return jsonify(recent_notes), 200
 
 @app.route('/api/users/<int:user_id>/favorite-notes', methods=['GET'])
+@requires_auth
 def get_favorite_notes(user_id):
     """Get the favorite notes for a user."""
-    # Get the user ID from session
-    session_user_id = session.get('user_id')
-    
-    if not session_user_id:
-        return jsonify({"error": "Not authenticated"}), 401
+    user = get_auth0_user()
+    session_user_id = user.id
     
     # Check if the user is requesting their own notes
     if session_user_id != user_id:
@@ -1103,6 +1046,3 @@ def get_favorite_notes(user_id):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)
-=======
-if __name__ == "__main__":
-    app.run(port=5001, debug=True)
