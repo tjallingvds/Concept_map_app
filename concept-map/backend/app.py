@@ -1101,8 +1101,5 @@ def get_favorite_notes(user_id):
     
     return jsonify(favorite_notes), 200
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5001, debug=True)
-=======
 if __name__ == "__main__":
     app.run(port=5001, debug=True)
