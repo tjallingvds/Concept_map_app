@@ -1,9 +1,0 @@
-instance/
-
-# Database files
-*.db
-*.sqlite
-*.sqlite3
-# Log files
-*.log
-*.log.*

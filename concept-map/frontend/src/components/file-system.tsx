@@ -162,7 +162,7 @@ export function FileSystem({
               >
                 <CardHeader className="pb-3">
                   <div className="flex justify-between items-start">
-                    <CardTitle className="truncate" title={item.description}>{item.title}</CardTitle>
+                    <CardTitle className="truncate">{item.title}</CardTitle>
                     {showActions && (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -287,7 +287,7 @@ export function FileSystem({
                   <div className="flex items-center">
                     <File className="h-5 w-5 mr-3 text-muted-foreground" />
                     <div>
-                      <h3 className="font-medium truncate" title={item.description}>{item.title}</h3>
+                      <h3 className="font-medium truncate">{item.title}</h3>
                       <p className="text-sm text-muted-foreground truncate">
                         {item.learningObjective 
                           ? typeof item.learningObjective === 'string' && item.learningObjective.trim().length > 0

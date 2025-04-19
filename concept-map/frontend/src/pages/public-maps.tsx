@@ -5,8 +5,8 @@ import { AppSidebar } from "../components/app-sidebar"
 import { FileSystem, MapItem, FileSearchBar } from "../components/file-system"
 import { Button } from "../components/ui/button"
 import { Plus } from "lucide-react"
+import conceptMapsApi from "../services/api"
 import { CreateMapDialog } from "../components/create-map-dialog"
-import {useConceptMapsApi} from "../services/api.ts";
 
 // Mock data for public concept maps
 const mockPublicMaps: MapItem[] = [
@@ -106,7 +106,6 @@ export default function PublicMapsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
-  const { toggleFavorite } = useConceptMapsApi();
 
   // Fetch public maps on component mount
   useEffect(() => {
@@ -137,7 +136,7 @@ export default function PublicMapsPage() {
   
   const handleFavorite = async (id: number) => {
     try {
-      const success = await toggleFavorite(id)
+      const success = await conceptMapsApi.toggleFavorite(id)
       if (success) {
         // Update the local state to reflect the change
         setPublicMaps(maps => maps.map(map => 

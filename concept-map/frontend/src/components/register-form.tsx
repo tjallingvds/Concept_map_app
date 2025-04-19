@@ -39,7 +39,7 @@ export function RegisterForm({
     try {
       await register(email, password)
       // Registration successful - redirect to login
-      navigate("LoginButton")
+      navigate("/login")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed")
     } finally {

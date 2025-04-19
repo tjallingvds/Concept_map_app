@@ -39,8 +39,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs"
 import { Separator } from "./ui/separator"
 import { toast } from "sonner"
 
+import conceptMapsApi from "../services/api"
 import { TLDrawEditor } from "./tldraw-editor"
-import {useConceptMapsApi} from "../services/api.ts";
 
 // Form schema validation
 const formSchema = z.object({
@@ -72,8 +72,7 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
   const [isCreating, setIsCreating] = React.useState(false)
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null)
   const [isProcessingFile, setIsProcessingFile] = React.useState(false)
-  const { processDocument, createMap } = useConceptMapsApi();
-
+  
   // Form setup
   const form = useForm<CreateMapData>({
     resolver: zodResolver(formSchema),
@@ -115,7 +114,7 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
         setIsProcessingFile(true);
         toast.info("Processing document, please wait...");
         
-        const result = await processDocument(file);
+        const result = await conceptMapsApi.processDocument(file);
         
         if (result && result.text) {
           // Store the extracted text but stay in the file tab
@@ -204,7 +203,7 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
         console.log("Using structured concept data from OCR for digitized drawing");
         
         // Create map with the structured concept data
-        const newMap = await createMap({
+        const newMap = await conceptMapsApi.createMap({
           title: data.title || "Concept Map",
           description: data.description || "",
           learningObjective: data.learningObjective,
@@ -296,7 +295,7 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
       });
       
       // Call API to create the map
-      const newMap = await createMap({
+      const newMap = await conceptMapsApi.createMap({
         title: data.title,
         description: data.description || "",
         learningObjective: data.learningObjective,

@@ -10,7 +10,7 @@ import { ImportMapDialog } from "../components/import-map-dialog"
 import { Badge } from "../components/ui/badge"
 import { formatDistanceToNow } from "date-fns"
 import { MapItem } from "../components/file-system"
-import {useConceptMapsApi} from "../services/api"
+import conceptMapsApi from "../services/api"
 import { toast } from "sonner"
 import { useNavigate } from "react-router-dom"
 
@@ -56,14 +56,12 @@ export default function DashboardPage() {
   const [importMapOpen, setImportMapOpen] = useState(false)
   const [maps, setMaps] = useState<MapItem[]>([])
   const [loading, setLoading] = useState(true)
-  const { createMap, getMyMaps } = useConceptMapsApi();
-
   const navigate = useNavigate()
 
   useEffect(() => {
     const fetchMaps = async () => {
       try {
-        const userMaps = await getMyMaps()
+        const userMaps = await conceptMapsApi.getMyMaps()
         setMaps(userMaps)
       } catch (error) {
         console.error('Error fetching maps:', error)
@@ -78,7 +76,7 @@ export default function DashboardPage() {
 
   const handleCreateMap = async (title: string, text: string) => {
     try {
-      const newMap = await createMap({
+      const newMap = await conceptMapsApi.createMap({
         title: title,
         text: text,
         mapType: "default"

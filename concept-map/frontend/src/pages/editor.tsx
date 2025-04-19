@@ -9,8 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs"
 import { Separator } from "../components/ui/separator";
 import { ConceptMapViewer } from "../components/concept-map-viewer";
 import { TLDrawEditor } from "../components/tldraw-editor";
+import conceptMapsApi from "../services/api";
 import { MapItem } from "../components/file-system";
-import {useConceptMapsApi} from "../services/api.ts";
 
 // Create a full type for the OCR result to avoid linter issues
 interface OcrResult {
@@ -43,7 +43,6 @@ export default function EditorPage() {
   const [showDigitizeDialog, setShowDigitizeDialog] = React.useState(false);
   const [currentMapType, setCurrentMapType] = React.useState<string>("mindmap");
   const [error, setError] = React.useState<string | null>(null);
-  const { getMap, toggleFavorite, shareMap, updateMap } = useConceptMapsApi();
 
   // Fetch the map data when the component mounts
   React.useEffect(() => {
@@ -56,7 +55,7 @@ export default function EditorPage() {
 
       try {
         setLoading(true);
-        const mapData = await getMap(Number(id));
+        const mapData = await conceptMapsApi.getMap(Number(id));
         if (mapData) {
           setMap(mapData);
           setIsFavorite(mapData.isFavorite || false);
@@ -96,7 +95,7 @@ export default function EditorPage() {
     if (!map?.id) return;
     
     try {
-      const success = await toggleFavorite(map.id);
+      const success = await conceptMapsApi.toggleFavorite(map.id);
       if (success) {
         setIsFavorite(!isFavorite);
         toast.success(isFavorite ? "Removed from favorites" : "Added to favorites");
@@ -112,7 +111,7 @@ export default function EditorPage() {
     if (!map?.id) return;
     
     try {
-      const { shareUrl, shareId } = await shareMap(map.id);
+      const { shareUrl, shareId } = await conceptMapsApi.shareMap(map.id);
       
       // Update the map in state with the share URL
       setMap(prevMap => {
@@ -183,8 +182,8 @@ export default function EditorPage() {
       let updatedMap;
       
       // Check if the API method exists
-      if (typeof updateMap === 'function') {
-        updatedMap = await updateMap(map.id, {
+      if (typeof conceptMapsApi.updateMap === 'function') {
+        updatedMap = await conceptMapsApi.updateMap(map.id, {
           name: map.title,
           image: finalSvgContent,
           format: 'svg',
@@ -324,9 +323,9 @@ export default function EditorPage() {
                         let updatedMap;
                         
                         // Check if the API method exists
-                        if (typeof updateMap === 'function') {
+                        if (typeof conceptMapsApi.updateMap === 'function') {
                           console.log('Using API updateMap method for digitized map');
-                          updatedMap = await updateMap(mapId, {
+                          updatedMap = await conceptMapsApi.updateMap(mapId, {
                             name: map?.title || '',
                             image: result.image,
                             format: 'svg',
