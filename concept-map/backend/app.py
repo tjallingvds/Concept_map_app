@@ -16,7 +16,7 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(16))
 
 # Configure CORS with specific settings
-CORS(app, 
+CORS(app,
      supports_credentials=True,
      origins=[os.environ.get('FRONTEND_URL', 'http://localhost:5173')],  # Frontend server from env or default
      methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -50,7 +50,6 @@ app.register_blueprint(auth_bp)
 app.register_blueprint(concept_map_bp)
 app.register_blueprint(debug_bp)
 app.register_blueprint(process_bp)
-# Create uploads directory if it doesn't exist
 
 
 @app.route("/uploads/<filename>")

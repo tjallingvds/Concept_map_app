@@ -9,6 +9,11 @@ from concept_map_generation.generation_routes import concept_map_bp
 from models import db, ConceptMap, Node, Edge, User
 
 
+concept_maps = []
+users = []  # List to store user objects
+notes = []  # List to store note objects
+
+
 # Concept Map routes
 @concept_map_bp.route("/api/concept-maps", methods=["GET"])
 @requires_auth

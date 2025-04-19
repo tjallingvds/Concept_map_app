@@ -7,6 +7,7 @@ import { Plus } from "lucide-react"
 import { Button } from "../components/ui/button"
 import { useAuth } from "../contexts/auth-context"
 import { CreateMapDialog } from "../components/create-map-dialog"
+
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuItem } from "../components/ui/dropdown-menu"
 import {useConceptMapsApi} from "../services/api.ts"; // ✅ NEW
 
@@ -73,7 +74,7 @@ export default function MyMapsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
-  const [sortMode, setSortMode] = useState<"default" | "az">("default") // ✅ NEW
+  const [sortMode, setSortMode] = useState<"az" | "za">("az") 
 
   // Fetch user's maps on component mount
   useEffect(() => {
@@ -197,6 +198,7 @@ export default function MyMapsPage() {
               <FileSearchBar searchQuery={searchQuery} onSearch={handleSearch} />
             </div>
 
+
             {/* ✅ NEW Sort Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -206,8 +208,8 @@ export default function MyMapsPage() {
                 <DropdownMenuItem onClick={() => setSortMode("az")}>
                   A–Z (Title)
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSortMode("default")}>
-                  Default
+                <DropdownMenuItem onClick={() => setSortMode("za")}>
+                  Z-A(Title)
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -241,18 +243,22 @@ export default function MyMapsPage() {
                 items={
                   [...myMaps]
                     .filter(map => 
-                      searchQuery ? 
-                      map.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                      map.description.toLowerCase().includes(searchQuery.toLowerCase()) 
-                      : true
+                      searchQuery 
+                        ? map.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          map.description.toLowerCase().includes(searchQuery.toLowerCase()) 
+                        : true
                     )
                     .sort((a, b) => {
                       if (sortMode === "az") {
                         return a.title.localeCompare(b.title)
+                      } else if (sortMode === "za") {
+                        return b.title.localeCompare(a.title)
+                      } else {
+                        return 0 // default sort (no sorting applied)
                       }
-                      return 0
                     })
                 }
+
                 showAuthor={false}
                 showActions={true}
                 emptyMessage="You haven't created any maps yet"
