@@ -48,7 +48,7 @@ class User(db.Model):
         self.id = user_id
         self.auth0_id=auth0_id
         self.email = email
-        self.display_name = display_name or email.split("@")[0]
+        self.display_name = display_name or email.split('@')[0]
         self.bio = bio
         self.avatar_url = avatar_url
         self.created_at = datetime.utcnow()
