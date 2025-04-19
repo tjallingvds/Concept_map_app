@@ -9,7 +9,12 @@ import { ArrowLeft, Save, GitMerge } from "lucide-react"
 import "@blocknote/core/fonts/inter.css"
 import { BlockNoteView } from "@blocknote/mantine"
 import "@blocknote/mantine/style.css"
-import { useCreateBlockNote } from "@blocknote/react"
+import { filterSuggestionItems } from "@blocknote/core"
+import { 
+  useCreateBlockNote, 
+  getDefaultReactSlashMenuItems, 
+  SuggestionMenuController
+} from "@blocknote/react"
 import { toast } from "sonner"
 import { notesApi, NoteItem, conceptMapsApi } from "../services/api"
 import { useAuth } from "../contexts/auth-context"
@@ -262,7 +267,20 @@ export default function EditorNotesPage() {
                   editor={editor}
                   theme="light"
                   className="h-full"
-                />
+                  slashMenu={false}
+                >
+                  <SuggestionMenuController
+                    triggerCharacter="/"
+                    getItems={async (query) => {
+                      // Get default items but filter out audio, video, and file
+                      const defaultItems = getDefaultReactSlashMenuItems(editor);
+                      const filteredItems = defaultItems.filter(
+                        (item) => !["Audio", "Video", "File"].includes(item.title)
+                      );
+                      return filterSuggestionItems(filteredItems, query);
+                    }}
+                  />
+                </BlockNoteView>
               </div>
             )}
           </div>
