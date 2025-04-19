@@ -4,15 +4,16 @@ import { ArrowLeft, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../components/ui/button';
 import { Skeleton } from '../components/ui/skeleton';
-import conceptMapsApi from '../services/api';
 import { MapItem } from '../components/file-system';
 import { ConceptMapViewer } from '../components/concept-map-viewer';
+import {useConceptMapsApi} from "../services/api.ts";
 
 export default function SharedMapPage() {
   const { shareId } = useParams<{ shareId: string }>();
   const [map, setMap] = useState<MapItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { getSharedMap } = useConceptMapsApi();
 
   useEffect(() => {
     const fetchSharedMap = async () => {
@@ -24,10 +25,9 @@ export default function SharedMapPage() {
 
       try {
         console.log('Attempting to fetch shared map with ID:', shareId);
-        console.log('API methods available:', Object.keys(conceptMapsApi));
-        console.log('getSharedMap exists:', typeof conceptMapsApi.getSharedMap === 'function');
+        console.log('getSharedMap exists:', typeof getSharedMap === 'function');
         
-        const sharedMap = await conceptMapsApi.getSharedMap(shareId);
+        const sharedMap = await getSharedMap(shareId);
         console.log('Shared map result:', sharedMap);
         
         if (sharedMap) {
