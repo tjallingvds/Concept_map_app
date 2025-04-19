@@ -710,9 +710,25 @@ const conceptMapsApi = {
 
   // Get all public maps
   getPublicMaps: async (): Promise<MapItem[]> => {
-    // This will need to be implemented in the backend
-    console.log("Getting public maps (not yet implemented in backend)");
-    return [];
+    try {
+      const response = await fetch(`${API_URL}/api/concept-maps/public`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        // No credentials needed for public maps
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch public concept maps");
+      }
+
+      const data: ConceptMapResponse[] = await response.json();
+      return data.map(mapResponseToMapItem);
+    } catch (error) {
+      console.error("Error fetching public concept maps:", error);
+      return [];
+    }
   },
 
   // Toggle favorite status for a map

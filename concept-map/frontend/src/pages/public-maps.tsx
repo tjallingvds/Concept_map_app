@@ -8,98 +8,6 @@ import { Plus } from "lucide-react"
 import conceptMapsApi from "../services/api"
 import { CreateMapDialog } from "../components/create-map-dialog"
 
-// Mock data for public concept maps
-const mockPublicMaps: MapItem[] = [
-  { 
-    id: 1, 
-    title: "Web Development Fundamentals", 
-    description: "HTML, CSS, JavaScript basics and their relationships", 
-    createdAt: "2023-09-15", 
-    lastEdited: "2023-10-20", 
-    nodes: 32, 
-    author: "TechExpert",
-    isFavorite: false,
-    isPublic: true
-  },
-  { 
-    id: 2, 
-    title: "Machine Learning Pipeline", 
-    description: "Data preparation, model training, and evaluation flow", 
-    createdAt: "2023-10-01", 
-    lastEdited: "2023-10-18", 
-    nodes: 24, 
-    author: "AIResearcher",
-    isFavorite: true,
-    isPublic: true
-  },
-  { 
-    id: 3, 
-    title: "Biology Cell Structure", 
-    description: "Organelles and their functions in eukaryotic cells", 
-    createdAt: "2023-08-22", 
-    lastEdited: "2023-09-30", 
-    nodes: 18, 
-    author: "BioTeacher",
-    isFavorite: false,
-    isPublic: true
-  },
-  { 
-    id: 4, 
-    title: "Project Management", 
-    description: "Agile vs Waterfall methodologies comparison", 
-    createdAt: "2023-07-10", 
-    lastEdited: "2023-10-05", 
-    nodes: 15,
-    author: "PMProfessional",
-    isFavorite: false,
-    isPublic: true
-  },
-  { 
-    id: 5, 
-    title: "Physics Mechanics", 
-    description: "Newton's laws and their applications", 
-    createdAt: "2023-09-05", 
-    lastEdited: "2023-10-10", 
-    nodes: 22,
-    author: "PhysicsTeacher",
-    isFavorite: false,
-    isPublic: true
-  },
-  {
-    id: 6,
-    title: "Data Structures and Algorithms",
-    description: "Common data structures and algorithms with examples",
-    createdAt: "2023-08-15",
-    lastEdited: "2023-10-15",
-    nodes: 45,
-    author: "CodingInstructor",
-    isFavorite: false,
-    isPublic: true
-  },
-  {
-    id: 7,
-    title: "Human Anatomy",
-    description: "Comprehensive map of human body systems",
-    createdAt: "2023-07-22",
-    lastEdited: "2023-09-18",
-    nodes: 64,
-    author: "MedStudent",
-    isFavorite: true,
-    isPublic: true
-  },
-  {
-    id: 8,
-    title: "World History Timeline",
-    description: "Major historical events from ancient to modern times",
-    createdAt: "2023-06-10",
-    lastEdited: "2023-10-01",
-    nodes: 78,
-    author: "HistoryBuff",
-    isFavorite: false,
-    isPublic: true
-  }
-]
-
 export default function PublicMapsPage() {
   const navigate = useNavigate()
   const [publicMaps, setPublicMaps] = useState<MapItem[]>([])
@@ -113,15 +21,9 @@ export default function PublicMapsPage() {
       try {
         setLoading(true)
         
-        // For now, we'll use mock data until backend implementation is ready
-        // In a production environment, we would call:
-        // const maps = await conceptMapsApi.getPublicMaps()
-        
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 800))
-        
-        // Use mock data for now
-        setPublicMaps(mockPublicMaps)
+        // Use the real API to fetch public maps
+        const maps = await conceptMapsApi.getPublicMaps()
+        setPublicMaps(maps)
         setError(null)
       } catch (err) {
         console.error("Failed to fetch public maps", err)
