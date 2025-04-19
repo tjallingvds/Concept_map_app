@@ -51,7 +51,8 @@ export function NavUser({
     }
     // If it's a relative path from the backend, prepend the API base URL
     if (avatarPath.startsWith('/uploads/')) {
-      return `http://localhost:5001${avatarPath}`;
+      const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001";
+      return `${API_URL}${avatarPath}`;
     }
     return avatarPath;
   };

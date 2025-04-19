@@ -17,15 +17,13 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(16))
 
 # Configure CORS with specific settings
-CORS(
-    app,
-    supports_credentials=True,
-    origins=["http://localhost:5173"],  # Frontend development server
-    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "Accept"],
-    expose_headers=["Content-Type", "Authorization"],
-    max_age=3600,
-)  # Cache preflight requests for 1 hour
+CORS(app, 
+     supports_credentials=True,
+     origins=[os.environ.get('FRONTEND_URL', 'http://localhost:5173')],  # Frontend server from env or default
+     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+     allow_headers=['Content-Type', 'Authorization', 'Accept'],
+     expose_headers=['Content-Type', 'Authorization'],
+     max_age=3600)  # Cache preflight requests for 1 hour
 
 # Configure session settings
 app.config["SESSION_COOKIE_SECURE"] = True  # Only send cookie over HTTPS
