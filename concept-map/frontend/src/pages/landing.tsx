@@ -1,7 +1,23 @@
+
 import { Button } from "../components/ui/button";
-import { Link } from "react-router-dom";
+import {useNavigate} from "react-router-dom";
+import {useAuth} from "../contexts/auth-context.tsx";
+import {useEffect} from "react";
 
 export default function LandingPage() {
+  const {loading, login, isAuthenticated} = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!loading && isAuthenticated) {
+      navigate('/dashboard');
+    }
+  }, [loading, isAuthenticated]);
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-screen">Loading...</div>;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-yellow-50 to-white">
       {/* Header/Nav */}
@@ -17,12 +33,8 @@ export default function LandingPage() {
           <a href="#faq" className="text-sm hover:text-primary">FAQ</a>
         </nav>
         <div className="flex items-center gap-3">
-          <Link to="/login">
-            <Button variant="outline" size="sm">Log in</Button>
-          </Link>
-          <Link to="/register">
-            <Button size="sm">Sign up free</Button>
-          </Link>
+          <Button variant="outline" size="sm" onClick={login}>Log in</Button>
+          <Button size="sm" onClick={login}>Sign up free</Button>
         </div>
       </header>
 
@@ -36,19 +48,17 @@ export default function LandingPage() {
             Based on cutting-edge AI technology, our platform creates intuitive concept maps that help you understand complex topics faster, retain information longer, and connect ideas more effectively.
           </p>
           <div className="flex flex-col sm:flex-row gap-4">
-            <Button size="lg" asChild>
-              <Link to="/register">Try it Free</Link>
-            </Button>
-            <Button variant="outline" size="lg">
-              Learn More
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <Button size="lg" onClick={login}>Get Started Free</Button>
+              <Button variant="outline" size="lg">Learn More</Button>
+            </div>
           </div>
         </div>
         <div className="bg-yellow-100 rounded-lg p-6">
-          <img 
-            src="/placeholder.svg" 
-            alt="Concept Map Dashboard" 
-            className="w-full rounded shadow-lg border border-yellow-200" 
+          <img
+              src="/placeholder.svg"
+              alt="Concept Map Dashboard"
+              className="w-full rounded shadow-lg border border-yellow-200"
           />
         </div>
       </section>
@@ -128,10 +138,10 @@ export default function LandingPage() {
               Get a comprehensive overview of your learning progress. Track which concepts you've mastered and which need more attention.
             </p>
             <div className="mt-8">
-              <img 
-                src="/placeholder.svg" 
-                alt="Campaign Overview" 
-                className="rounded-lg border shadow-sm w-full" 
+              <img
+                src="/placeholder.svg"
+                alt="Campaign Overview"
+                className="rounded-lg border shadow-sm w-full"
               />
             </div>
           </div>
@@ -147,10 +157,10 @@ export default function LandingPage() {
               Monitor your study sessions and engagement with concepts over time. Identify patterns and optimize your learning schedule.
             </p>
             <div className="mt-8">
-              <img 
-                src="/placeholder.svg" 
-                alt="Weekly Visitors" 
-                className="rounded-lg border shadow-sm w-full" 
+              <img
+                src="/placeholder.svg"
+                alt="Weekly Visitors"
+                className="rounded-lg border shadow-sm w-full"
               />
             </div>
           </div>
@@ -166,20 +176,20 @@ export default function LandingPage() {
               Gain insights into your learning patterns and concept relationships. Our AI identifies connections you might miss.
             </p>
             <div className="mt-8">
-              <img 
-                src="/placeholder.svg" 
-                alt="Analytical Data" 
-                className="rounded-lg border shadow-sm w-full" 
+              <img
+                src="/placeholder.svg"
+                alt="Analytical Data"
+                className="rounded-lg border shadow-sm w-full"
               />
             </div>
           </div>
 
           <div className="bg-yellow-50 p-8 rounded-lg shadow-sm border flex items-center">
             <div>
-              <img 
-                src="/placeholder.svg" 
-                alt="Video Thumbnail" 
-                className="rounded-lg w-full" 
+              <img
+                src="/placeholder.svg"
+                alt="Video Thumbnail"
+                className="rounded-lg w-full"
               />
             </div>
           </div>
@@ -197,10 +207,10 @@ export default function LandingPage() {
             <Button size="lg">Learn More</Button>
           </div>
           <div className="bg-yellow-100 rounded-lg p-6">
-            <img 
-              src="/placeholder.svg" 
-              alt="Concept Map Dashboard" 
-              className="w-full rounded shadow-lg border border-yellow-200" 
+            <img
+              src="/placeholder.svg"
+              alt="Concept Map Dashboard"
+              className="w-full rounded shadow-lg border border-yellow-200"
             />
           </div>
         </div>
@@ -241,10 +251,10 @@ export default function LandingPage() {
                 "The AI-generated concept maps have transformed how our students approach complex subjects. They're understanding connections faster and retaining information longer."
               </p>
               <div className="flex items-center">
-                <img 
-                  src="/placeholder.svg" 
-                  alt="Testimonial Author" 
-                  className="w-12 h-12 rounded-full mr-4" 
+                <img
+                  src="/placeholder.svg"
+                  alt="Testimonial Author"
+                  className="w-12 h-12 rounded-full mr-4"
                 />
                 <div>
                   <p className="font-semibold">Dr. Sarah Parker</p>
@@ -312,10 +322,10 @@ export default function LandingPage() {
               </Button>
             </div>
             <div className="w-full md:w-1/3">
-              <img 
-                src="/placeholder.svg" 
-                alt="App Preview" 
-                className="w-full rounded-lg border shadow-lg" 
+              <img
+                src="/placeholder.svg"
+                alt="App Preview"
+                className="w-full rounded-lg border shadow-lg"
               />
             </div>
           </div>

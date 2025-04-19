@@ -1,31 +1,33 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import './App.css';
-import { LoginForm } from './components/login-form';
 import { RegisterForm } from './components/register-form';
 import DashboardPage from './pages/dashboard';
 import LandingPage from './pages/landing';
 import MyMapsPage from './pages/my-maps';
 import PublicMapsPage from './pages/public-maps';
-import { AuthProvider, useAuth } from './contexts/auth-context';
 import ProfilePage from './pages/profile';
 import SettingsPage from './pages/settings';
 import EditorPage from './pages/editor';
 import SharedMapPage from './pages/shared-map';
+
 import NotesPage from './pages/notes';
 
-// Protected route component that redirects to login if user is not authenticated
+import { useAuth } from './contexts/auth-context';
+
+
 function ProtectedRoute() {
-  const { user, loading } = useAuth();
-  
-  if (loading) {
-    return <div className="flex items-center justify-center h-screen">Loading...</div>;
-  }
-  
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
-  
-  return <Outlet />;
+    const { user, loading, login } = useAuth();
+
+    if (loading) {
+        return <div className="flex items-center justify-center h-screen">Loading...</div>;
+    }
+
+    if (!user) {
+        login();
+        return null;
+    }
+
+    return <Outlet />;
 }
 
 function AppRoutes() {
@@ -73,16 +75,16 @@ function AppRoutes() {
       </Route>
     </Routes>
   );
+
 }
 
 function App() {
-  return (
-    <AuthProvider>
-      <Router>
-        <AppRoutes />
-      </Router>
-    </AuthProvider>
-  );
+
+    return (
+        <Router>
+            <AppRoutes />
+        </Router>
+    );
 }
 
 export default App;
