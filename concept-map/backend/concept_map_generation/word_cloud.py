@@ -5,7 +5,7 @@ import re
 
 import matplotlib
 
-matplotlib.use('Agg')  # Set non-interactive backend before importing pyplot
+matplotlib.use('Agg')  # Force non-interactive backend before importing pyplot
 import matplotlib.pyplot as plt
 from wordcloud import WordCloud
 import google.generativeai as genai
@@ -47,6 +47,9 @@ def generate_word_cloud(concept_freq, title="Word Cloud of Key Concepts"):
     if not concept_freq:
         return None
 
+    # Create a new figure to avoid any potential conflict
+    plt.figure(figsize=(10, 6))
+
     # Create a WordCloud from the frequencies
     wc = WordCloud(
         width=800,
@@ -57,12 +60,11 @@ def generate_word_cloud(concept_freq, title="Word Cloud of Key Concepts"):
 
     # Save the plot to a bytes buffer
     img_data = io.BytesIO()
-    plt.figure(figsize=(10, 6))
     plt.imshow(wc, interpolation="bilinear")
     plt.title(title)
     plt.axis("off")
     plt.savefig(img_data, format='png', bbox_inches='tight')
-    plt.close()
+    plt.close()  # Ensure figure is closed to free resources
     img_data.seek(0)
 
     # Convert to base64
@@ -124,27 +126,42 @@ def extract_concepts_from_text(text, model):
 def process_text_for_wordcloud(text, model, api_key=None):
     """Process text and generate word cloud with key concepts."""
     try:
+        print("Starting wordcloud generation process")
         # Configure Gemini API if API key is provided
         if api_key:
+            print("Configuring Gemini API with provided key")
             genai.configure(api_key=api_key)
             model = genai.GenerativeModel("gemini-2.0-flash")
 
         # Extract key concepts using Gemini
+        print("Extracting key concepts from text using Gemini")
         key_concepts = extract_concepts_from_text(text, model)
 
+        print(f"Extracted {len(key_concepts)} key concepts")
+
         # Count concept frequencies
+        print("Counting concept frequencies in text")
         concept_freq = count_concepts_in_text(text, key_concepts)
 
+        print(f"Found {len(concept_freq)} concepts with non-zero frequency")
+
         # Generate word cloud
+        print("Generating word cloud image")
         word_cloud_img = generate_word_cloud(concept_freq)
 
         if word_cloud_img is None:
+            print("Failed to generate word cloud - null result returned")
             raise ValueError('Failed to generate word cloud')
 
+        print(f"Successfully generated word cloud image (base64 length: {len(word_cloud_img)})")
         return {
             'concepts': key_concepts,
             'word_cloud': word_cloud_img
         }
 
     except Exception as e:
+
+        print(f"Error in word cloud generation: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise RuntimeError(f'Error processing text: {str(e)}')

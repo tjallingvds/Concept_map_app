@@ -3,6 +3,9 @@ import io
 import json
 
 import matplotlib
+
+matplotlib.use('Agg')  # Force non-interactive backend before importing pyplot
+
 import matplotlib.pyplot as plt
 import numpy as np
 import packcircles
@@ -181,7 +184,6 @@ def generate_packed_bubble_chart(concepts, use_importance=False, title="Packed B
     ax.set_title(title)
     ax.axis("off")
     plt.tight_layout()
-    plt.show()
 
 
 def process_text_for_bubble_chart(text, model):
@@ -193,8 +195,9 @@ def process_text_for_bubble_chart(text, model):
         model: The Gemini model instance to use
         
     Returns:
-        tuple: A tuple containing (concepts_data, frequency_chart_b64, importance_chart_b64)
+        dict: A dictionary containing bubble chart data and concepts
     """
+    print("Starting bubble chart generation process")
     # Prepare the prompt for Gemini
     prompt = """
     Analyze the given text and extract key concepts that are important for understanding the topic. Each concept should be classified into a category, and an importance score should be assigned based on relevance in the text.
@@ -221,39 +224,49 @@ def process_text_for_bubble_chart(text, model):
 
     try:
         # Call Gemini API
+        print("Calling Gemini API for concept extraction")
         response = model.generate_content(prompt)
 
         # Extract JSON from response
+        print("Extracting JSON from Gemini response")
         response_text = response.text
         # Find JSON content (assuming it's enclosed in ```json and ```)
         json_start = response_text.find('```json')
         json_end = response_text.rfind('```')
 
         if json_start != -1 and json_end != -1:
+            print("Found JSON content within code block")
             json_content = response_text[json_start + 7:json_end].strip()
         else:
             # If not in code block, try to extract JSON directly
+            print("No code block found, attempting to parse response directly")
             json_content = response_text
 
         # Parse the JSON
         try:
+            print("Parsing JSON content")
             concepts_data = json.loads(json_content)
+            print(f"Successfully parsed JSON with {len(concepts_data)} concepts")
         except json.JSONDecodeError:
             # Try to find array brackets if JSON parsing failed
+            print("JSON parse failed, trying to extract array directly")
             start_bracket = response_text.find('[')
             end_bracket = response_text.rfind(']') + 1
             if start_bracket != -1 and end_bracket != 0:
                 json_content = response_text[start_bracket:end_bracket]
                 concepts_data = json.loads(json_content)
+                print(f"Successfully extracted array with {len(concepts_data)} concepts")
             else:
+                print("Failed to extract JSON from response")
                 raise ValueError('Failed to parse Gemini response as JSON')
 
         # Process the concepts data
+        print("Loading and validating concept data")
         concepts = load_gemini_output(concepts_data)
+        print(f"Validated {len(concepts)} concepts with required fields")
 
         # Generate charts and convert to base64 for embedding
-        charts = []
-
+        print("Generating frequency-based bubble chart")
         # Frequency-based chart
         freq_img_data = io.BytesIO()
         generate_packed_bubble_chart(
@@ -261,25 +274,22 @@ def process_text_for_bubble_chart(text, model):
             use_importance=False,
             title="Concept Frequency"
         )
-        plt = matplotlib.pyplot
+        print("Saving frequency chart to buffer")
         plt.savefig(freq_img_data, format='png', bbox_inches='tight')
         plt.close()
         freq_img_data.seek(0)
         freq_img_b64 = base64.b64encode(freq_img_data.read()).decode('utf-8')
 
-        # Importance-based chart
-        imp_img_data = io.BytesIO()
-        generate_packed_bubble_chart(
-            concepts,
-            use_importance=True,
-            title="Concept Importance (0.0-1.0)\nLarger bubbles indicate more central concepts"
-        )
-        plt.savefig(imp_img_data, format='png', bbox_inches='tight')
-        plt.close()
-        imp_img_data.seek(0)
-        imp_img_b64 = base64.b64encode(imp_img_data.read()).decode('utf-8')
+        print(f"Generated frequency chart (base64 length: {len(freq_img_b64)})")
 
-        return freq_img_b64, imp_img_b64
+        # Return a structured dictionary that matches what the route expects
+        return {
+            'bubble_chart': freq_img_b64,  # Use frequency chart as the primary bubble chart
+            'concepts': concepts_data
+        }
 
     except Exception as e:
+        print(f"Error in bubble chart generation: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise RuntimeError(f'Error processing text: {str(e)}')
