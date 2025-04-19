@@ -3,10 +3,11 @@ Script to run the Flask application.
 """
 import os
 from dotenv import load_dotenv
-from app import app
-
 # Load environment variables from .env file
 load_dotenv()
+
+from app import app
+
 
 if __name__ == '__main__':
     # Get port from environment variable or default to 5000
