@@ -335,6 +335,8 @@ def get_concept_map(map_id):
 
     if not concept_map:
         return jsonify({"error": "Concept map not found"}), 404
+    
+    return jsonify(concept_map.to_dict()), 200
 
 
 @app.route("/api/shared/concept-maps/<string:share_id>", methods=["GET"])
@@ -358,41 +360,61 @@ def update_concept_map(map_id):
     user = get_auth0_user()
 
 
-    for i, map in enumerate(concept_maps):
-        if (
-                map["id"] == map_id
-                and map.get("user_id") == user.id
-                and not map.get("deleted", False)
-        ):
-            # Get the new nodes or keep existing ones
-            nodes = data.get("nodes", map["nodes"])
+    # Find the concept map in database
+    concept_map = ConceptMap.query.filter_by(
+        id=map_id, 
+        user_id=user.id,
+        is_deleted=False
+    ).first()
 
-            # Update the map
-            concept_maps[i] = {
-                "id": map_id,
-                "name": data.get("name", map["name"]),
-                "nodes": nodes,
-                "edges": data.get("edges", map["edges"]),
-                "user_id": user.id,
-                "is_public": data.get("is_public", map.get("is_public", False)),
-                "is_favorite": data.get("is_favorite", map.get("is_favorite", False)),
-                "share_id": map.get("share_id"),
-                "image": data.get("image", map.get("image")),
-                "format": data.get("format", map.get("format")),
-                "created_at": map.get("created_at"),
-                "updated_at": datetime.utcnow().isoformat(),
-                "input_text": data.get(
-                    "input_text", map.get("input_text", "")
-                ),  # Preserve input text
-                "description": data.get(
-                    "description", map.get("description", "")
-                ),  # Preserve description
-                "learning_objective": data.get(
-                    "learning_objective", map.get("learning_objective", "")
-                ),  # Preserve learning objective
-            }
-            return jsonify(concept_maps[i]), 200
+    if not concept_map:
+        return jsonify({"error": "Concept map not found"}), 404
 
+    # Update the map with new data
+    concept_map.name = data.get("name", concept_map.name)
+    concept_map.is_public = data.get("is_public", concept_map.is_public)
+    concept_map.is_favorite = data.get("is_favorite", concept_map.is_favorite)
+    concept_map.image = data.get("image", concept_map.image)
+    concept_map.format = data.get("format", concept_map.format)
+    concept_map.input_text = data.get("input_text", concept_map.input_text)
+    concept_map.description = data.get("description", concept_map.description)
+    concept_map.learning_objective = data.get("learning_objective", concept_map.learning_objective)
+    concept_map.updated_at = datetime.utcnow()
+
+    # Update nodes if provided
+    if "nodes" in data:
+        # Delete existing nodes
+        Node.query.filter_by(concept_map_id=map_id).delete()
+        
+        # Add new nodes
+        for node_data in data["nodes"]:
+            node = Node(
+                concept_map=concept_map,
+                label=node_data.get("label", ""),
+                x=node_data.get("x", 0),
+                y=node_data.get("y", 0)
+            )
+            db.session.add(node)
+
+    # Update edges if provided
+    if "edges" in data:
+        # Delete existing edges
+        Edge.query.filter_by(concept_map_id=map_id).delete()
+        
+        # Add new edges
+        for edge_data in data["edges"]:
+            edge = Edge(
+                concept_map=concept_map,
+                source_id=edge_data.get("source"),
+                target_id=edge_data.get("target"),
+                label=edge_data.get("label", "")
+            )
+            db.session.add(edge)
+
+    # Commit changes to database
+    db.session.commit()
+
+    return jsonify(concept_map.to_dict()), 200
     # Find the concept map
     concept_map = ConceptMap.query.filter_by(
         id=map_id, user_id=user.id, is_deleted=False
