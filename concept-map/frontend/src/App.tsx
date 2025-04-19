@@ -9,10 +9,7 @@ import ProfilePage from './pages/profile';
 import SettingsPage from './pages/settings';
 import EditorPage from './pages/editor';
 import SharedMapPage from './pages/shared-map';
-import NotesPage from './pages/notes';
 import EditorNotesPage from './pages/editor-notes';
-
-
 import NotesPage from './pages/notes';
 
 import { useAuth } from './contexts/auth-context';
@@ -45,15 +42,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/" element={<LandingPage />} />
       
-      <Route path="/login" element={
-        user ? <Navigate to="/dashboard" replace /> : (
-          <div className="flex min-h-svh flex-col items-center justify-center bg-background p-6 md:p-10">
-            <div className="w-full max-w-sm md:max-w-3xl">
-              <LoginForm />
-            </div>
-          </div>
-        )
-      } />
+      
       
       <Route path="/register" element={
         user ? <Navigate to="/dashboard" replace /> : (
