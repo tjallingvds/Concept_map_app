@@ -286,6 +286,20 @@ def delete_account():
 
     return jsonify({"message": "Account deleted successfully"}), 200
 
+@app.route("/api/auth/current-user", methods=["GET"])
+def get_current_user():
+    user_id = session.get("user_id")
+
+    if not user_id:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    user = User.query.filter_by(id=user_id, is_active=True).first()
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    return jsonify(user.to_dict()), 200
+
 
 # Concept Map routes
 @app.route("/api/concept-maps", methods=["GET"])
