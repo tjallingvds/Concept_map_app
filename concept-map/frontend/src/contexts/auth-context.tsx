@@ -23,6 +23,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   updateUserProfile: (data: UserProfileUpdate) => Promise<void>;
+  deleteAccount: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -107,6 +108,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
+  const deleteAccount = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/auth/account`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to delete account");
+      }
+
+      // Clear user data and logout
+      setUser(null);
+    } catch (error) {
+      console.error("Account deletion failed:", error);
+      throw error;
+    }
+  };
+
   const updateUserProfile = async (data: UserProfileUpdate) => {
     try {
       // In a real application, you would call an API endpoint to update the user profile
@@ -152,6 +173,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         checkAuth,
         updateUserProfile,
+        deleteAccount,
       }}
     >
       {children}
