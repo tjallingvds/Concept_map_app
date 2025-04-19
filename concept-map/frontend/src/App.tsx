@@ -12,7 +12,11 @@ import SharedMapPage from './pages/shared-map';
 import NotesPage from './pages/notes';
 import EditorNotesPage from './pages/editor-notes';
 
+
+import NotesPage from './pages/notes';
+
 import { useAuth } from './contexts/auth-context';
+
 
 function ProtectedRoute() {
     const { user, loading, login } = useAuth();
@@ -73,6 +77,7 @@ function AppRoutes() {
         <Route path="/notes" element={<NotesPage />} />
         <Route path="/editor-notes" element={<EditorNotesPage />} />
         <Route path="/editor-notes/:id" element={<EditorNotesPage />} />
+
         {/* Add more protected routes here */}
       </Route>
     </Routes>
