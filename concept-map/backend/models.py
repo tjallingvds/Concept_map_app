@@ -4,6 +4,7 @@ Currently using in-memory storage, but structured to easily migrate to a databas
 """
 
 from datetime import datetime
+
 from flask_sqlalchemy import SQLAlchemy
 
 # Initialize SQLAlchemy
@@ -37,16 +38,16 @@ class User(db.Model):
     )
 
     def __init__(
-        self,
-        email,
-        user_id=None,
-        auth0_id=None,
-        display_name=None,
-        bio=None,
-        avatar_url=None,
+            self,
+            email,
+            user_id=None,
+            auth0_id=None,
+            display_name=None,
+            bio=None,
+            avatar_url=None,
     ):
         self.id = user_id
-        self.auth0_id=auth0_id
+        self.auth0_id = auth0_id
         self.email = email
         self.display_name = display_name or email.split('@')[0]
         self.bio = bio
@@ -54,7 +55,6 @@ class User(db.Model):
         self.created_at = datetime.utcnow()
         self.updated_at = datetime.utcnow()
         self.is_active = True
-
 
     def update_profile(self, display_name=None, bio=None, avatar_url=None):
         """Update the user's profile information."""
