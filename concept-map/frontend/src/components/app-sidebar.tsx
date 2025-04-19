@@ -1,19 +1,11 @@
-import * as React from "react"
-import {
-  FileText,
-  Globe,
-  LayoutDashboard,
-  Map,
-  PlusCircle,
-  BookOpen,
-  type LucideIcon
-} from "lucide-react"
-import { Link } from "react-router-dom"
-import { useEffect, useState } from "react"
+import * as React from 'react';
+import { FileText, Globe, LayoutDashboard, Map, PlusCircle, BookOpen, type LucideIcon } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 
-import { NavProjects, type ProjectItem } from "../components/nav-projects"
-import { NavUser } from "../components/nav-user"
-import { SidebarOptInForm } from "../components/sidebar-opt-in-form"
+import { NavProjects, type ProjectItem } from '../components/nav-projects';
+import { NavUser } from '../components/nav-user';
+import { SidebarOptInForm } from '../components/sidebar-opt-in-form';
 import {
   Sidebar,
   SidebarContent,
@@ -24,9 +16,9 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "../components/ui/sidebar"
-import { useAuth } from "../contexts/auth-context"
-import { CreateMapDialog } from "../components/create-map-dialog"
+} from '../components/ui/sidebar';
+import { useAuth } from '../contexts/auth-context';
+import { CreateMapDialog } from '../components/create-map-dialog';
 
 // Define the type for concept maps from the backend
 interface ConceptMapData {
@@ -36,10 +28,10 @@ interface ConceptMapData {
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { user } = useAuth()
-  const [recentMaps, setRecentMaps] = useState<ProjectItem[]>([])
-  const [loading, setLoading] = useState(true)
-  
+  const { user } = useAuth();
+  const [recentMaps, setRecentMaps] = useState<ProjectItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
   // Fetch recent maps from the backend
   useEffect(() => {
     const fetchRecentMaps = async () => {
@@ -55,27 +47,23 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           //   icon: Map
           // }));
           // setRecentMaps(mapItems);
-          
+
           // For now, set empty array to show "None yet" message
           setRecentMaps([]);
         }
       } catch (error) {
-        console.error("Failed to fetch recent maps:", error);
+        console.error('Failed to fetch recent maps:', error);
         setRecentMaps([]);
       } finally {
         setLoading(false);
       }
     };
-    
+
     fetchRecentMaps();
   }, [user]);
-  
+
   return (
-    <Sidebar 
-      variant="inset" 
-      className="border-r border-border"
-      {...props}
-    >
+    <Sidebar variant="inset" className="border-r border-border" {...props}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
@@ -107,10 +95,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
-            
+
             {/* New concept map - Opens create map dialog */}
             <SidebarMenuItem>
-              <CreateMapDialog 
+              <CreateMapDialog
                 trigger={
                   <SidebarMenuButton>
                     <PlusCircle />
@@ -119,7 +107,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 }
               />
             </SidebarMenuItem>
-            
+
             {/* Notes & Learn - Links to /notes page */}
             <SidebarMenuItem>
               <SidebarMenuButton asChild>
@@ -129,7 +117,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
-            
+
             {/* My concept maps - Links to /maps page */}
             <SidebarMenuItem>
               <SidebarMenuButton asChild>
@@ -139,7 +127,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
-            
+
             {/* Public concept maps - Links to /library page */}
             <SidebarMenuItem>
               <SidebarMenuButton asChild>
@@ -149,31 +137,37 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
+
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild>
+                <Link to="/templates">
+                  <Globe />
+                  <span>Templates</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroup>
-        
+
         {/* Recent work section */}
-        <NavProjects 
-          projects={recentMaps} 
-          title="Your most recent work" 
-          emptyMessage="None yet" 
-          isLoading={loading}
-        />
+        <NavProjects projects={recentMaps} title="Your most recent work" emptyMessage="None yet" isLoading={loading} />
       </SidebarContent>
       <SidebarFooter>
         {/* Premium upgrade component */}
         <div className="mb-4 px-3">
           <SidebarOptInForm freeMessage="Awww thanks but it is free for you!" />
         </div>
-        
+
         {user && (
-          <NavUser user={{
-            name: user.displayName || user.email?.split('@')[0] || "User",
-            email: user.email || "",
-            avatar: user.avatarUrl || "",
-          }} />
+          <NavUser
+            user={{
+              name: user.displayName || user.email?.split('@')[0] || 'User',
+              email: user.email || '',
+              avatar: user.avatarUrl || '',
+            }}
+          />
         )}
       </SidebarFooter>
     </Sidebar>
-  )
+  );
 }
