@@ -99,6 +99,7 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
     console.log("contentSource changed to:", contentSource);
   }, [contentSource]);
 
+
 React.useEffect(() => {
   const subscription = form.watch((value, { name }) => {
     if (name === "mapType") {

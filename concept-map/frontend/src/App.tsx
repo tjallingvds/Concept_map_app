@@ -17,6 +17,7 @@ import TemplatesPage from './pages/templates';
 import { LoginForm } from './components/login-form';
 import { useAuth, AuthProvider } from './contexts/auth-context';
 
+
 function ProtectedRoute() {
     const { user, loading } = useAuth();
 
@@ -69,16 +70,16 @@ function AppRoutes() {
         <Route path="/editor/:id" element={<EditorPage />} />
         <Route path="/shared/:shareId" element={<SharedMapPage />} />
         {/* Notes routes */}
-        <Route path="/notes" element={<NotesPage />} />       
-        <Route path="/whiteboard-editor/:id" element={<WhiteboardEditorPage />} />
+        <Route path="/notes" element={<NotesPage />} />
         <Route path="/notes/edit" element={<EditorNotesPage />} />
         <Route path="/notes/edit/:id" element={<EditorNotesPage />} />
+        <Route path="/whiteboard-editor/:id" element={<WhiteboardEditorPage />} />
 
         {/* Redirects for backward compatibility */}
         <Route path="/editor-notes" element={<Navigate to="/notes/edit" replace />} />
         <Route path="/editor-notes/:id" element={<Navigate to="/notes/edit/:id" replace />} />
 
-        {/* Templates route (keep from main) */}
+        {/* Templates route */}
         <Route path="/templates" element={<TemplatesPage />} />
 
         {/* Add more protected routes here */}

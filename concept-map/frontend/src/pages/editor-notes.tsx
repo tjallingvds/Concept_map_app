@@ -6,7 +6,6 @@ import { Button } from "../components/ui/button"
 import { ArrowLeft, Save, GitMerge } from "lucide-react"
 
 // Import BlockNote components
-import "@blocknote/core/fonts/inter.css"
 import { BlockNoteView } from "@blocknote/mantine"
 import "@blocknote/mantine/style.css"
 import { filterSuggestionItems } from "@blocknote/core"
