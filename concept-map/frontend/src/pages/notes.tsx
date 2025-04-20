@@ -86,12 +86,12 @@ export default function NotesPage() {
 
   // Handle opening a note for editing
   const handleEditNote = (id: number) => {
-    navigate(`/notes/edit/${id}`)
+    navigate(`/editor-notes/${id}`)
   }
 
   // Handle creating a new note
   const handleCreateNewNote = () => {
-    navigate('/notes/edit')
+    navigate('/editor-notes')
   }
 
   return (

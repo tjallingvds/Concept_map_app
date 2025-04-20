@@ -10,7 +10,7 @@ import { Link, useNavigate } from "react-router-dom"
 import { Badge } from "../components/ui/badge"
 import { formatDistanceToNow } from "date-fns"
 import { MapItem } from "../components/file-system"
-import conceptMapsApi from "../services/api"
+import {useConceptMapsApi} from "../services/api"
 import { toast } from "sonner"
 
 // Mock data for concept maps (to be replaced with real data later)
@@ -54,12 +54,14 @@ export default function DashboardPage() {
   const [createMapOpen, setCreateMapOpen] = useState(false)
   const [maps, setMaps] = useState<MapItem[]>([])
   const [loading, setLoading] = useState(true)
+  const { createMap, getMyMaps } = useConceptMapsApi();
+
   const navigate = useNavigate()
 
   useEffect(() => {
     const fetchMaps = async () => {
       try {
-        const userMaps = await conceptMapsApi.getMyMaps()
+        const userMaps = await getMyMaps()
         setMaps(userMaps)
       } catch (error) {
         console.error('Error fetching maps:', error)
@@ -74,7 +76,7 @@ export default function DashboardPage() {
 
   const handleCreateMap = async (title: string, text: string) => {
     try {
-      const newMap = await conceptMapsApi.createMap({
+      const newMap = await createMap({
         title: title,
         text: text,
         mapType: "default"
