@@ -1,6 +1,8 @@
 import json
 import unittest
 from app import app
+from concept_map_generation.crud_routes import concept_maps
+
 
 class ConceptMapAPITestCase(unittest.TestCase):
     """Test case for the concept map API."""
@@ -10,7 +12,6 @@ class ConceptMapAPITestCase(unittest.TestCase):
         app.testing = True
         self.client = app.test_client()
         # Reset in-memory storage for each test
-        from app import concept_maps
         concept_maps.clear()
 
     def test_health_check(self):
@@ -67,7 +68,7 @@ class ConceptMapAPITestCase(unittest.TestCase):
         map_id = json.loads(res.data)['id']
         
         # Now get the specific map
-        res = self.client.get(f'/api/concept-maps/{map_id}')
+        res = self.client.get(f'/api/concept-maps/{map_id}/')
         self.assertEqual(res.status_code, 200)
         data = json.loads(res.data)
         self.assertEqual(data['name'], 'Test Map')
@@ -112,11 +113,11 @@ class ConceptMapAPITestCase(unittest.TestCase):
         map_id = json.loads(res.data)['id']
         
         # Now delete the map
-        res = self.client.delete(f'/api/concept-maps/{map_id}')
+        res = self.client.delete(f'/api/concept-maps/{map_id}/')
         self.assertEqual(res.status_code, 200)
         
         # Verify it's deleted
-        res = self.client.get(f'/api/concept-maps/{map_id}')
+        res = self.client.get(f'/api/concept-maps/{map_id}/')
         self.assertEqual(res.status_code, 404)
 
 if __name__ == '__main__':
