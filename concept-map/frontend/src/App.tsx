@@ -11,6 +11,7 @@ import EditorPage from './pages/editor';
 import SharedMapPage from './pages/shared-map';
 import NotesPage from './pages/notes';
 import EditorNotesPage from './pages/editor-notes';
+import WhiteboardEditorPage from './pages/whiteboard-editor-page';
 import { LoginForm } from './components/login-form';
 
 import { useAuth } from './contexts/auth-context';
@@ -75,6 +76,7 @@ function AppRoutes() {
         <Route path="/notes" element={<NotesPage />} />
         <Route path="/editor-notes" element={<EditorNotesPage />} />
         <Route path="/editor-notes/:id" element={<EditorNotesPage />} />
+        <Route path="/whiteboard-editor/:id" element={<WhiteboardEditorPage />} />
 
         {/* Add more protected routes here */}
       </Route>
