@@ -9,10 +9,9 @@ import ProfilePage from './pages/profile';
 import SettingsPage from './pages/settings';
 import EditorPage from './pages/editor';
 import SharedMapPage from './pages/shared-map';
-import NotesPage from './pages/notes';
 import EditorNotesPage from './pages/editor-notes';
 import { LoginForm } from './components/login-form';
-
+import TemplatesPage from './pages/templates';
 import { useAuth, AuthProvider } from './contexts/auth-context';
 
 
@@ -28,40 +27,36 @@ function ProtectedRoute() {
     }
 
     return <Outlet />;
+
 }
 
 function AppRoutes() {
 
   const { user, loading } = useAuth();
-  
+
   if (loading) {
     return <div className="flex items-center justify-center h-screen">Loading...</div>;
   }
-  
+
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
-      
-      <Route path="/login" element={
-        user ? <Navigate to="/dashboard" replace /> : (
-          <div className="flex min-h-svh flex-col items-center justify-center bg-background p-6 md:p-10">
-            <div className="w-full max-w-sm md:max-w-3xl">
-              <LoginForm />
+
+      <Route
+        path="/register"
+        element={
+          user ? (
+            <Navigate to="/dashboard" replace />
+          ) : (
+            <div className="flex min-h-svh flex-col items-center justify-center bg-background p-6 md:p-10">
+              <div className="w-full max-w-sm md:max-w-3xl">
+                <RegisterForm />
+              </div>
             </div>
-          </div>
-        )
-      } />
-      
-      <Route path="/register" element={
-        user ? <Navigate to="/dashboard" replace /> : (
-          <div className="flex min-h-svh flex-col items-center justify-center bg-background p-6 md:p-10">
-            <div className="w-full max-w-sm md:max-w-3xl">
-              <RegisterForm />
-            </div>
-          </div>
-        )
-      } />
-      
+          )
+        }
+      />
+
       {/* Protected routes */}
       <Route element={<ProtectedRoute />}>
         <Route path="/dashboard" element={<DashboardPage />} />
@@ -74,7 +69,7 @@ function AppRoutes() {
         <Route path="/notes" element={<NotesPage />} />
         <Route path="/editor-notes" element={<EditorNotesPage />} />
         <Route path="/editor-notes/:id" element={<EditorNotesPage />} />
-
+        <Route path="/templates" element={<TemplatesPage />} />
 
         {/* Add more protected routes here */}
       </Route>
@@ -91,6 +86,7 @@ function App() {
             </Router>
         </AuthProvider>
     );
+
 }
 
 export default App;
