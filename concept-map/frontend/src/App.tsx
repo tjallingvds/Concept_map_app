@@ -10,10 +10,10 @@ import SettingsPage from './pages/settings';
 import EditorPage from './pages/editor';
 import SharedMapPage from './pages/shared-map';
 import EditorNotesPage from './pages/editor-notes';
-import { LoginForm } from './components/login-form';
+import NotesPage from './pages/notes';
 import TemplatesPage from './pages/templates';
+import { LoginForm } from './components/login-form';
 import { useAuth, AuthProvider } from './contexts/auth-context';
-
 
 function ProtectedRoute() {
     const { user, loading } = useAuth();
@@ -67,7 +67,7 @@ function AppRoutes() {
         <Route path="/editor/:id" element={<EditorPage />} />
         <Route path="/shared/:shareId" element={<SharedMapPage />} />
         {/* Notes routes */}
-        <Route path="/notes" element={<EditorNotesPage />} />
+        <Route path="/notes" element={<NotesPage />} />
         <Route path="/notes/edit" element={<EditorNotesPage />} />
         <Route path="/notes/edit/:id" element={<EditorNotesPage />} />
 
