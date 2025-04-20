@@ -10,7 +10,7 @@ import { Separator } from "../components/ui/separator";
 import { ConceptMapViewer } from "../components/concept-map-viewer";
 import { TLDrawEditor } from "../components/tldraw-editor";
 import { MapItem } from "../components/file-system";
-import {useConceptMapsApi} from "../services/api.ts";
+import {useConceptMapsApi} from "../services/concept_map_api.ts";
 
 // Create a full type for the OCR result to avoid linter issues
 interface OcrResult {

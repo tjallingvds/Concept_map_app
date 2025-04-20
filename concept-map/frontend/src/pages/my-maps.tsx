@@ -9,7 +9,7 @@ import { useAuth } from "../contexts/auth-context"
 import { CreateMapDialog } from "../components/create-map-dialog"
 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuItem } from "../components/ui/dropdown-menu"
-import {useConceptMapsApi} from "../services/api.ts"; // ✅ NEW
+import {useConceptMapsApi} from "../services/concept_map_api.ts"; // ✅ NEW
 
 // Mock data for personal concept maps
 const mockPersonalMaps: MapItem[] = [

@@ -6,27 +6,14 @@ import { FileSystem, MapItem, FileSearchBar } from "../components/file-system"
 import { Button } from "../components/ui/button"
 import { Plus, FileEdit } from "lucide-react"
 import { toast } from "sonner"
-import { notesApi, NoteItem } from "../services/api"
 import { useAuth } from "../contexts/auth-context"
+import {convertNoteToMapItem} from "../types/notes.ts";
+import {useNotesApi} from "../services/notes_api.ts";
 
-// Convert NoteItem to MapItem format for the FileSystem component
-const convertNoteToMapItem = (note: NoteItem): MapItem => {
-  return {
-    id: note.id,
-    title: note.title,
-    description: note.description || "",
-    createdAt: note.createdAt,
-    lastEdited: note.lastEdited,
-    nodes: 0, // Notes don't have nodes count
-    author: "Me",
-    isFavorite: note.isFavorite,
-    isPublic: note.isPublic,
-    shareId: note.shareId,
-    shareUrl: note.shareUrl
-  }
-}
+
 
 export default function NotesPage() {
+  const notesApi = useNotesApi()
   const navigate = useNavigate()
   const { user } = useAuth()
   const [notes, setNotes] = useState<MapItem[]>([])

@@ -10,9 +10,9 @@ import SettingsPage from './pages/settings';
 import EditorPage from './pages/editor';
 import SharedMapPage from './pages/shared-map';
 import EditorNotesPage from './pages/editor-notes';
-import { LoginForm } from './components/login-form';
 import TemplatesPage from './pages/templates';
-import { useAuth, AuthProvider } from './contexts/auth-context';
+import { useAuth } from './contexts/auth-context';
+import NotesPage from "./pages/notes.tsx";
 
 
 function ProtectedRoute() {
@@ -23,7 +23,7 @@ function ProtectedRoute() {
     }
 
     if (!user) {
-        return <Navigate to="/login" replace />;
+        return <Navigate to="/" replace />;
     }
 
     return <Outlet />;
@@ -80,13 +80,10 @@ function AppRoutes() {
 
 function App() {
     return (
-        <AuthProvider>
             <Router>
                 <AppRoutes />
             </Router>
-        </AuthProvider>
     );
-
 }
 
 export default App;

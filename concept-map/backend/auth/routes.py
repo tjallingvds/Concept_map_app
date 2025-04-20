@@ -1,7 +1,7 @@
 import os
 import uuid
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 
 from auth_utils import requires_auth, get_auth0_user
@@ -9,12 +9,20 @@ from models import db
 
 auth_bp = Blueprint("auth", __name__)
 
-UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
+UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif"}
+
+
+@auth_bp.route("/uploads/<filename>")
+def uploaded_file(filename):
+    return send_from_directory(UPLOAD_FOLDER, filename)
 
 
 # User profile routes

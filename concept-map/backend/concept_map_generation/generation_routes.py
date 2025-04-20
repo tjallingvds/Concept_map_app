@@ -20,7 +20,7 @@ if not GEMINI_API_KEY:
 GEMINI_API_KEY = str(GEMINI_API_KEY)
 
 # Create a blueprint for concept map generation routes
-concept_map_bp = Blueprint('concept_map', __name__, url_prefix='/api/concept-map')
+concept_map_bp = Blueprint('concept_map', __name__, url_prefix='/api/concept-maps')
 
 
 # Initialize Gemini model

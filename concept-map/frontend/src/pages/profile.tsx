@@ -34,7 +34,7 @@ import { toast } from "sonner"
 import { Camera, Upload, Map, Share2, Edit, Download } from "lucide-react"
 import { useNavigate, Link } from "react-router-dom"
 import { MapItem } from "../components/file-system"
-import {useConceptMapsApi} from "../services/api.ts";
+import {useConceptMapsApi} from "../services/concept_map_api.ts";
 import {useUserApi} from "../services/userApi.ts";
 
 // Form validation schema
