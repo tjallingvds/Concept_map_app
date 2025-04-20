@@ -1,6 +1,7 @@
 import secrets
 import uuid
 from datetime import datetime
+from http import HTTPStatus
 
 from flask import request, jsonify
 
@@ -21,7 +22,7 @@ def get_concept_maps():
 
     # Filter maps by user_id and not deleted
     user_maps = ConceptMap.query.filter_by(user_id=user.id, is_deleted=False).all()
-    return jsonify([map.to_dict() for map in user_maps]), 200
+    return jsonify([map.to_dict() for map in user_maps]), HTTPStatus.OK
 
 
 @concept_map_bp.route("/", methods=["POST"])
@@ -33,7 +34,7 @@ def create_concept_map():
 
     # Basic validation
     if not data or "name" not in data:
-        return jsonify({"error": "Missing required fields"}), 400
+        return jsonify({"error": "Missing required fields"}), HTTPStatus.BAD_REQUEST
 
     # Generate a unique share ID
     share_id = secrets.token_urlsafe(8)
@@ -146,7 +147,7 @@ def create_concept_map():
                 "learning_objective": new_map.learning_objective,
             }
         ),
-        201,
+        HTTPStatus.CREATED,
     )
 
     # Create a new concept map
@@ -188,7 +189,7 @@ def create_concept_map():
 
     db.session.commit()
 
-    return jsonify(new_map.to_dict()), 201
+    return jsonify(new_map.to_dict()), HTTPStatus.CREATED
 
 
 @concept_map_bp.route("/<int:map_id>/", methods=["GET"])
@@ -198,7 +199,8 @@ def get_concept_map(map_id):
     concept_map = ConceptMap.query.filter_by(id=map_id).first()
 
     if not concept_map:
-        return jsonify({"error": "Concept map not found"}), 404
+        return jsonify({"error": "Concept map not found"}), HTTPStatus.NOT_FOUND
+    return jsonify(concept_map.to_dict()), HTTPStatus.OK
 
 
 @concept_map_bp.route("/<string:share_id>/", methods=["GET"])
@@ -210,9 +212,9 @@ def get_shared_concept_map(share_id):
                 and map.get("is_public")
                 and not map.get("deleted", False)
         ):
-            return jsonify(map), 200
+            return jsonify(map), HTTPStatus.OK
 
-    return jsonify({"error": "Shared concept map not found or not public"}), 404
+    return jsonify({"error": "Shared concept map not found or not public"}), HTTPStatus.NOT_FOUND
 
 
 @concept_map_bp.route("/<int:map_id>/", methods=["PUT"])
@@ -254,7 +256,7 @@ def update_concept_map(map_id):
                     "learning_objective", map.get("learning_objective", "")
                 ),  # Preserve learning objective
             }
-            return jsonify(concept_maps[i]), 200
+            return jsonify(concept_maps[i]), HTTPStatus.OK
 
     # Find the concept map
     concept_map = ConceptMap.query.filter_by(
@@ -262,7 +264,7 @@ def update_concept_map(map_id):
     ).first()
 
     if not concept_map:
-        return jsonify({"error": "Concept map not found"}), 404
+        return jsonify({"error": "Concept map not found"}), HTTPStatus.NOT_FOUND
 
     # Update the map properties
     if "name" in data:
@@ -308,7 +310,7 @@ def update_concept_map(map_id):
 
     db.session.commit()
 
-    return jsonify(concept_map.to_dict()), 200
+    return jsonify(concept_map.to_dict()), HTTPStatus.OK
 
 
 @concept_map_bp.route("/<int:map_id>/", methods=["DELETE"])
@@ -322,7 +324,7 @@ def delete_concept_map(map_id):
     ).first()
 
     if not concept_map:
-        return jsonify({"error": "Concept map not found"}), 404
+        return jsonify({"error": "Concept map not found"}), HTTPStatus.NOT_FOUND
 
     # Mark as deleted (soft delete)
     concept_map.is_deleted = True
@@ -330,7 +332,7 @@ def delete_concept_map(map_id):
 
     return (
         jsonify({"message": f"Concept map '{concept_map.name}' deleted successfully"}),
-        200,
+        HTTPStatus.OK,
     )
 
 
@@ -359,7 +361,7 @@ def share_concept_map(map_id):
                         "share_id": map["share_id"],
                     }
                 ),
-                200,
+                HTTPStatus.OK,
             )
 
-    return jsonify({"error": "Concept map not found"}), 404
+    return jsonify({"error": "Concept map not found"}), HTTPStatus.NOT_FOUND

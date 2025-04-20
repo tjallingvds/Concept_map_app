@@ -1,5 +1,7 @@
+import http
 import os
 import uuid
+from http import HTTPStatus
 
 from flask import Blueprint, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
@@ -30,7 +32,7 @@ def uploaded_file(filename):
 @requires_auth
 def get_profile():
     user = get_auth0_user()
-    return jsonify(user.to_dict()), 200
+    return jsonify(user.to_dict()), HTTPStatus.OK
 
 
 @auth_bp.route("/api/auth/profile/", methods=["PUT"])
@@ -40,7 +42,7 @@ def update_profile():
     data = request.json
     user.update_profile(display_name=data.get("displayName"), bio=data.get("bio"))
     db.session.commit()
-    return jsonify(user.to_dict()), 200
+    return jsonify(user.to_dict()), HTTPStatus.OK
 
 
 @auth_bp.route("/api/auth/profile/avatar/", methods=["POST"])
@@ -49,11 +51,11 @@ def upload_avatar():
     user = get_auth0_user()
 
     if "avatar" not in request.files:
-        return jsonify({"error": "No file part"}), 400
+        return jsonify({"error": "No file part"}), HTTPStatus.BAD_REQUEST
 
     file = request.files["avatar"]
     if file.filename == "":
-        return jsonify({"error": "No selected file"}), 400
+        return jsonify({"error": "No selected file"}), HTTPStatus.BAD_REQUEST
 
     if file and allowed_file(file.filename):
         filename = secure_filename(file.filename)
@@ -65,9 +67,9 @@ def upload_avatar():
         user.update_profile(avatar_url=avatar_url)
         db.session.commit()
 
-        return jsonify({"message": "Avatar uploaded", "avatarUrl": avatar_url}), 200
+        return jsonify({"message": "Avatar uploaded", "avatarUrl": avatar_url}), HTTPStatus.OK
 
-    return jsonify({"error": "Invalid file type"}), 400
+    return jsonify({"error": "Invalid file type"}), HTTPStatus.BAD_REQUEST
 
 
 @auth_bp.route("/api/auth/profile/avatar/", methods=["DELETE"])
@@ -86,7 +88,7 @@ def remove_avatar():
     user.update_profile(avatar_url=None)
     db.session.commit()
 
-    return jsonify({"message": "Avatar removed successfully"}), 200
+    return jsonify({"message": "Avatar removed successfully"}), http.HTTPStatus.OK
 
 
 @auth_bp.route("/api/auth/account/", methods=["DELETE"])
@@ -106,4 +108,4 @@ def delete_account():
         m.is_deleted = True
     db.session.commit()
 
-    return jsonify({"message": "Account deleted"}), 200
+    return jsonify({"message": "Account deleted"}), HTTPStatus.OK

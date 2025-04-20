@@ -1,3 +1,5 @@
+from http import HTTPStatus
+
 from flask import Blueprint, request, jsonify
 from werkzeug.utils import secure_filename
 
@@ -20,12 +22,12 @@ def process_document():
         document_processor = DocumentProcessor()
 
     if "file" not in request.files:
-        return jsonify({"error": "No file uploaded"}), 400
+        return jsonify({"error": "No file uploaded"}), HTTPStatus.BAD_REQUEST
 
     file = request.files["file"]
 
     if file.filename == "":
-        return jsonify({"error": "No file selected"}), 400
+        return jsonify({"error": "No file selected"}), HTTPStatus.BAD_REQUEST
 
     filename = secure_filename(file.filename)
     file_ext = filename.rsplit(".", 1)[1].lower() if "." in filename else ""
@@ -36,7 +38,7 @@ def process_document():
             jsonify(
                 {"error": "Unsupported file type. Please upload a PDF or image file."}
             ),
-            400,
+            HTTPStatus.BAD_REQUEST,
         )
 
     try:
@@ -58,7 +60,7 @@ def process_document():
 
     except Exception as e:
         print(f"Error processing document: {str(e)}")
-        return jsonify({"error": f"Failed to process document: {str(e)}"}), 500
+        return jsonify({"error": f"Failed to process document: {str(e)}"}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
 @process_bp.route("/api/process-financial-document/", methods=["POST"])
@@ -73,12 +75,12 @@ def process_financial_document():
         document_processor = DocumentProcessor()
 
     if "file" not in request.files:
-        return jsonify({"error": "No file uploaded"}), 400
+        return jsonify({"error": "No file uploaded"}), HTTPStatus.BAD_REQUEST
 
     file = request.files["file"]
 
     if file.filename == "":
-        return jsonify({"error": "No file selected"}), 400
+        return jsonify({"error": "No file selected"}), HTTPStatus.BAD_REQUEST
 
     filename = secure_filename(file.filename)
     file_ext = filename.rsplit(".", 1)[1].lower() if "." in filename else ""
@@ -89,7 +91,7 @@ def process_financial_document():
             jsonify(
                 {"error": "Unsupported file type. Please upload a PDF or image file."}
             ),
-            400,
+            HTTPStatus.BAD_REQUEST,
         )
 
     try:
@@ -107,5 +109,5 @@ def process_financial_document():
         print(f"Error processing financial document: {str(e)}")
         return (
             jsonify({"error": f"Failed to process financial document: {str(e)}"}),
-            500,
+            HTTPStatus.INTERNAL_SERVER_ERROR,
         )

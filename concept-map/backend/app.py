@@ -1,5 +1,6 @@
 import os
 import secrets
+from http import HTTPStatus
 
 from flask import Flask, jsonify
 from flask_cors import CORS
@@ -47,7 +48,7 @@ app.register_blueprint(notes_bp)
 # Health check endpoint
 @app.route("/api/health/")
 def health_check():
-    return jsonify({"status": "healthy"}), 200
+    return jsonify({"status": "healthy"}), HTTPStatus.OK
 
 
 # Create database tables within application context
