@@ -1,7 +1,7 @@
 from models import User, db
 
 from functools import wraps
-from flask import request, jsonify
+from flask import request, jsonify, g
 from authlib.jose import JsonWebToken
 import requests, os
 
@@ -12,9 +12,23 @@ JWKS = requests.get(JWKS_URL).json()
 
 jwt = JsonWebToken(["RS256"])
 
+# For development/testing only - set to True to bypass authentication
+BYPASS_AUTH = True if os.environ.get("BYPASS_AUTH", "false").lower() == "true" else False
+
 def requires_auth(f):
     @wraps(f)
-    def wrapper(*args, **kwargs):
+    def decorated(*args, **kwargs):
+        if BYPASS_AUTH:
+            # For development only - use a mock user
+            # Create a test user if not in session
+            if not hasattr(g, 'user'):
+                g.user = User(
+                    email="test@example.com",
+                    user_id=1,
+                    display_name="Test User"
+                )
+            return f(*args, **kwargs)
+            
         auth_header = request.headers.get("Authorization", "")
         if not auth_header.startswith("Bearer "):
             return jsonify({"error": "Authorization header missing or malformed"}), 401
@@ -37,7 +51,7 @@ def requires_auth(f):
 
         return f(*args, **kwargs)
 
-    return wrapper
+    return decorated
 
 
 
