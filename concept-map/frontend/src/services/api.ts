@@ -1,5 +1,5 @@
 import {MapItem} from "../components/file-system";
-import {API_URL, authFetch, useAuthFetch} from "./baseApi.ts";
+import {API_URL, useAuthFetch} from "./baseApi.ts";
 
 
 // Interface for the API response from the backend
@@ -21,6 +21,7 @@ interface ConceptMapResponse {
     svgContent?: string;
     description?: string;
     learning_objective?: string;
+    whiteboard_content?: any;
 }
 
 
@@ -119,7 +120,9 @@ const mapResponseToMapItem = (response: ConceptMapResponse): MapItem => {
         svgContent: svgContent,
         shareId: response.share_id,
         shareUrl: shareUrl,
-        inputText: response.input_text || ""
+        inputText: response.input_text || "",
+        format: response.format,
+        whiteboardContent: response.whiteboard_content
     };
 };
 
@@ -179,12 +182,12 @@ const visualizeConcepts = async (conceptData: any, mapType: string = 'mindmap'):
 
 
 // 🔑 Token-injected fetch function (injected from useAuthFetch)
-let authFetch: typeof fetch = () => {
+let authFetch: (url: string, options?: RequestInit) => Promise<Response> = () => {
     throw new Error("authFetch not initialized");
 };
 
 // ✅ One-time setter to be called from useConceptMapsApi
-export const setAuthFetch = (fetchFn: typeof fetch) => {
+export const setAuthFetch = (fetchFn: (url: string, options?: RequestInit) => Promise<Response>) => {
     authFetch = fetchFn;
 };
 
@@ -220,6 +223,7 @@ const conceptMapsApi = {
         try {
             const response = await authFetch(`${API_URL}/api/concept-maps`, {
                 method: "GET",
+                credentials: "include",
                 headers: {
                     "Content-Type": "application/json",
                 },
@@ -249,13 +253,24 @@ const conceptMapsApi = {
         svgContent?: string,
         tldrawContent?: string,
         isDigitized?: boolean,
-        conceptData?: any
+        conceptData?: any,
+        whiteboardContent?: any  // Add this for hand-drawn whiteboard content
     }): Promise<MapItem | null> => {
         try {
             // Check if this is a drawing type map
             const isDrawing = mapData.mapType === 'drawing';
+            const isHanddrawn = mapData.mapType === 'handdrawn';
             const hasDigitizedContent = mapData.isDigitized === true;
             const hasTextInput = mapData.text && mapData.text.length > 0;
+            
+            // Debug logs
+            console.log("API createMap called with:", {
+                title: mapData.title,
+                mapType: mapData.mapType,
+                isHanddrawn,
+                hasWhiteboardContent: !!mapData.whiteboardContent,
+                whiteboardContentSize: mapData.whiteboardContent ? JSON.stringify(mapData.whiteboardContent).length : 0
+            });
 
             // For drawings, SKIP the text generation step completely
             let generatedMap = null;
@@ -267,10 +282,9 @@ const conceptMapsApi = {
                 imageContent = mapData.svgContent;
             }
             // For text input where we want to generate a mind map
-            else if (hasTextInput && !isDrawing) {
+            else if (hasTextInput && !isDrawing && !isHanddrawn) {
                 try {
                     // Generate the concept map from text
-                    //TODO: I can not find this endpoint on backend
                     const genResponse = await authFetch(`${API_URL}/api/concept-map/generate`, {
                         method: "POST",
                         credentials: "include",
@@ -321,8 +335,18 @@ const conceptMapsApi = {
                     edges: generatedMap?.edges || []
                 }),
                 image: imageContent,
-                format: (isDrawing || mapData.svgContent) ? 'svg' : (generatedMap ? generatedMap.format : 'svg')
+                mapType: mapData.mapType, // Add this to ensure the backend knows it's a handdrawn map
+                format: isHanddrawn ? 'handdrawn' : ((isDrawing || mapData.svgContent) ? 'svg' : (generatedMap ? generatedMap.format : 'svg')),
+                // For handdrawn maps, ensure we pass the raw whiteboard content
+                whiteboard_content: isHanddrawn ? mapData.whiteboardContent : undefined
             };
+            
+            console.log("API: Sending request with body:", {
+                ...requestBody,
+                whiteboard_content: requestBody.whiteboard_content ? 
+                  `[${Object.keys(requestBody.whiteboard_content).length} keys, size: ${JSON.stringify(requestBody.whiteboard_content).length} chars]` : 
+                  undefined
+            });
 
             const response = await authFetch(`${API_URL}/api/concept-maps`, {
                 method: "POST",
@@ -340,7 +364,8 @@ const conceptMapsApi = {
             }
 
             const data: ConceptMapResponse = await response.json();
-
+            console.log("API: Successfully created map:", data.id);
+            
             return mapResponseToMapItem(data);
         } catch (error) {
             console.error("API: Error creating concept map:", error);
@@ -364,7 +389,7 @@ const conceptMapsApi = {
             }
 
             const mapData: ConceptMapResponse = await response.json();
-
+            
             // Format SVG content if it exists but isn't already formatted as a data URL
             if (mapData.image && !mapData.image.startsWith('data:')) {
                 const format = mapData.format || 'svg';
@@ -387,7 +412,8 @@ const conceptMapsApi = {
         image?: string,
         format?: string,
         input_text?: string,
-        is_public?: boolean
+        is_public?: boolean,
+        whiteboard_content?: any
     }>): Promise<MapItem | null> => {
         try {
             const response = await authFetch(`${API_URL}/api/concept-maps/${id}`, {
@@ -435,9 +461,24 @@ const conceptMapsApi = {
 
     // Get all public maps
     getPublicMaps: async (): Promise<MapItem[]> => {
-        // This will need to be implemented in the backend
-        console.log("Getting public maps (not yet implemented in backend)");
-        return [];
+        try {
+            const response = await authFetch(`${API_URL}/api/public/concept-maps`, {
+                method: "GET",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to fetch public concept maps");
+            }
+
+            const data: ConceptMapResponse[] = await response.json();
+            return data.map(mapResponseToMapItem);
+        } catch (error) {
+            console.error("Error fetching public concept maps:", error);
+            return [];
+        }
     },
 
     // Toggle favorite status for a map

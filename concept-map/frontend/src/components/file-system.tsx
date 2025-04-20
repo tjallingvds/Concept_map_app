@@ -54,6 +54,8 @@ export type MapItem = {
   shareId?: string
   shareUrl?: string
   inputText?: string
+  format?: string
+  whiteboardContent?: any
 }
 
 // Props for the FileSystem component
