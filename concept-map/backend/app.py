@@ -1,23 +1,26 @@
 import os
 import secrets
 import uuid
+import json
+import base64
 from datetime import datetime, timedelta
 
-from flask import Flask, request, jsonify, session, send_from_directory
+from flask import Flask, request, jsonify, session, send_from_directory, abort
+
 from flask_cors import CORS
 from flask_migrate import Migrate
-from werkzeug.utils import secure_filename
 
-from auth import requires_auth, get_auth0_user
-from concept_map_generation.routes import concept_map_bp
-from document_processor import DocumentProcessor
-from models import db, User, ConceptMap, Node, Edge, Note
+from auth.routes import auth_bp
+from concept_map_generation.generation_routes import concept_map_bp
+from debug.routes import debug_bp
+from models import db
+from process.routes import process_bp
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(16))
 
 # Configure CORS with specific settings
-CORS(app, 
+CORS(app,
      supports_credentials=True,
      origins=[os.environ.get('FRONTEND_URL', 'http://localhost:5173')],  # Frontend server from env or default
      methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -35,9 +38,6 @@ app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(
     days=7
 )  # Session expires in 7 days
 
-# Register blueprints
-app.register_blueprint(concept_map_bp)
-
 # Configure database
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
     "DATABASE_URL", "sqlite:///concept_map.db"
@@ -48,11 +48,8 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db.init_app(app)
 migrate = Migrate(app, db)
 
-UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif"}
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50MB max file size
-
 # Create uploads directory if it doesn't exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 # In-memory storage (replace with database in production)
@@ -246,10 +243,12 @@ def create_concept_map():
     if nodes:
         for node_data in nodes:
             node = Node(
-                concept_map=new_map,
+                concept_map_id=new_map.id,
+                node_id=node_data.get("id", str(uuid.uuid4())),
                 label=node_data.get("label", ""),
-                x=node_data.get("x", 0),
-                y=node_data.get("y", 0),
+                position_x=node_data.get("position", {}).get("x"),
+                position_y=node_data.get("position", {}).get("y"),
+                properties=node_data.get("properties", {})
             )
             db.session.add(node)
 
@@ -257,10 +256,12 @@ def create_concept_map():
     if edges:
         for edge_data in edges:
             edge = Edge(
-                concept_map=new_map,
-                source_id=edge_data.get("source"),
-                target_id=edge_data.get("target"),
+                concept_map_id=new_map.id,
+                edge_id=edge_data.get("id", str(uuid.uuid4())),
+                source=edge_data.get("source", ""),
+                target=edge_data.get("target", ""),
                 label=edge_data.get("label", ""),
+                properties=edge_data.get("properties", {})
             )
             db.session.add(edge)
 
@@ -288,47 +289,6 @@ def create_concept_map():
         ),
         201,
     )
-
-    # Create a new concept map
-    new_map = ConceptMap(
-        name=data["name"],
-        description=data.get("description", ""),
-        user_id=user_id,
-        is_public=data.get("is_public", False),
-    )
-
-    db.session.add(new_map)
-    db.session.commit()
-
-    # Add nodes if provided
-    if "nodes" in data and isinstance(data["nodes"], list):
-        for node_data in data["nodes"]:
-            node = Node(
-                concept_map_id=new_map.id,
-                node_id=node_data.get("id", str(uuid.uuid4())),
-                label=node_data.get("label", ""),
-                position_x=node_data.get("position", {}).get("x"),
-                position_y=node_data.get("position", {}).get("y"),
-                properties=node_data.get("properties", {}),
-            )
-            db.session.add(node)
-
-    # Add edges if provided
-    if "edges" in data and isinstance(data["edges"], list):
-        for edge_data in data["edges"]:
-            edge = Edge(
-                concept_map_id=new_map.id,
-                edge_id=edge_data.get("id", str(uuid.uuid4())),
-                source=edge_data.get("source", ""),
-                target=edge_data.get("target", ""),
-                label=edge_data.get("label", ""),
-                properties=edge_data.get("properties", {}),
-            )
-            db.session.add(edge)
-
-    db.session.commit()
-
-    return jsonify(new_map.to_dict()), 201
 
 
 @app.route("/api/concept-maps/<int:map_id>", methods=["GET"])
@@ -374,6 +334,7 @@ def update_concept_map(map_id):
 
     if not concept_map:
         return jsonify({"error": "Concept map not found"}), 404
+
 
     # Update the map with new data
     concept_map.name = data.get("name", concept_map.name)
@@ -449,7 +410,7 @@ def update_concept_map(map_id):
                 label=node_data.get("label", ""),
                 position_x=node_data.get("position", {}).get("x"),
                 position_y=node_data.get("position", {}).get("y"),
-                properties=node_data.get("properties", {}),
+                properties=node_data.get("properties", {})
             )
             db.session.add(node)
 
@@ -466,7 +427,7 @@ def update_concept_map(map_id):
                 source=edge_data.get("source", ""),
                 target=edge_data.get("target", ""),
                 label=edge_data.get("label", ""),
-                properties=edge_data.get("properties", {}),
+                properties=edge_data.get("properties", {})
             )
             db.session.add(edge)
 
@@ -498,7 +459,6 @@ def delete_concept_map(map_id):
     )
 
 
-# Serve uploaded files
 @app.route("/uploads/<filename>")
 def uploaded_file(filename):
     return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
@@ -805,9 +765,6 @@ def list_models():
         return jsonify({"error": f"Failed to list models: {str(e)}"}), 500
 
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5001, debug=True)
-
 
 # Health check endpoint
 @app.route("/api/health")
@@ -826,7 +783,7 @@ with app.app_context():
 def get_notes():
     """Get all notes for the current user."""
     user = get_auth0_user()
-    
+
     # Filter notes by user_id and not deleted
     user_notes = [n.to_dict() for n in notes if n.user_id == user.id and not n.is_deleted]
     return jsonify(user_notes), 200
@@ -836,6 +793,7 @@ def get_notes():
 def create_note():
     """Create a new note."""
     user = get_auth0_user()
+
         
     data = request.json
     
@@ -867,6 +825,7 @@ def create_note():
 def get_note(note_id):
     """Get a specific note by ID."""
     user = get_auth0_user()
+
         
     note = next((n for n in notes if n.id == note_id and n.user_id == user.id and not n.is_deleted), None)
     
@@ -891,6 +850,7 @@ def get_shared_note(share_id):
 def update_note(note_id):
     """Update a specific note."""
     user = get_auth0_user()
+
         
     data = request.json
     
@@ -923,6 +883,7 @@ def update_note(note_id):
 def delete_note(note_id):
     """Delete a specific note (soft delete)."""
     user = get_auth0_user()
+
         
     note = next((n for n in notes if n.id == note_id and n.user_id == user.id and not n.is_deleted), None)
     
@@ -940,6 +901,7 @@ def delete_note(note_id):
 def share_note(note_id):
     """Generate or update a sharing link for a note."""
     user = get_auth0_user()
+
         
     note = next((n for n in notes if n.id == note_id and n.user_id == user.id and not n.is_deleted), None)
     
@@ -969,6 +931,7 @@ def share_note(note_id):
 def convert_note_to_concept_map(note_id):
     """Convert a note to a concept map."""
     user = get_auth0_user()
+
         
     note = next((n for n in notes if n.id == note_id and n.user_id == user.id and not n.is_deleted), None)
     
@@ -1070,6 +1033,7 @@ def convert_note_to_concept_map(note_id):
 def get_recent_notes(user_id):
     """Get the most recent notes for a user."""
     user = get_auth0_user()
+
     
     # Check if the user is requesting their own notes
     if user.id != user_id:
@@ -1086,6 +1050,7 @@ def get_recent_notes(user_id):
 def get_favorite_notes(user_id):
     """Get the favorite notes for a user."""
     user = get_auth0_user()
+
     
     # Check if the user is requesting their own notes
     if user.id != user_id:
@@ -1095,5 +1060,6 @@ def get_favorite_notes(user_id):
     favorite_notes = [n.to_dict() for n in notes if n.user_id == user_id and n.is_favorite and not n.is_deleted]
     
     return jsonify(favorite_notes), 200
-if __name__ == "__main__":
-    app.run(port=5001, debug=True)
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5001, debug=True)
+
