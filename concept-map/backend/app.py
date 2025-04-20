@@ -16,24 +16,20 @@ from models import db, User, ConceptMap, Node, Edge
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(16))
 
-# Configure CORS with specific settings
+# Configure CORS to allow credentials and specific origins
 CORS(app, 
      supports_credentials=True,
-     origins=[os.environ.get('FRONTEND_URL', 'http://localhost:5173')],  # Frontend server from env or default
-     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-     allow_headers=['Content-Type', 'Authorization', 'Accept'],
-     expose_headers=['Content-Type', 'Authorization'],
-     max_age=3600)  # Cache preflight requests for 1 hour
+     origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+     resources={r"/api/*": {"origins": ["http://localhost:5173", "http://127.0.0.1:5173"]}},
+     allow_headers=["Content-Type", "Authorization", "Accept", "X-Requested-With"],
+     expose_headers=["Content-Type", "X-Requested-With", "Access-Control-Allow-Origin"],
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
 
-# Configure session settings
-app.config["SESSION_COOKIE_SECURE"] = True  # Only send cookie over HTTPS
-app.config["SESSION_COOKIE_HTTPONLY"] = (
-    True  # Prevent JavaScript access to session cookie
-)
-app.config["SESSION_COOKIE_SAMESITE"] = "Lax"  # Protect against CSRF
-app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(
-    days=7
-)  # Session expires in 7 days
+# Configure session settings (disable HTTPS requirement for local development)
+app.config["SESSION_COOKIE_SECURE"] = False  # Allow non-HTTPS for local development
+app.config["SESSION_COOKIE_HTTPONLY"] = True  # Prevent JavaScript access to session cookie
+app.config["SESSION_COOKIE_SAMESITE"] = None  # Allow cross-site requests for local development
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=7)  # Session expires in 7 days
 
 # Register blueprints
 app.register_blueprint(concept_map_bp)
@@ -152,201 +148,189 @@ def delete_account():
 @app.route("/api/concept-maps", methods=["GET"])
 @requires_auth
 def get_concept_maps():
-    user = get_auth0_user()
+    try:
+        user = get_auth0_user()
 
-    # Filter maps by user_id and not deleted
-    user_maps = ConceptMap.query.filter_by(user_id=user.id, is_deleted=False).all()
-    return jsonify([map.to_dict() for map in user_maps]), 200
+        # Filter maps by user_id and not deleted
+        user_maps = ConceptMap.query.filter_by(user_id=user.id, is_deleted=False).all()
+        print(f"Retrieved {len(user_maps)} maps for user {user.id}")
+        
+        return jsonify([map.to_dict() for map in user_maps]), 200
+    except Exception as e:
+        print(f"Error in get_concept_maps: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/concept-maps", methods=["POST"])
 @requires_auth
 def create_concept_map():
-    user = get_auth0_user()
+    try:
+        user = get_auth0_user()
+        data = request.json
+        
+        # Debug log the request data
+        print(f"CREATE MAP REQUEST: {data}")
 
-    data = request.json
+        # Basic validation
+        if not data or "name" not in data:
+            return jsonify({"error": "Missing required fields"}), 400
 
-    # Basic validation
-    if not data or "name" not in data:
-        return jsonify({"error": "Missing required fields"}), 400
+        # Generate a unique share ID
+        share_id = secrets.token_urlsafe(8)
 
-    # Generate a unique share ID
-    share_id = secrets.token_urlsafe(8)
+        # Check if we need to process the input text to generate nodes and edges
+        nodes = data.get("nodes", [])
+        edges = data.get("edges", [])
 
-    # Check if we need to process the input text to generate nodes and edges
-    nodes = data.get("nodes", [])
-    edges = data.get("edges", [])
+        # Log the format and whiteboard content for handdrawn maps
+        if data.get("format") == "handdrawn" or data.get("mapType") == "handdrawn":
+            print(f"Handdrawn map detected: format={data.get('format')}, mapType={data.get('mapType')}")
+            print(f"Whiteboard content keys: {data.get('whiteboard_content', {}).keys() if data.get('whiteboard_content') else 'None'}")
 
-    # If nodes and edges are not provided but we have input text,
-    # process it to generate nodes and edges
-    if not nodes and not edges and "input_text" in data and data["input_text"]:
-        try:
-            # Import the text extraction function
-            from concept_map_generation.mind_map import extract_concept_map_from_text
+        # If nodes and edges are not provided but we have input text,
+        # process it to generate nodes and edges
+        if not nodes and not edges and "input_text" in data and data["input_text"]:
+            try:
+                # Import the text extraction function
+                from concept_map_generation.mind_map import extract_concept_map_from_text
 
-            # Process the input text
-            concept_data = extract_concept_map_from_text(data["input_text"])
+                # Process the input text
+                concept_data = extract_concept_map_from_text(data["input_text"])
 
-            # Convert the concepts and relationships to nodes and edges
-            for concept in concept_data.get("concepts", []):
-                node = {
-                    "id": concept.get("id", f"c{len(nodes) + 1}"),
-                    "label": concept.get("name", "Unnamed Concept"),
-                    "description": concept.get("description", ""),
-                }
-                nodes.append(node)
+                # Convert the concepts and relationships to nodes and edges
+                for concept in concept_data.get("concepts", []):
+                    node = {
+                        "id": concept.get("id", f"c{len(nodes) + 1}"),
+                        "label": concept.get("name", "Unnamed Concept"),
+                        "description": concept.get("description", ""),
+                    }
+                    nodes.append(node)
 
-            for relationship in concept_data.get("relationships", []):
-                edge = {
-                    "source": relationship.get("source", ""),
-                    "target": relationship.get("target", ""),
-                    "label": relationship.get("label", "relates to"),
-                }
-                edges.append(edge)
+                for relationship in concept_data.get("relationships", []):
+                    edge = {
+                        "source": relationship.get("source", ""),
+                        "target": relationship.get("target", ""),
+                        "label": relationship.get("label", "relates to"),
+                    }
+                    edges.append(edge)
 
-            # If we have nodes and edges generated, also create an SVG image
-            if nodes and edges:
-                try:
-                    from concept_map_generation.mind_map import generate_concept_map_svg
+                # If we have nodes and edges generated, also create an SVG image
+                if nodes and edges:
+                    try:
+                        from concept_map_generation.mind_map import generate_concept_map_svg
 
-                    # Create a concept map structure
-                    concept_map_json = {"nodes": nodes, "edges": edges}
+                        # Create a concept map structure
+                        concept_map_json = {"nodes": nodes, "edges": edges}
 
-                    # Generate the SVG
-                    svg_b64 = generate_concept_map_svg(concept_map_json, "hierarchical")
-                    data["image"] = svg_b64
-                    data["format"] = "svg"
-                except Exception as img_error:
-                    print(f"Error generating SVG for concept map: {str(img_error)}")
+                        # Generate the SVG
+                        svg_b64 = generate_concept_map_svg(concept_map_json, "hierarchical")
+                        data["image"] = svg_b64
+                        data["format"] = "svg"
+                    except Exception as img_error:
+                        print(f"Error generating SVG for concept map: {str(img_error)}")
 
-        except Exception as e:
-            print(f"Error processing input text for concept map: {str(e)}")
-            # Continue without generating nodes and edges
+            except Exception as e:
+                print(f"Error processing input text for concept map: {str(e)}")
+                # Continue without generating nodes and edges
 
-    # Create a new concept map using SQLAlchemy model
-    new_map = ConceptMap(
-        name=data["name"],
-        user_id=user.id,
-        image=data.get("image"),
-        format=data.get("format", "mindmap"),
-        is_public=data.get("is_public", False),
-        is_favorite=data.get("is_favorite", False),
-        share_id=share_id,
-        input_text=data.get("input_text", ""),
-        description=data.get("description", ""),
-        learning_objective=data.get("learning_objective", ""),
-    )
+        # Create a new concept map - ensure we're saving handdrawn maps correctly
+        format_value = "handdrawn" if data.get("mapType") == "handdrawn" else data.get("format", "mindmap")
+        
+        new_map = ConceptMap(
+            name=data["name"],
+            user_id=user.id,
+            image=data.get("image"),
+            format=format_value,
+            is_public=data.get("is_public", False),
+            is_favorite=data.get("is_favorite", False),
+            share_id=share_id,
+            input_text=data.get("input_text", ""),
+            description=data.get("description", ""),
+            learning_objective=data.get("learning_objective", ""),
+            whiteboard_content=data.get("whiteboard_content")
+        )
 
-    # Add nodes if they exist
-    if nodes:
-        for node_data in nodes:
-            node = Node(
-                concept_map=new_map,
-                label=node_data.get("label", ""),
-                x=node_data.get("x", 0),
-                y=node_data.get("y", 0),
-            )
-            db.session.add(node)
+        # Add nodes if they exist
+        if nodes:
+            for node_data in nodes:
+                node = Node(
+                    concept_map=new_map,
+                    label=node_data.get("label", ""),
+                    x=node_data.get("x", 0),
+                    y=node_data.get("y", 0),
+                )
+                db.session.add(node)
 
-    # Add edges if they exist
-    if edges:
-        for edge_data in edges:
-            edge = Edge(
-                concept_map=new_map,
-                source_id=edge_data.get("source"),
-                target_id=edge_data.get("target"),
-                label=edge_data.get("label", ""),
-            )
-            db.session.add(edge)
+        # Add edges if they exist
+        if edges:
+            for edge_data in edges:
+                edge = Edge(
+                    concept_map=new_map,
+                    source_id=edge_data.get("source"),
+                    target_id=edge_data.get("target"),
+                    label=edge_data.get("label", ""),
+                )
+                db.session.add(edge)
 
-    # Add and commit everything to the database
-    db.session.add(new_map)
-    db.session.commit()
+        # Add and commit everything to the database
+        db.session.add(new_map)
+        db.session.commit()
 
-    # Return the newly created map
-    return (
-        jsonify(
-            {
-                "id": new_map.id,
-                "name": new_map.name,
-                "image": new_map.image,
-                "format": new_map.format,
-                "is_public": new_map.is_public,
-                "is_favorite": new_map.is_favorite,
-                "share_id": new_map.share_id,
-                "created_at": new_map.created_at.isoformat(),
-                "updated_at": new_map.updated_at.isoformat(),
-                "input_text": new_map.input_text,
-                "description": new_map.description,
-                "learning_objective": new_map.learning_objective,
-            }
-        ),
-        201,
-    )
-
-    # Create a new concept map
-    new_map = ConceptMap(
-        name=data["name"],
-        description=data.get("description", ""),
-        user_id=user_id,
-        is_public=data.get("is_public", False),
-    )
-
-    db.session.add(new_map)
-    db.session.commit()
-
-    # Add nodes if provided
-    if "nodes" in data and isinstance(data["nodes"], list):
-        for node_data in data["nodes"]:
-            node = Node(
-                concept_map_id=new_map.id,
-                node_id=node_data.get("id", str(uuid.uuid4())),
-                label=node_data.get("label", ""),
-                position_x=node_data.get("position", {}).get("x"),
-                position_y=node_data.get("position", {}).get("y"),
-                properties=node_data.get("properties", {}),
-            )
-            db.session.add(node)
-
-    # Add edges if provided
-    if "edges" in data and isinstance(data["edges"], list):
-        for edge_data in data["edges"]:
-            edge = Edge(
-                concept_map_id=new_map.id,
-                edge_id=edge_data.get("id", str(uuid.uuid4())),
-                source=edge_data.get("source", ""),
-                target=edge_data.get("target", ""),
-                label=edge_data.get("label", ""),
-                properties=edge_data.get("properties", {}),
-            )
-            db.session.add(edge)
-
-    db.session.commit()
-
-    return jsonify(new_map.to_dict()), 201
+        # Return the newly created map
+        response_data = {
+            "id": new_map.id,
+            "name": new_map.name,
+            "image": new_map.image,
+            "format": new_map.format,
+            "is_public": new_map.is_public,
+            "is_favorite": new_map.is_favorite,
+            "share_id": new_map.share_id,
+            "created_at": new_map.created_at.isoformat(),
+            "updated_at": new_map.updated_at.isoformat(),
+            "input_text": new_map.input_text,
+            "description": new_map.description,
+            "learning_objective": new_map.learning_objective,
+            "whiteboard_content": new_map.whiteboard_content if new_map.format == "handdrawn" else None,
+        }
+        
+        print(f"Successfully created map: {new_map.id}")
+        return jsonify(response_data), 201
+        
+    except Exception as e:
+        print(f"ERROR in create_concept_map: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/concept-maps/<int:map_id>", methods=["GET"])
 @requires_auth
 def get_concept_map(map_id):
-
+    user = get_auth0_user()
+    
     # Find the concept map
     concept_map = ConceptMap.query.filter_by(id=map_id).first()
 
     if not concept_map:
         return jsonify({"error": "Concept map not found"}), 404
+        
+    # Check if user is authorized to access this map (owner or public map)
+    if concept_map.user_id != user.id and not concept_map.is_public:
+        return jsonify({"error": "Not authorized to access this concept map"}), 403
+        
+    # Return the map data
+    return jsonify(concept_map.to_dict()), 200
 
 
 @app.route("/api/shared/concept-maps/<string:share_id>", methods=["GET"])
 def get_shared_concept_map(share_id):
     # This endpoint is public and doesn't require authentication
-    for map in concept_maps:
-        if (
-                map.get("share_id") == share_id
-                and map.get("is_public")
-                and not map.get("deleted", False)
-        ):
-            return jsonify(map), 200
+    concept_map = ConceptMap.query.filter_by(
+        share_id=share_id, is_public=True, is_deleted=False
+    ).first()
+    
+    if concept_map:
+        return jsonify(concept_map.to_dict()), 200
 
     return jsonify({"error": "Shared concept map not found or not public"}), 404
 
@@ -356,42 +340,6 @@ def get_shared_concept_map(share_id):
 def update_concept_map(map_id):
     data = request.json
     user = get_auth0_user()
-
-
-    for i, map in enumerate(concept_maps):
-        if (
-                map["id"] == map_id
-                and map.get("user_id") == user.id
-                and not map.get("deleted", False)
-        ):
-            # Get the new nodes or keep existing ones
-            nodes = data.get("nodes", map["nodes"])
-
-            # Update the map
-            concept_maps[i] = {
-                "id": map_id,
-                "name": data.get("name", map["name"]),
-                "nodes": nodes,
-                "edges": data.get("edges", map["edges"]),
-                "user_id": user.id,
-                "is_public": data.get("is_public", map.get("is_public", False)),
-                "is_favorite": data.get("is_favorite", map.get("is_favorite", False)),
-                "share_id": map.get("share_id"),
-                "image": data.get("image", map.get("image")),
-                "format": data.get("format", map.get("format")),
-                "created_at": map.get("created_at"),
-                "updated_at": datetime.utcnow().isoformat(),
-                "input_text": data.get(
-                    "input_text", map.get("input_text", "")
-                ),  # Preserve input text
-                "description": data.get(
-                    "description", map.get("description", "")
-                ),  # Preserve description
-                "learning_objective": data.get(
-                    "learning_objective", map.get("learning_objective", "")
-                ),  # Preserve learning objective
-            }
-            return jsonify(concept_maps[i]), 200
 
     # Find the concept map
     concept_map = ConceptMap.query.filter_by(
@@ -408,6 +356,18 @@ def update_concept_map(map_id):
         concept_map.description = data["description"]
     if "is_public" in data:
         concept_map.is_public = data["is_public"]
+    if "whiteboard_content" in data:
+        concept_map.whiteboard_content = data["whiteboard_content"]
+    if "is_favorite" in data:
+        concept_map.is_favorite = data["is_favorite"]
+    if "format" in data:
+        concept_map.format = data["format"]
+    if "image" in data:
+        concept_map.image = data["image"]
+    if "learning_objective" in data:
+        concept_map.learning_objective = data["learning_objective"]
+    if "input_text" in data:
+        concept_map.input_text = data["input_text"]
 
     # Update nodes if provided
     if "nodes" in data and isinstance(data["nodes"], list):
@@ -490,18 +450,6 @@ def get_recent_maps():
     if not user:
         return jsonify({"error": "User not found"}), 404
 
-    # Get user's maps, sorted by most recent first (in a real app, this would be by last modified date)
-    user_maps = [
-        m
-        for m in concept_maps
-        if m.get("user_id") == user_id and not m.get("deleted", False)
-    ]
-
-    # Sort by updated_at if available
-    user_maps.sort(key=lambda x: x.get("updated_at", ""), reverse=True)
-
-    # Limit to 5 most recent maps and format for the response
-
     # Get user's maps, sorted by most recent first
     user_maps = (
         ConceptMap.query.filter_by(user_id=user_id, is_deleted=False)
@@ -509,25 +457,11 @@ def get_recent_maps():
         .limit(5)
         .all()
     )
-
-    # Format for the response
-    recent_maps = []
-    for map in user_maps[:5]:
-        recent_maps.append(
-            {
-                "id": map["id"],
-                "name": map["name"],
-                "url": f"/maps/{map['id']}",
-                "share_url": (
-                    f"/shared/{map['share_id']}" if map.get("is_public") else None
-                ),
-            }
-        )
-
-    for map in user_maps:
-        recent_maps.append({"id": map.id, "name": map.name, "url": f"/maps/{map.id}"})
-
-    return jsonify({"maps": recent_maps}), 200
+    
+    # Format the data for response
+    recent_maps = [map.to_dict() for map in user_maps]
+    
+    return jsonify(recent_maps), 200
 
 
 @app.route("/api/user/saved-maps", methods=["GET"])
@@ -778,7 +712,38 @@ def list_models():
         return jsonify({"error": f"Failed to list models: {str(e)}"}), 500
 
 
+# Add a test route to verify API is working without auth
+@app.route("/api/test/concept-maps", methods=["GET"])
+def test_get_concept_maps():
+    try:
+        # Return some test data
+        return jsonify([
+            {
+                "id": 1,
+                "name": "Test Map",
+                "user_id": 1,
+                "is_public": True,
+                "created_at": datetime.utcnow().isoformat(),
+                "updated_at": datetime.utcnow().isoformat(),
+                "nodes": [],
+                "edges": [],
+                "format": "mindmap",
+            }
+        ]), 200
+    except Exception as e:
+        print(f"Error in test_get_concept_maps: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == "__main__":
+    with app.app_context():
+        try:
+            # Ensure database tables exist
+            db.create_all()
+            print("Database tables created successfully")
+        except Exception as e:
+            print(f"Error creating database tables: {str(e)}")
+            
     app.run(host="0.0.0.0", port=5001, debug=True)
 
 
