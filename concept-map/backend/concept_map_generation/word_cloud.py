@@ -1,12 +1,15 @@
+import base64
+import io
 import json
 import re
-import io
-import base64
+
 import matplotlib
+
 matplotlib.use('Agg')  # Force non-interactive backend before importing pyplot
 import matplotlib.pyplot as plt
 from wordcloud import WordCloud
 import google.generativeai as genai
+
 
 def load_key_concepts(gemini_json_output):
     """Load extracted key concepts from Gemini's JSON output."""
@@ -24,6 +27,7 @@ def load_key_concepts(gemini_json_output):
 
     return key_concepts
 
+
 def count_concepts_in_text(text, key_concepts):
     """Count occurrences of each concept in the given text."""
     text_lower = text.lower()
@@ -37,11 +41,12 @@ def count_concepts_in_text(text, key_concepts):
 
     return concept_freq
 
+
 def generate_word_cloud(concept_freq, title="Word Cloud of Key Concepts"):
     """Generates a word cloud image based on concept frequencies."""
     if not concept_freq:
         return None
-        
+
     # Create a new figure to avoid any potential conflict
     plt.figure(figsize=(10, 6))
 
@@ -61,9 +66,10 @@ def generate_word_cloud(concept_freq, title="Word Cloud of Key Concepts"):
     plt.savefig(img_data, format='png', bbox_inches='tight')
     plt.close()  # Ensure figure is closed to free resources
     img_data.seek(0)
-    
+
     # Convert to base64
     return base64.b64encode(img_data.read()).decode('utf-8')
+
 
 def extract_concepts_from_text(text, model):
     """Extract key concepts from text using Gemini API."""
@@ -88,20 +94,20 @@ def extract_concepts_from_text(text, model):
     Here is the text:
     {}
     """.format(text)
-    
+
     response = model.generate_content(prompt)
     response_text = response.text
-    
+
     # Find JSON content (assuming it's enclosed in ```json and ```)
     json_start = response_text.find('```json')
     json_end = response_text.rfind('```')
-    
+
     if json_start != -1 and json_end != -1:
         json_content = response_text[json_start + 7:json_end].strip()
     else:
         # If not in code block, try to extract JSON directly
         json_content = response_text
-    
+
     try:
         key_concepts = json.loads(json_content)
     except json.JSONDecodeError:
@@ -113,8 +119,9 @@ def extract_concepts_from_text(text, model):
             key_concepts = json.loads(json_content)
         else:
             raise ValueError('Failed to parse Gemini response as JSON')
-    
+
     return key_concepts
+
 
 def process_text_for_wordcloud(text, model, api_key=None):
     """Process text and generate word cloud with key concepts."""
@@ -125,32 +132,35 @@ def process_text_for_wordcloud(text, model, api_key=None):
             print("Configuring Gemini API with provided key")
             genai.configure(api_key=api_key)
             model = genai.GenerativeModel("gemini-2.0-flash")
-            
+
         # Extract key concepts using Gemini
         print("Extracting key concepts from text using Gemini")
         key_concepts = extract_concepts_from_text(text, model)
+
         print(f"Extracted {len(key_concepts)} key concepts")
-        
+
         # Count concept frequencies
         print("Counting concept frequencies in text")
         concept_freq = count_concepts_in_text(text, key_concepts)
+
         print(f"Found {len(concept_freq)} concepts with non-zero frequency")
-        
+
         # Generate word cloud
         print("Generating word cloud image")
         word_cloud_img = generate_word_cloud(concept_freq)
-        
+
         if word_cloud_img is None:
             print("Failed to generate word cloud - null result returned")
             raise ValueError('Failed to generate word cloud')
-        
+
         print(f"Successfully generated word cloud image (base64 length: {len(word_cloud_img)})")
         return {
             'concepts': key_concepts,
             'word_cloud': word_cloud_img
         }
-        
+
     except Exception as e:
+
         print(f"Error in word cloud generation: {str(e)}")
         import traceback
         traceback.print_exc()
