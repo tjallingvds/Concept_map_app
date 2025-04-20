@@ -342,6 +342,65 @@ def get_shared_concept_map(share_id):
 def update_concept_map(map_id):
     data = request.json
     user = get_auth0_user()
+
+
+    # Find the concept map in database
+    concept_map = ConceptMap.query.filter_by(
+        id=map_id, 
+        user_id=user.id,
+        is_deleted=False
+    ).first()
+
+    if not concept_map:
+        return jsonify({"error": "Concept map not found"}), 404
+
+
+    # Update the map with new data
+    concept_map.name = data.get("name", concept_map.name)
+    concept_map.is_public = data.get("is_public", concept_map.is_public)
+    concept_map.is_favorite = data.get("is_favorite", concept_map.is_favorite)
+    concept_map.image = data.get("image", concept_map.image)
+    concept_map.format = data.get("format", concept_map.format)
+    concept_map.input_text = data.get("input_text", concept_map.input_text)
+    concept_map.description = data.get("description", concept_map.description)
+    concept_map.learning_objective = data.get("learning_objective", concept_map.learning_objective)
+    concept_map.updated_at = datetime.utcnow()
+
+    # Update nodes if provided
+    if "nodes" in data:
+        # Delete existing nodes
+        Node.query.filter_by(concept_map_id=map_id).delete()
+        
+        # Add new nodes
+        for node_data in data["nodes"]:
+            node = Node(
+                concept_map=concept_map,
+                label=node_data.get("label", ""),
+                x=node_data.get("x", 0),
+                y=node_data.get("y", 0)
+            )
+            db.session.add(node)
+
+    # Update edges if provided
+    if "edges" in data:
+        # Delete existing edges
+        Edge.query.filter_by(concept_map_id=map_id).delete()
+        
+        # Add new edges
+        for edge_data in data["edges"]:
+            edge = Edge(
+                concept_map=concept_map,
+                source_id=edge_data.get("source"),
+                target_id=edge_data.get("target"),
+                label=edge_data.get("label", "")
+            )
+            db.session.add(edge)
+
+    # Commit changes to database
+    db.session.commit()
+
+    return jsonify(concept_map.to_dict()), 200
+
     # Find the concept map
     concept_map = ConceptMap.query.filter_by(
         id=map_id, user_id=user.id, is_deleted=False
@@ -764,10 +823,9 @@ with app.app_context():
 def get_notes():
     """Get all notes for the current user."""
     user = get_auth0_user()
-    user_id = user.id
-        
+
     # Filter notes by user_id and not deleted
-    user_notes = [n.to_dict() for n in notes if n.user_id == user_id and not n.is_deleted]
+    user_notes = [n.to_dict() for n in notes if n.user_id == user.id and not n.is_deleted]
     return jsonify(user_notes), 200
 
 @app.route('/api/notes', methods=['POST'])
@@ -775,7 +833,7 @@ def get_notes():
 def create_note():
     """Create a new note."""
     user = get_auth0_user()
-    user_id = user.id
+
         
     data = request.json
     
@@ -791,7 +849,7 @@ def create_note():
         title=data.get('title', 'Untitled Note'),
         content=data.get('content', {}),
         note_id=len(notes) + 1,
-        user_id=user_id,
+        user_id=user.id,
         is_public=data.get('is_public', False),
         share_id=share_id,
         is_favorite=data.get('is_favorite', False),
@@ -807,9 +865,9 @@ def create_note():
 def get_note(note_id):
     """Get a specific note by ID."""
     user = get_auth0_user()
-    user_id = user.id
+
         
-    note = next((n for n in notes if n.id == note_id and n.user_id == user_id and not n.is_deleted), None)
+    note = next((n for n in notes if n.id == note_id and n.user_id == user.id and not n.is_deleted), None)
     
     if not note:
         return jsonify({"error": "Note not found"}), 404
@@ -832,11 +890,11 @@ def get_shared_note(share_id):
 def update_note(note_id):
     """Update a specific note."""
     user = get_auth0_user()
-    user_id = user.id
+
         
     data = request.json
     
-    note = next((n for n in notes if n.id == note_id and n.user_id == user_id and not n.is_deleted), None)
+    note = next((n for n in notes if n.id == note_id and n.user_id == user.id and not n.is_deleted), None)
     
     if not note:
         return jsonify({"error": "Note not found"}), 404
@@ -865,9 +923,9 @@ def update_note(note_id):
 def delete_note(note_id):
     """Delete a specific note (soft delete)."""
     user = get_auth0_user()
-    user_id = user.id
+
         
-    note = next((n for n in notes if n.id == note_id and n.user_id == user_id and not n.is_deleted), None)
+    note = next((n for n in notes if n.id == note_id and n.user_id == user.id and not n.is_deleted), None)
     
     if not note:
         return jsonify({"error": "Note not found"}), 404
@@ -883,9 +941,9 @@ def delete_note(note_id):
 def share_note(note_id):
     """Generate or update a sharing link for a note."""
     user = get_auth0_user()
-    user_id = user.id
+
         
-    note = next((n for n in notes if n.id == note_id and n.user_id == user_id and not n.is_deleted), None)
+    note = next((n for n in notes if n.id == note_id and n.user_id == user.id and not n.is_deleted), None)
     
     if not note:
         return jsonify({"error": "Note not found"}), 404
@@ -913,9 +971,9 @@ def share_note(note_id):
 def convert_note_to_concept_map(note_id):
     """Convert a note to a concept map."""
     user = get_auth0_user()
-    user_id = user.id
+
         
-    note = next((n for n in notes if n.id == note_id and n.user_id == user_id and not n.is_deleted), None)
+    note = next((n for n in notes if n.id == note_id and n.user_id == user.id and not n.is_deleted), None)
     
     if not note:
         return jsonify({"error": "Note not found"}), 404
@@ -992,7 +1050,7 @@ def convert_note_to_concept_map(note_id):
             nodes=nodes,
             edges=edges,
             map_id=len(concept_maps) + 1,
-            user_id=user_id,
+            user_id=user.id,
             is_public=False,
             share_id=share_id,
             image=image,
@@ -1015,10 +1073,10 @@ def convert_note_to_concept_map(note_id):
 def get_recent_notes(user_id):
     """Get the most recent notes for a user."""
     user = get_auth0_user()
-    session_user_id = user.id
+
     
     # Check if the user is requesting their own notes
-    if session_user_id != user_id:
+    if user.id != user_id:
         return jsonify({"error": "Unauthorized to access these notes"}), 403
     
     # Get recent notes, sorted by updated_at
@@ -1032,16 +1090,16 @@ def get_recent_notes(user_id):
 def get_favorite_notes(user_id):
     """Get the favorite notes for a user."""
     user = get_auth0_user()
-    session_user_id = user.id
+
     
     # Check if the user is requesting their own notes
-    if session_user_id != user_id:
+    if user.id != user_id:
         return jsonify({"error": "Unauthorized to access these notes"}), 403
     
     # Get favorite notes
     favorite_notes = [n.to_dict() for n in notes if n.user_id == user_id and n.is_favorite and not n.is_deleted]
     
     return jsonify(favorite_notes), 200
-
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)
+

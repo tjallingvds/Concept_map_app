@@ -779,20 +779,50 @@ const conceptMapsApi = {
             return false;
         }
     },
+// Get all public maps
+getPublicMaps: async (): Promise<MapItem[]> => {
+  try {
+    const response = await fetch(`${API_URL}/api/concept-maps/public`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      // No credentials needed for public maps
+    });
 
-    // Share a concept map to generate a shareable link
-    shareMap: async (id: number): Promise<{ shareUrl: string, shareId: string }> => {
-        try {
-            const response = await authFetch(`${API_URL}/api/concept-maps/${id}/share`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-            });
+    if (!response.ok) {
+      throw new Error("Failed to fetch public concept maps");
+    }
 
-            if (!response.ok) {
-                throw new Error(`Failed to share concept map with id ${id}`);
-            }
+    const data: ConceptMapResponse[] = await response.json();
+    return data.map(mapResponseToMapItem);
+  } catch (error) {
+    console.error("Error fetching public concept maps:", error);
+    return [];
+  }
+},
+
+// Share a concept map to generate a shareable link
+shareMap: async (id: number): Promise<{ shareUrl: string, shareId: string }> => {
+  try {
+    const response = await authFetch(`${API_URL}/api/concept-maps/${id}/share`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to share concept map with id ${id}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Error sharing concept map:", error);
+    throw error;
+  }
+},
+
 
             const data = await response.json();
 

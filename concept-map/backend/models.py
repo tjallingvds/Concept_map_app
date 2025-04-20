@@ -326,5 +326,5 @@ class Note:
         
         if "is_deleted" in data:
             note.is_deleted = bool(data["is_deleted"])
-            
+
         return note
