@@ -14,7 +14,6 @@ import WhiteboardEditorPage from './pages/whiteboard-editor-page';
 import { LoginForm } from './components/login-form';
 import NotesPage from './pages/notes';
 import TemplatesPage from './pages/templates';
-import { LoginForm } from './components/login-form';
 import { useAuth, AuthProvider } from './contexts/auth-context';
 
 
@@ -79,7 +78,6 @@ function AppRoutes() {
         <Route path="/editor-notes" element={<Navigate to="/notes/edit" replace />} />
         <Route path="/editor-notes/:id" element={<Navigate to="/notes/edit/:id" replace />} />
 
-        {/* Templates route */}
         <Route path="/templates" element={<TemplatesPage />} />
 
         {/* Add more protected routes here */}
