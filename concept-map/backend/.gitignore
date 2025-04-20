@@ -37,6 +37,11 @@ venv.bak/
 # Flask instance folder
 instance/
 
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
 # VS Code settings
 .vscode/
 
