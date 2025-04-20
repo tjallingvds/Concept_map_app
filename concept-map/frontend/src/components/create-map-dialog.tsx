@@ -99,11 +99,16 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
     console.log("contentSource changed to:", contentSource);
   }, [contentSource]);
 
-  // Monitor mapType changes
-  const mapType = form.watch("mapType");
-  
-  React.useEffect(() => {
-    console.log("mapType changed to:", mapType);
+React.useEffect(() => {
+  const subscription = form.watch((value, { name }) => {
+    if (name === "mapType") {
+      console.log("mapType changed to:", value.mapType);
+    }
+  });
+
+  return () => subscription.unsubscribe();
+}, [form]);
+
     
     // When mapType is changed to handdrawn, update contentSource as well
     if (mapType === "handdrawn") {
