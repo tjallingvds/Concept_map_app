@@ -4,6 +4,7 @@ Currently using in-memory storage, but structured to easily migrate to a databas
 """
 
 from datetime import datetime
+
 from flask_sqlalchemy import SQLAlchemy
 
 # Initialize SQLAlchemy
@@ -37,16 +38,16 @@ class User(db.Model):
     )
 
     def __init__(
-        self,
-        email,
-        user_id=None,
-        auth0_id=None,
-        display_name=None,
-        bio=None,
-        avatar_url=None,
+            self,
+            email,
+            user_id=None,
+            auth0_id=None,
+            display_name=None,
+            bio=None,
+            avatar_url=None,
     ):
         self.id = user_id
-        self.auth0_id=auth0_id
+        self.auth0_id = auth0_id
         self.email = email
         self.display_name = display_name or email.split('@')[0]
         self.bio = bio
@@ -54,7 +55,6 @@ class User(db.Model):
         self.created_at = datetime.utcnow()
         self.updated_at = datetime.utcnow()
         self.is_active = True
-
 
     def update_profile(self, display_name=None, bio=None, avatar_url=None):
         """Update the user's profile information."""
@@ -326,43 +326,3 @@ class Note:
             note.is_deleted = bool(data["is_deleted"])
             
         return note
-
-
-class Node:
-    """Model representing a node in a concept map."""
-    
-    def __init__(self, node_id, label, position, properties=None):
-        self.id = node_id
-        self.label = label
-        self.position = position
-        self.properties = properties or {}
-    
-    def to_dict(self):
-        """Convert the model to a dictionary representation."""
-        return {
-            "id": self.id,
-            "label": self.label,
-            "position": self.position,
-            "properties": self.properties
-        }
-
-
-class Edge:
-    """Model representing an edge in a concept map."""
-    
-    def __init__(self, edge_id, source, target, label=None, properties=None):
-        self.id = edge_id
-        self.source = source
-        self.target = target
-        self.label = label
-        self.properties = properties or {}
-    
-    def to_dict(self):
-        """Convert the model to a dictionary representation."""
-        return {
-            "id": self.id,
-            "source": self.source,
-            "target": self.target,
-            "label": self.label,
-            "properties": self.properties
-        }

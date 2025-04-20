@@ -1,9 +1,11 @@
-from models import User, db
-
 from functools import wraps
-from flask import request, jsonify
+
+import os
+import requests
 from authlib.jose import JsonWebToken
-import requests, os
+from flask import request, jsonify
+
+from models import User, db
 
 AUTH0_DOMAIN = os.getenv("AUTH0_DOMAIN", "your-tenant.auth0.com")
 API_AUDIENCE = os.getenv("AUTH0_API_AUDIENCE", "https://your-api-identifier")
@@ -11,6 +13,7 @@ JWKS_URL = f"https://{AUTH0_DOMAIN}/.well-known/jwks.json"
 JWKS = requests.get(JWKS_URL).json()
 
 jwt = JsonWebToken(["RS256"])
+
 
 def requires_auth(f):
     @wraps(f)
@@ -38,7 +41,6 @@ def requires_auth(f):
         return f(*args, **kwargs)
 
     return wrapper
-
 
 
 def get_auth0_user():
