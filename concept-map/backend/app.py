@@ -1,47 +1,45 @@
 import os
 import secrets
 import uuid
-import json
-import base64
 from datetime import datetime, timedelta
 
-from flask import Flask, request, jsonify, session, send_from_directory, abort
-
+import google.generativeai as genai
+from auth_utils import get_auth0_user, requires_auth
+from concept_map_generation.bubble_chart import process_text_for_bubble_chart
+from concept_map_generation.mind_map import generate_concept_map
+from concept_map_generation.ocr_concept_map import process_drawing_for_concept_map
+from concept_map_generation.word_cloud import process_text_for_wordcloud
+from document_processor import DocumentProcessor
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from flask_migrate import Migrate
-
-from auth.routes import auth_bp
-from concept_map_generation.generation_routes import concept_map_bp
-from debug.routes import debug_bp
-from models import db
-from process.routes import process_bp
+from models import ConceptMap, Edge, Node, Note, User, db
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(16))
 
 # Configure CORS with specific settings
-CORS(app,
-     supports_credentials=True,
-     origins=[os.environ.get('FRONTEND_URL', 'http://localhost:5173')],  # Frontend server from env or default
-     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-     allow_headers=['Content-Type', 'Authorization', 'Accept'],
-     expose_headers=['Content-Type', 'Authorization'],
-     max_age=3600)  # Cache preflight requests for 1 hour
+CORS(
+    app,
+    supports_credentials=True,
+    origins=[
+        os.environ.get("FRONTEND_URL", "http://localhost:5173")
+    ],  # Frontend server from env or default
+    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "Accept"],
+    expose_headers=["Content-Type", "Authorization"],
+    max_age=3600,
+)  # Cache preflight requests for 1 hour
 
 # Configure session settings
 app.config["SESSION_COOKIE_SECURE"] = True  # Only send cookie over HTTPS
-app.config["SESSION_COOKIE_HTTPONLY"] = (
-    True  # Prevent JavaScript access to session cookie
-)
+app.config["SESSION_COOKIE_HTTPONLY"] = True  # Prevent JavaScript access to session cookie
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"  # Protect against CSRF
-app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(
-    days=7
-)  # Session expires in 7 days
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=7)  # Session expires in 7 days
 
 # Configure database
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
-    "DATABASE_URL", "sqlite:///concept_map.db"
-)
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///concept_map.db")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 # Initialize database
@@ -50,6 +48,7 @@ migrate = Migrate(app, db)
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif"}
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50MB max file size
+UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER")
 # Create uploads directory if it doesn't exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 # In-memory storage (replace with database in production)
@@ -61,9 +60,22 @@ notes = []  # List to store note objects
 # Initialize document processor
 document_processor = None
 
+# Get API key from environment variables
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+if not GEMINI_API_KEY:
+    raise ValueError("GEMINI_API_KEY environment variable is not set")
+# Ensure API key is str type
+GEMINI_API_KEY = str(GEMINI_API_KEY)
+
 
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def get_gemini_model():
+    """Initialize and return a Gemini model instance"""
+    genai.configure(api_key=GEMINI_API_KEY)
+    return genai.GenerativeModel("gemini-2.0-flash")
 
 
 # User profile routes
@@ -248,7 +260,7 @@ def create_concept_map():
                 label=node_data.get("label", ""),
                 position_x=node_data.get("position", {}).get("x"),
                 position_y=node_data.get("position", {}).get("y"),
-                properties=node_data.get("properties", {})
+                properties=node_data.get("properties", {}),
             )
             db.session.add(node)
 
@@ -261,7 +273,7 @@ def create_concept_map():
                 source=edge_data.get("source", ""),
                 target=edge_data.get("target", ""),
                 label=edge_data.get("label", ""),
-                properties=edge_data.get("properties", {})
+                properties=edge_data.get("properties", {}),
             )
             db.session.add(edge)
 
@@ -291,6 +303,174 @@ def create_concept_map():
     )
 
 
+@app.route("/api/concept-maps/generate", methods=["POST"])
+def generate_map():
+    """Generate a concept map based on input text and map type"""
+    try:
+        data = request.json
+
+        # Validate request data
+        if not data or "text" not in data or "mapType" not in data:
+            return jsonify({"error": "Missing required fields: text and mapType"}), 400
+
+        text = data["text"]
+        map_type = data["mapType"]
+        title = data.get("title", "Concept Map")
+
+        # Check if text is provided
+        if not text.strip():
+            return jsonify({"error": "Text content cannot be empty"}), 400
+
+        # Initialize Gemini model
+        try:
+            model = get_gemini_model()
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 500
+
+        # Generate the appropriate visualization based on map type
+        if map_type == "mindmap":
+            result = generate_concept_map(text, model, GEMINI_API_KEY)
+            # Ensure we're returning a properly formatted response
+            # The frontend expects either a data URL or a base64 string with format
+            return jsonify(
+                {
+                    "image": result,  # This is already base64 encoded from generate_concept_map
+                    "format": "svg",
+                }
+            )
+
+        elif map_type == "wordcloud":
+            result = process_text_for_wordcloud(text, model, GEMINI_API_KEY)
+            return jsonify(
+                {"image": result["word_cloud"], "concepts": result["concepts"], "format": "png"}
+            )
+
+        elif map_type == "bubblechart":
+            result = process_text_for_bubble_chart(text, model)
+            return jsonify(
+                {"image": result["bubble_chart"], "concepts": result["concepts"], "format": "png"}
+            )
+
+        else:
+            return jsonify({"error": f"Unsupported map type: {map_type}"}), 400
+
+    except Exception as e:
+        return jsonify({"error": f"Error generating concept map: {str(e)}"}), 500
+
+
+@app.route("/api/concept-maps/extract-concepts", methods=["POST"])
+def extract_concepts():
+    """Extract key concepts from input text without generating a visualization"""
+    try:
+        data = request.json
+
+        # Validate request data
+        if not data or "text" not in data:
+            return jsonify({"error": "Missing required field: text"}), 400
+
+        text = data["text"]
+
+        # Check if text is provided
+        if not text.strip():
+            return jsonify({"error": "Text content cannot be empty"}), 400
+
+        # Initialize Gemini model
+        try:
+            model = get_gemini_model()
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 500
+
+        # Extract concepts using the word cloud module's function
+        from .word_cloud import extract_concepts_from_text
+
+        concepts = extract_concepts_from_text(text, model)
+
+        return jsonify({"concepts": concepts})
+
+    except Exception as e:
+        return jsonify({"error": f"Error extracting concepts: {str(e)}"}), 500
+
+
+@app.route("/api/concept-maps/process-drawing", methods=["POST"])
+def process_drawing():
+    """Process a drawing (SVG or PNG) to extract concepts and generate a digital concept map"""
+    try:
+        print("*** Process Drawing API called ***")
+        data = request.json
+
+        # Validate request data - accept either svgContent or imageContent
+        if not data:
+            print("Missing request data")
+            return jsonify({"error": "Missing request data"}), 400
+
+        # Check if we have image content (PNG, JPEG, etc.)
+        if "imageContent" in data:
+            image_content = data["imageContent"]
+            print(f"Received image content length: {len(image_content)}")
+
+            # Check if content is provided
+            if not image_content.strip():
+                print("Image content is empty")
+                return jsonify({"error": "Image content cannot be empty"}), 400
+
+            # Check if format parameters are provided
+            image_format = data.get("format", "").lower()
+            prevent_jpeg = data.get("preventJpegConversion", False)
+
+            print(f"Image format: {image_format}, Prevent JPEG conversion: {prevent_jpeg}")
+
+            # For PNG data URLs, we can now pass them directly to the OCR function
+            if image_content.startswith("data:image/png") or image_format == "png":
+                print("Direct PNG processing")
+                svg_content = image_content  # Pass the PNG data URL directly
+            else:
+                # For compatibility, convert image data URL to SVG format our backend expects
+                print("Creating SVG wrapper for image")
+                svg_content = f'<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><image href="{image_content}" width="800" height="600"/></svg>'
+
+            print(f"Prepared content for processing, length: {len(svg_content)}")
+
+        # Check for SVG content (backwards compatibility)
+        elif "svgContent" in data:
+            svg_content = data["svgContent"]
+            print(f"Received SVG content length: {len(svg_content)}")
+
+            # Check if content is provided
+            if not svg_content.strip():
+                print("SVG content is empty")
+                return jsonify({"error": "SVG content cannot be empty"}), 400
+        else:
+            print("Missing required field: imageContent or svgContent")
+            return jsonify({"error": "Missing required field: imageContent or svgContent"}), 400
+
+        # Initialize Gemini model
+        try:
+            print("Initializing Gemini model")
+            model = get_gemini_model()
+        except ValueError as e:
+            print(f"Error initializing Gemini model: {str(e)}")
+            return jsonify({"error": str(e)}), 500
+
+        # Process the drawing with OCR and generate concept map
+        print("Processing drawing with OCR")
+        result = process_drawing_for_concept_map(svg_content, model)
+
+        # Check if there was an error during processing
+        if "error" in result:
+            print(f"Error processing drawing: {result['error']}")
+            return jsonify({"error": result["error"]}), 500
+
+        print(f"OCR processing successful with {len(result.get('concepts', []))} concepts")
+        return jsonify(result)
+
+    except Exception as e:
+        print(f"Exception in process_drawing route: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        return jsonify({"error": f"Error processing drawing: {str(e)}"}), 500
+
+
 @app.route("/api/concept-maps/<int:map_id>", methods=["GET"])
 @requires_auth
 def get_concept_map(map_id):
@@ -300,7 +480,7 @@ def get_concept_map(map_id):
 
     if not concept_map:
         return jsonify({"error": "Concept map not found"}), 404
-    
+
     return jsonify(concept_map.to_dict()), 200
 
 
@@ -309,9 +489,9 @@ def get_shared_concept_map(share_id):
     # This endpoint is public and doesn't require authentication
     for map in concept_maps:
         if (
-                map.get("share_id") == share_id
-                and map.get("is_public")
-                and not map.get("deleted", False)
+            map.get("share_id") == share_id
+            and map.get("is_public")
+            and not map.get("deleted", False)
         ):
             return jsonify(map), 200
 
@@ -324,13 +504,8 @@ def update_concept_map(map_id):
     data = request.json
     user = get_auth0_user()
 
-
     # Find the concept map in database
-    concept_map = ConceptMap.query.filter_by(
-        id=map_id, 
-        user_id=user.id,
-        is_deleted=False
-    ).first()
+    concept_map = ConceptMap.query.filter_by(id=map_id, user_id=user.id, is_deleted=False).first()
 
     if not concept_map:
         return jsonify({"error": "Concept map not found"}), 404
@@ -350,14 +525,14 @@ def update_concept_map(map_id):
     if "nodes" in data:
         # Delete existing nodes
         Node.query.filter_by(concept_map_id=map_id).delete()
-        
+
         # Add new nodes
         for node_data in data["nodes"]:
             node = Node(
                 concept_map=concept_map,
                 label=node_data.get("label", ""),
                 x=node_data.get("x", 0),
-                y=node_data.get("y", 0)
+                y=node_data.get("y", 0),
             )
             db.session.add(node)
 
@@ -365,14 +540,14 @@ def update_concept_map(map_id):
     if "edges" in data:
         # Delete existing edges
         Edge.query.filter_by(concept_map_id=map_id).delete()
-        
+
         # Add new edges
         for edge_data in data["edges"]:
             edge = Edge(
                 concept_map=concept_map,
                 source_id=edge_data.get("source"),
                 target_id=edge_data.get("target"),
-                label=edge_data.get("label", "")
+                label=edge_data.get("label", ""),
             )
             db.session.add(edge)
 
@@ -381,9 +556,7 @@ def update_concept_map(map_id):
 
     return jsonify(concept_map.to_dict()), 200
     # Find the concept map
-    concept_map = ConceptMap.query.filter_by(
-        id=map_id, user_id=user.id, is_deleted=False
-    ).first()
+    concept_map = ConceptMap.query.filter_by(id=map_id, user_id=user.id, is_deleted=False).first()
 
     if not concept_map:
         return jsonify({"error": "Concept map not found"}), 404
@@ -409,7 +582,7 @@ def update_concept_map(map_id):
                 label=node_data.get("label", ""),
                 position_x=node_data.get("position", {}).get("x"),
                 position_y=node_data.get("position", {}).get("y"),
-                properties=node_data.get("properties", {})
+                properties=node_data.get("properties", {}),
             )
             db.session.add(node)
 
@@ -426,7 +599,7 @@ def update_concept_map(map_id):
                 source=edge_data.get("source", ""),
                 target=edge_data.get("target", ""),
                 label=edge_data.get("label", ""),
-                properties=edge_data.get("properties", {})
+                properties=edge_data.get("properties", {}),
             )
             db.session.add(edge)
 
@@ -441,9 +614,7 @@ def delete_concept_map(map_id):
     user = get_auth0_user()
 
     # Find the concept map
-    concept_map = ConceptMap.query.filter_by(
-        id=map_id, user_id=user.id, is_deleted=False
-    ).first()
+    concept_map = ConceptMap.query.filter_by(id=map_id, user_id=user.id, is_deleted=False).first()
 
     if not concept_map:
         return jsonify({"error": "Concept map not found"}), 404
@@ -466,7 +637,7 @@ def uploaded_file(filename):
 @app.route("/api/user/recent-maps", methods=["GET"])
 @requires_auth
 def get_recent_maps():
-    #TODO: maybe it is better to just remove the user_id parameter?
+    # TODO: maybe it is better to just remove the user_id parameter?
     user = get_auth0_user()
     user_id = user.id
 
@@ -478,9 +649,7 @@ def get_recent_maps():
 
     # Get user's maps, sorted by most recent first (in a real app, this would be by last modified date)
     user_maps = [
-        m
-        for m in concept_maps
-        if m.get("user_id") == user_id and not m.get("deleted", False)
+        m for m in concept_maps if m.get("user_id") == user_id and not m.get("deleted", False)
     ]
 
     # Sort by updated_at if available
@@ -504,9 +673,7 @@ def get_recent_maps():
                 "id": map["id"],
                 "name": map["name"],
                 "url": f"/maps/{map['id']}",
-                "share_url": (
-                    f"/shared/{map['share_id']}" if map.get("is_public") else None
-                ),
+                "share_url": (f"/shared/{map['share_id']}" if map.get("is_public") else None),
             }
         )
 
@@ -529,9 +696,7 @@ def get_saved_maps():
 
     # Get all user's maps that aren't deleted
     user_maps = [
-        m
-        for m in concept_maps
-        if m.get("user_id") == user_id and not m.get("deleted", False)
+        m for m in concept_maps if m.get("user_id") == user_id and not m.get("deleted", False)
     ]
 
     # Sort by updated_at if available
@@ -545,14 +710,9 @@ def get_saved_maps():
 def share_concept_map(map_id):
     user = get_auth0_user()
 
-
     # Find the map by ID and user ID
     for i, map in enumerate(concept_maps):
-        if (
-                map["id"] == map_id
-                and map.get("user_id") == user.id
-                and not map.get("deleted", False)
-        ):
+        if map["id"] == map_id and map.get("user_id") == user.id and not map.get("deleted", False):
             # Update the map to be public
             concept_maps[i]["is_public"] = True
             concept_maps[i]["updated_at"] = datetime.utcnow().isoformat()
@@ -597,9 +757,7 @@ def process_document():
     # Check if file type is supported
     if file_ext not in ["pdf", "jpg", "jpeg", "png"]:
         return (
-            jsonify(
-                {"error": "Unsupported file type. Please upload a PDF or image file."}
-            ),
+            jsonify({"error": "Unsupported file type. Please upload a PDF or image file."}),
             400,
         )
 
@@ -612,9 +770,7 @@ def process_document():
 
         # Process document based on document type
         if doc_type == "financial":
-            extracted_text = document_processor.process_financial_document(
-                file_content, file_ext
-            )
+            extracted_text = document_processor.process_financial_document(file_content, file_ext)
         else:
             extracted_text = document_processor.process_document(file_content, file_ext)
 
@@ -650,9 +806,7 @@ def process_financial_document():
     # Check if file type is supported
     if file_ext not in ["pdf", "jpg", "jpeg", "png"]:
         return (
-            jsonify(
-                {"error": "Unsupported file type. Please upload a PDF or image file."}
-            ),
+            jsonify({"error": "Unsupported file type. Please upload a PDF or image file."}),
             400,
         )
 
@@ -661,9 +815,7 @@ def process_financial_document():
         file_content = file.read()
 
         # Process document with financial document specific processing
-        extracted_text = document_processor.process_financial_document(
-            file_content, file_ext
-        )
+        extracted_text = document_processor.process_financial_document(file_content, file_ext)
 
         return jsonify({"success": True, "text": extracted_text})
 
@@ -699,9 +851,7 @@ def debug_process_drawing():
             svg_content = f'<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><image href="{image_content}" width="800" height="600"/></svg>'
         elif "svgContent" in data:
             svg_content = data["svgContent"]
-            content_preview = (
-                svg_content[:100] + "..." if len(svg_content) > 100 else svg_content
-            )
+            content_preview = svg_content[:100] + "..." if len(svg_content) > 100 else svg_content
             print(f"DEBUG: Received SVG content length: {len(svg_content)}")
             print(f"DEBUG: SVG content preview: {content_preview}")
         else:
@@ -764,7 +914,6 @@ def list_models():
         return jsonify({"error": f"Failed to list models: {str(e)}"}), 500
 
 
-
 # Health check endpoint
 @app.route("/api/health")
 def health_check():
@@ -777,167 +926,187 @@ with app.app_context():
 
 
 # Notes routes
-@app.route('/api/notes', methods=['GET'])
+@app.route("/api/notes", methods=["GET"])
 @requires_auth
 def get_notes():
     """Get all notes for the current user."""
     user = get_auth0_user()
     user_id = user.id
-        
+
     # Filter notes by user_id and not deleted
     user_notes = [n.to_dict() for n in notes if n.user_id == user_id and not n.is_deleted]
     return jsonify(user_notes), 200
 
-@app.route('/api/notes', methods=['POST'])
+
+@app.route("/api/notes", methods=["POST"])
 @requires_auth
 def create_note():
     """Create a new note."""
     user = get_auth0_user()
     user_id = user.id
-        
+
     data = request.json
-    
+
     # Basic validation
-    if not data or 'title' not in data:
+    if not data or "title" not in data:
         return jsonify({"error": "Missing required fields"}), 400
-    
+
     # Generate a unique share ID
     share_id = secrets.token_urlsafe(8)
-    
+
     # Create a new note with a unique ID
     new_note = Note(
-        title=data.get('title', 'Untitled Note'),
-        content=data.get('content', {}),
+        title=data.get("title", "Untitled Note"),
+        content=data.get("content", {}),
         note_id=len(notes) + 1,
         user_id=user_id,
-        is_public=data.get('is_public', False),
+        is_public=data.get("is_public", False),
         share_id=share_id,
-        is_favorite=data.get('is_favorite', False),
-        tags=data.get('tags', []),
-        description=data.get('description', '')
+        is_favorite=data.get("is_favorite", False),
+        tags=data.get("tags", []),
+        description=data.get("description", ""),
     )
-    
+
     notes.append(new_note)
     return jsonify(new_note.to_dict()), 201
 
-@app.route('/api/notes/<int:note_id>', methods=['GET'])
+
+@app.route("/api/notes/<int:note_id>", methods=["GET"])
 @requires_auth
 def get_note(note_id):
     """Get a specific note by ID."""
     user = get_auth0_user()
     user_id = user.id
-        
-    note = next((n for n in notes if n.id == note_id and n.user_id == user_id and not n.is_deleted), None)
-    
+
+    note = next(
+        (n for n in notes if n.id == note_id and n.user_id == user_id and not n.is_deleted), None
+    )
+
     if not note:
         return jsonify({"error": "Note not found"}), 404
-    
+
     return jsonify(note.to_dict()), 200
 
-@app.route('/api/shared/notes/<string:share_id>', methods=['GET'])
+
+@app.route("/api/shared/notes/<string:share_id>", methods=["GET"])
 def get_shared_note(share_id):
     """Get a shared note by share ID."""
     # This endpoint is public and doesn't require authentication
-    note = next((n for n in notes if n.share_id == share_id and n.is_public and not n.is_deleted), None)
-    
+    note = next(
+        (n for n in notes if n.share_id == share_id and n.is_public and not n.is_deleted), None
+    )
+
     if not note:
         return jsonify({"error": "Shared note not found or not public"}), 404
-    
+
     return jsonify(note.to_dict()), 200
 
-@app.route('/api/notes/<int:note_id>', methods=['PUT'])
+
+@app.route("/api/notes/<int:note_id>", methods=["PUT"])
 @requires_auth
 def update_note(note_id):
     """Update a specific note."""
     user = get_auth0_user()
     user_id = user.id
-        
+
     data = request.json
-    
-    note = next((n for n in notes if n.id == note_id and n.user_id == user_id and not n.is_deleted), None)
-    
+
+    note = next(
+        (n for n in notes if n.id == note_id and n.user_id == user_id and not n.is_deleted), None
+    )
+
     if not note:
         return jsonify({"error": "Note not found"}), 404
-    
+
     # Update the note fields
-    if 'title' in data:
-        note.title = data['title']
-    if 'content' in data:
-        note.content = data['content']
-    if 'is_public' in data:
-        note.is_public = data['is_public']
-    if 'is_favorite' in data:
-        note.is_favorite = data['is_favorite']
-    if 'tags' in data:
-        note.tags = data['tags']
-    if 'description' in data:
-        note.description = data['description']
-    
+    if "title" in data:
+        note.title = data["title"]
+    if "content" in data:
+        note.content = data["content"]
+    if "is_public" in data:
+        note.is_public = data["is_public"]
+    if "is_favorite" in data:
+        note.is_favorite = data["is_favorite"]
+    if "tags" in data:
+        note.tags = data["tags"]
+    if "description" in data:
+        note.description = data["description"]
+
     # Update the timestamp
     note.updated_at = datetime.utcnow()
-    
+
     return jsonify(note.to_dict()), 200
 
-@app.route('/api/notes/<int:note_id>', methods=['DELETE'])
+
+@app.route("/api/notes/<int:note_id>", methods=["DELETE"])
 @requires_auth
 def delete_note(note_id):
     """Delete a specific note (soft delete)."""
     user = get_auth0_user()
     user_id = user.id
-        
-    note = next((n for n in notes if n.id == note_id and n.user_id == user_id and not n.is_deleted), None)
-    
+
+    note = next(
+        (n for n in notes if n.id == note_id and n.user_id == user_id and not n.is_deleted), None
+    )
+
     if not note:
         return jsonify({"error": "Note not found"}), 404
-    
+
     # Mark the note as deleted (soft delete)
     note.is_deleted = True
     note.updated_at = datetime.utcnow()
-    
+
     return jsonify({"message": f"Note '{note.title}' deleted successfully"}), 200
 
-@app.route('/api/notes/<int:note_id>/share', methods=['POST'])
+
+@app.route("/api/notes/<int:note_id>/share", methods=["POST"])
 @requires_auth
 def share_note(note_id):
     """Generate or update a sharing link for a note."""
     user = get_auth0_user()
     user_id = user.id
-        
-    note = next((n for n in notes if n.id == note_id and n.user_id == user_id and not n.is_deleted), None)
-    
+
+    note = next(
+        (n for n in notes if n.id == note_id and n.user_id == user_id and not n.is_deleted), None
+    )
+
     if not note:
         return jsonify({"error": "Note not found"}), 404
-    
-    data = request.json or {}
-    
-    # Update the note's sharing settings
-    note.is_public = data.get('is_public', True)
-    
-    # Generate a new share ID if requested or if one doesn't exist
-    if data.get('regenerate', False) or not note.share_id:
-        note.share_id = secrets.token_urlsafe(8)
-    
-    # Create the sharing URL
-    share_url = f"{os.environ.get('FRONTEND_URL', 'http://localhost:5173')}/shared/notes/{note.share_id}"
-    
-    return jsonify({
-        "share_id": note.share_id,
-        "share_url": share_url,
-        "is_public": note.is_public
-    }), 200
 
-@app.route('/api/notes/<int:note_id>/convert', methods=['POST'])
+    data = request.json or {}
+
+    # Update the note's sharing settings
+    note.is_public = data.get("is_public", True)
+
+    # Generate a new share ID if requested or if one doesn't exist
+    if data.get("regenerate", False) or not note.share_id:
+        note.share_id = secrets.token_urlsafe(8)
+
+    # Create the sharing URL
+    share_url = (
+        f"{os.environ.get('FRONTEND_URL', 'http://localhost:5173')}/shared/notes/{note.share_id}"
+    )
+
+    return (
+        jsonify({"share_id": note.share_id, "share_url": share_url, "is_public": note.is_public}),
+        200,
+    )
+
+
+@app.route("/api/notes/<int:note_id>/convert", methods=["POST"])
 @requires_auth
 def convert_note_to_concept_map(note_id):
     """Convert a note to a concept map."""
     user = get_auth0_user()
     user_id = user.id
-        
-    note = next((n for n in notes if n.id == note_id and n.user_id == user_id and not n.is_deleted), None)
-    
+
+    note = next(
+        (n for n in notes if n.id == note_id and n.user_id == user_id and not n.is_deleted), None
+    )
+
     if not note:
         return jsonify({"error": "Note not found"}), 404
-    
+
     try:
         # Extract text content from the BlockNote format
         # This is a simplified approach - in a real implementation, you'd need
@@ -949,61 +1118,58 @@ def convert_note_to_concept_map(note_id):
                     for item in block["content"]:
                         if "text" in item:
                             content_text += item["text"] + " "
-        
+
         # Fall back to title if content extraction fails
         if not content_text.strip():
             content_text = note.title
-        
+
         # Import the text extraction function
         from concept_map_generation.mind_map import extract_concept_map_from_text
-        
+
         # Process the note content to generate concepts and relationships
         concept_data = extract_concept_map_from_text(content_text)
-        
+
         # Prepare nodes and edges
         nodes = []
         edges = []
-        
+
         # Convert the concepts and relationships to nodes and edges
         for concept in concept_data.get("concepts", []):
             node = {
                 "id": concept.get("id", f"c{len(nodes)+1}"),
                 "label": concept.get("name", "Unnamed Concept"),
-                "description": concept.get("description", "")
+                "description": concept.get("description", ""),
             }
             nodes.append(node)
-        
+
         for relationship in concept_data.get("relationships", []):
             edge = {
                 "source": relationship.get("source", ""),
                 "target": relationship.get("target", ""),
-                "label": relationship.get("label", "relates to")
+                "label": relationship.get("label", "relates to"),
             }
             edges.append(edge)
-        
+
         # Create a new concept map
         share_id = secrets.token_urlsafe(8)
-        
+
         # Generate SVG representation if possible
         image = None
         format_type = None
-        
+
         if nodes and edges:
             try:
                 from concept_map_generation.mind_map import generate_concept_map_svg
-                
+
                 # Create a concept map structure
-                concept_map_json = {
-                    "nodes": nodes,
-                    "edges": edges
-                }
-                
+                concept_map_json = {"nodes": nodes, "edges": edges}
+
                 # Generate the SVG
                 image = generate_concept_map_svg(concept_map_json, "hierarchical")
                 format_type = "svg"
             except Exception as img_error:
                 print(f"Error generating SVG for concept map: {str(img_error)}")
-        
+
         # Create the new concept map
         new_map = ConceptMap(
             name=f"From note: {note.title}",
@@ -1014,52 +1180,58 @@ def convert_note_to_concept_map(note_id):
             is_public=False,
             share_id=share_id,
             image=image,
-            format=format_type
+            format=format_type,
         )
-        
+
         concept_maps.append(new_map)
-        
-        return jsonify({
-            "message": "Note converted to concept map successfully",
-            "concept_map": new_map.to_dict()
-        }), 201
-        
+
+        return (
+            jsonify(
+                {
+                    "message": "Note converted to concept map successfully",
+                    "concept_map": new_map.to_dict(),
+                }
+            ),
+            201,
+        )
+
     except Exception as e:
         print(f"Error converting note to concept map: {str(e)}")
         return jsonify({"error": f"Failed to convert note to concept map: {str(e)}"}), 500
 
-@app.route('/api/users/<int:user_id>/recent-notes', methods=['GET'])
+
+@app.route("/api/users/<int:user_id>/recent-notes", methods=["GET"])
 @requires_auth
 def get_recent_notes(user_id):
     """Get the most recent notes for a user."""
     user = get_auth0_user()
     session_user_id = user.id
-    
+
     # Check if the user is requesting their own notes
     if session_user_id != user_id:
         return jsonify({"error": "Unauthorized to access these notes"}), 403
-    
+
     # Get recent notes, sorted by updated_at
     user_notes = [n.to_dict() for n in notes if n.user_id == user_id and not n.is_deleted]
-    recent_notes = sorted(user_notes, key=lambda x: x.get('updated_at', ''), reverse=True)[:5]
-    
+    recent_notes = sorted(user_notes, key=lambda x: x.get("updated_at", ""), reverse=True)[:5]
+
     return jsonify(recent_notes), 200
 
-@app.route('/api/users/<int:user_id>/favorite-notes', methods=['GET'])
+
+@app.route("/api/users/<int:user_id>/favorite-notes", methods=["GET"])
 @requires_auth
 def get_favorite_notes(user_id):
     """Get the favorite notes for a user."""
     user = get_auth0_user()
     session_user_id = user.id
-    
+
     # Check if the user is requesting their own notes
     if session_user_id != user_id:
         return jsonify({"error": "Unauthorized to access these notes"}), 403
-    
-    # Get favorite notes
-    favorite_notes = [n.to_dict() for n in notes if n.user_id == user_id and n.is_favorite and not n.is_deleted]
-    
-    return jsonify(favorite_notes), 200
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    # Get favorite notes
+    favorite_notes = [
+        n.to_dict() for n in notes if n.user_id == user_id and n.is_favorite and not n.is_deleted
+    ]
+
+    return jsonify(favorite_notes), 200

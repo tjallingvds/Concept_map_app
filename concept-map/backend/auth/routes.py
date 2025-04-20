@@ -1,11 +1,11 @@
 import os
 import uuid
 
-from flask import Blueprint, request, jsonify
-from werkzeug.utils import secure_filename
-
-from auth_utils import requires_auth, get_auth0_user
+from app import ALLOWED_EXTENSIONS
+from auth_utils import get_auth0_user, requires_auth
+from flask import Blueprint, jsonify, request
 from models import db
+from werkzeug.utils import secure_filename
 
 auth_bp = Blueprint("auth", __name__)
 
