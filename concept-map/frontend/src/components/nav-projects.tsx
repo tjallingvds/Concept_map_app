@@ -4,6 +4,7 @@ import {
   MoreHorizontal,
   Share,
   Trash2,
+  PlusCircle,
   type LucideIcon,
 } from "lucide-react"
 import { Skeleton } from "../components/ui/skeleton"
@@ -24,6 +25,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "../components/ui/sidebar"
+import { Button } from "../components/ui/button"
 
 export interface ProjectItem {
   name: string;
@@ -36,17 +38,32 @@ export function NavProjects({
   title = "Projects",
   emptyMessage = "No projects found",
   isLoading = false,
+  onAddClick,
 }: {
   projects: ProjectItem[];
   title?: string;
   emptyMessage?: string;
   isLoading?: boolean;
+  onAddClick?: () => void;
 }) {
   const { isMobile } = useSidebar()
 
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
-      <SidebarGroupLabel>{title}</SidebarGroupLabel>
+      <div className="flex items-center justify-between pr-3">
+        <SidebarGroupLabel>{title}</SidebarGroupLabel>
+        {onAddClick && (
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-6 w-6" 
+            onClick={onAddClick}
+          >
+            <PlusCircle className="h-4 w-4" />
+            <span className="sr-only">Add new</span>
+          </Button>
+        )}
+      </div>
       <SidebarMenu>
         {isLoading ? (
           <>

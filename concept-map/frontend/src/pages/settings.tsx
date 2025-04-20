@@ -28,21 +28,31 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "../components/ui/alert-dialog"
+import { useNavigate } from "react-router-dom"
 
 export default function SettingsPage() {
-  const { user, logout } = useAuth()
+  const { user, logout, deleteAccount } = useAuth()
+  const navigate = useNavigate()
+  const [isDeleting, setIsDeleting] = useState(false)
   
-  // Handle account deletion (this would be implemented with backend integration)
+  // Handle account deletion
   const handleDeleteAccount = async () => {
     try {
-      // In a real app, you would call an API to delete the account
-      toast.success("Account deleted")
+      setIsDeleting(true)
       
-      // Logout after account deletion
-      await logout()
+      // Call the deleteAccount function from auth context
+      await deleteAccount()
+      
+      // Show success notification
+      toast.success("Account deleted successfully")
+      
+      // Navigate to the landing page
+      navigate("/")
     } catch (error) {
       toast.error("Failed to delete account")
       console.error("Account deletion error:", error)
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -142,8 +152,9 @@ export default function SettingsPage() {
                           <AlertDialogAction 
                             onClick={handleDeleteAccount}
                             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            disabled={isDeleting}
                           >
-                            Yes, delete my account
+                            {isDeleting ? "Deleting..." : "Yes, delete my account"}
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
