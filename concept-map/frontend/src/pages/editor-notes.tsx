@@ -213,11 +213,11 @@ export default function EditorNotesPage() {
   
   return (
     <SidebarProvider>
-      <div className="flex h-screen w-full">
+      <div className="flex h-screen w-full overflow-hidden">
         <AppSidebar />
-        <main className="flex-1 flex flex-col w-full overflow-hidden bg-background">
+        <main className="flex-1 flex flex-col w-full bg-background">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border sticky top-0 z-10 bg-background">
             <div className="flex items-center gap-2">
               <SidebarTrigger />
               <Button variant="outline" size="icon" className="mr-2" onClick={() => navigate("/notes")}>
@@ -256,7 +256,7 @@ export default function EditorNotesPage() {
           </div>
           
           {/* Editor - Full Page */}
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 overflow-auto">
             {isLoading ? (
               <div className="h-full flex items-center justify-center">
                 <p className="text-muted-foreground">Loading note...</p>
@@ -266,7 +266,7 @@ export default function EditorNotesPage() {
                 <BlockNoteView 
                   editor={editor}
                   theme="light"
-                  className="h-full"
+                  className="h-full overflow-visible"
                   slashMenu={false}
                 >
                   <SuggestionMenuController
