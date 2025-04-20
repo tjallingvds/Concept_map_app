@@ -11,9 +11,7 @@ import EditorPage from './pages/editor';
 import SharedMapPage from './pages/shared-map';
 import NotesPage from './pages/notes';
 import EditorNotesPage from './pages/editor-notes';
-
-
-import NotesPage from './pages/notes';
+import { LoginForm } from './components/login-form';
 
 import { useAuth } from './contexts/auth-context';
 
