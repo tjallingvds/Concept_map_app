@@ -10,6 +10,8 @@ import SettingsPage from './pages/settings';
 import EditorPage from './pages/editor';
 import SharedMapPage from './pages/shared-map';
 import EditorNotesPage from './pages/editor-notes';
+import WhiteboardEditorPage from './pages/whiteboard-editor-page';
+import { LoginForm } from './components/login-form';
 import NotesPage from './pages/notes';
 import TemplatesPage from './pages/templates';
 import { LoginForm } from './components/login-form';
@@ -68,6 +70,9 @@ function AppRoutes() {
         <Route path="/shared/:shareId" element={<SharedMapPage />} />
         {/* Notes routes */}
         <Route path="/notes" element={<NotesPage />} />
+       
+        <Route path="/whiteboard-editor/:id" element={<WhiteboardEditorPage />} />
+
         <Route path="/notes/edit" element={<EditorNotesPage />} />
         <Route path="/notes/edit/:id" element={<EditorNotesPage />} />
 
