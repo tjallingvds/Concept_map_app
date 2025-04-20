@@ -9,6 +9,7 @@ from auth.routes import auth_bp
 from concept_map_generation.generation_routes import concept_map_bp
 from debug.routes import debug_bp
 from models import db
+from notes.routes import notes_bp
 from process.routes import process_bp
 import concept_map_generation.crud_routes # noqa
 from user.routes import user_bp
@@ -40,6 +41,8 @@ app.register_blueprint(concept_map_bp)
 app.register_blueprint(debug_bp)
 app.register_blueprint(process_bp)
 app.register_blueprint(user_bp)
+app.register_blueprint(notes_bp)
+
 
 
 # Health check endpoint
