@@ -11,6 +11,8 @@ import SettingsPage from './pages/settings';
 import EditorPage from './pages/editor';
 import SharedMapPage from './pages/shared-map';
 import EditorNotesPage from './pages/editor-notes';
+import NotesPage from './pages/notes';
+
 
 import { useAuth } from './contexts/auth-context';
 
