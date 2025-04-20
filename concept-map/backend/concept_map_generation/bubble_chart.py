@@ -1,13 +1,16 @@
-import json
-import matplotlib.pyplot as plt
-import io
 import base64
-import matplotlib
-matplotlib.use('Agg')  # Force non-interactive backend before importing pyplot
-import packcircles
+import io
+import json
 
-from matplotlib.patches import Circle, Patch
+import matplotlib
+
+matplotlib.use('Agg')  # Force non-interactive backend before importing pyplot
+
+import matplotlib.pyplot as plt
 import numpy as np
+import packcircles
+from matplotlib.patches import Circle, Patch
+
 
 def load_gemini_output(gemini_json):
     """
@@ -25,11 +28,11 @@ def load_gemini_output(gemini_json):
     else:
         print("Error: Unsupported format for Gemini output.")
         return []
-    
+
     # Validate and ensure all required fields are present
     required_fields = ['concept', 'frequency', 'category', 'importance_score']
     validated_data = []
-    
+
     for item in data:
         if all(field in item for field in required_fields):
             # Ensure numeric fields have correct types
@@ -47,8 +50,9 @@ def load_gemini_output(gemini_json):
         else:
             print(f"Error: Missing required fields in item {item}")
             continue
-            
+
     return validated_data
+
 
 def generate_packed_bubble_chart(concepts, use_importance=False, title="Packed Bubble Chart"):
     """
@@ -122,7 +126,7 @@ def generate_packed_bubble_chart(concepts, use_importance=False, title="Packed B
         '#8BB7B7',  # muted cyan
         '#B78BB7',  # muted magenta
         '#B7958B',  # muted salmon
-        '#8B95B7'   # muted slate
+        '#8B95B7'  # muted slate
     ]
     cat_color_map = {cat: muted_colors[i % len(muted_colors)] for i, cat in enumerate(unique_cats)}
 
@@ -140,11 +144,11 @@ def generate_packed_bubble_chart(concepts, use_importance=False, title="Packed B
         color = cat_color_map.get(cat, '#999999')
 
         # Draw the circle with subtle border
-        circle_patch = Circle((x, y), r, 
-                            facecolor=color, 
-                            edgecolor='#ffffff',
-                            linewidth=2,
-                            alpha=0.85)
+        circle_patch = Circle((x, y), r,
+                              facecolor=color,
+                              edgecolor='#ffffff',
+                              linewidth=2,
+                              alpha=0.85)
         ax.add_patch(circle_patch)
 
         # Add concept name and value (for frequency-based chart)
@@ -153,7 +157,7 @@ def generate_packed_bubble_chart(concepts, use_importance=False, title="Packed B
             label_text = f"{concept_name}\n({value})"
         else:
             label_text = concept_name
-            
+
         ax.text(x, y, label_text,
                 ha="center", va="center",
                 fontsize=font_size,
@@ -180,6 +184,7 @@ def generate_packed_bubble_chart(concepts, use_importance=False, title="Packed B
     ax.set_title(title)
     ax.axis("off")
     plt.tight_layout()
+
 
 def process_text_for_bubble_chart(text, model):
     """
@@ -216,19 +221,19 @@ def process_text_for_bubble_chart(text, model):
     Here is the text:
     {}
     """.format(text)
-    
+
     try:
         # Call Gemini API
         print("Calling Gemini API for concept extraction")
         response = model.generate_content(prompt)
-        
+
         # Extract JSON from response
         print("Extracting JSON from Gemini response")
         response_text = response.text
         # Find JSON content (assuming it's enclosed in ```json and ```)
         json_start = response_text.find('```json')
         json_end = response_text.rfind('```')
-        
+
         if json_start != -1 and json_end != -1:
             print("Found JSON content within code block")
             json_content = response_text[json_start + 7:json_end].strip()
@@ -236,7 +241,7 @@ def process_text_for_bubble_chart(text, model):
             # If not in code block, try to extract JSON directly
             print("No code block found, attempting to parse response directly")
             json_content = response_text
-        
+
         # Parse the JSON
         try:
             print("Parsing JSON content")
@@ -254,12 +259,12 @@ def process_text_for_bubble_chart(text, model):
             else:
                 print("Failed to extract JSON from response")
                 raise ValueError('Failed to parse Gemini response as JSON')
-        
+
         # Process the concepts data
         print("Loading and validating concept data")
         concepts = load_gemini_output(concepts_data)
         print(f"Validated {len(concepts)} concepts with required fields")
-        
+
         # Generate charts and convert to base64 for embedding
         print("Generating frequency-based bubble chart")
         # Frequency-based chart
@@ -274,14 +279,15 @@ def process_text_for_bubble_chart(text, model):
         plt.close()
         freq_img_data.seek(0)
         freq_img_b64 = base64.b64encode(freq_img_data.read()).decode('utf-8')
+
         print(f"Generated frequency chart (base64 length: {len(freq_img_b64)})")
-        
+
         # Return a structured dictionary that matches what the route expects
         return {
             'bubble_chart': freq_img_b64,  # Use frequency chart as the primary bubble chart
             'concepts': concepts_data
         }
-        
+
     except Exception as e:
         print(f"Error in bubble chart generation: {str(e)}")
         import traceback
