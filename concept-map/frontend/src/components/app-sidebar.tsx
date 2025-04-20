@@ -31,6 +31,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { user } = useAuth();
   const [recentMaps, setRecentMaps] = useState<ProjectItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [openCreateMapDialog, setOpenCreateMapDialog] = useState(false);
 
   // Fetch recent maps from the backend
   useEffect(() => {
@@ -105,6 +106,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <span>New concept map</span>
                   </SidebarMenuButton>
                 }
+                open={openCreateMapDialog}
+                onOpenChange={setOpenCreateMapDialog}
               />
             </SidebarMenuItem>
 

@@ -12,9 +12,7 @@ import SharedMapPage from './pages/shared-map';
 import EditorNotesPage from './pages/editor-notes';
 import NotesPage from './pages/notes';
 
-
 import { useAuth } from './contexts/auth-context';
-import NotesPage from './pages/notes';
 import TemplatesPage from './pages/templates';
 
 function ProtectedRoute() {
@@ -58,6 +56,21 @@ function AppRoutes() {
         }
       />
 
+      <Route
+        path="/register"
+        element={
+          user ? (
+            <Navigate to="/dashboard" replace />
+          ) : (
+            <div className="flex min-h-svh flex-col items-center justify-center bg-background p-6 md:p-10">
+              <div className="w-full max-w-sm md:max-w-3xl">
+                <RegisterForm />
+              </div>
+            </div>
+          )
+        }
+      />
+
       {/* Protected routes */}
       <Route element={<ProtectedRoute />}>
         <Route path="/dashboard" element={<DashboardPage />} />
@@ -73,12 +86,18 @@ function AppRoutes() {
         <Route path="/templates" element={<TemplatesPage />} />
 
         {/* Add more protected routes here */}
+        <Route path="/templates" element={<TemplatesPage />} />
       </Route>
     </Routes>
   );
 }
 
 function App() {
+  return (
+    <Router>
+      <AppRoutes />
+    </Router>
+  );
   return (
     <Router>
       <AppRoutes />
