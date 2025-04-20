@@ -10,29 +10,28 @@ import SettingsPage from './pages/settings';
 import EditorPage from './pages/editor';
 import SharedMapPage from './pages/shared-map';
 import EditorNotesPage from './pages/editor-notes';
-import NotesPage from './pages/notes';
-
-
-import { useAuth } from './contexts/auth-context';
-import NotesPage from './pages/notes';
+import { LoginForm } from './components/login-form';
 import TemplatesPage from './pages/templates';
+import { useAuth, AuthProvider } from './contexts/auth-context';
+
 
 function ProtectedRoute() {
-  const { user, loading, login } = useAuth();
+    const { user, loading } = useAuth();
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-screen">Loading...</div>;
-  }
+    if (loading) {
+        return <div className="flex items-center justify-center h-screen">Loading...</div>;
+    }
 
-  if (!user) {
-    login();
-    return null;
-  }
+    if (!user) {
+        return <Navigate to="/login" replace />;
+    }
 
-  return <Outlet />;
+    return <Outlet />;
+
 }
 
 function AppRoutes() {
+
   const { user, loading } = useAuth();
 
   if (loading) {
@@ -76,14 +75,18 @@ function AppRoutes() {
       </Route>
     </Routes>
   );
+
 }
 
 function App() {
-  return (
-    <Router>
-      <AppRoutes />
-    </Router>
-  );
+    return (
+        <AuthProvider>
+            <Router>
+                <AppRoutes />
+            </Router>
+        </AuthProvider>
+    );
+
 }
 
 export default App;
