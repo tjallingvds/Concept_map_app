@@ -43,7 +43,7 @@ app.register_blueprint(user_bp)
 
 
 # Health check endpoint
-@app.route("/api/health")
+@app.route("/api/health/")
 def health_check():
     return jsonify({"status": "healthy"}), 200
 

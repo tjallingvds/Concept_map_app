@@ -6,7 +6,7 @@ from models import User
 
 user_bp = Blueprint('user', __name__, url_prefix='/api/user')
 
-@user_bp.route("/recent-maps", methods=["GET"])
+@user_bp.route("/recent-maps/", methods=["GET"])
 @requires_auth
 def get_recent_maps():
     # TODO: maybe it is better to just remove the user_id parameter?
@@ -59,7 +59,7 @@ def get_recent_maps():
     return jsonify({"maps": recent_maps}), 200
 
 
-@user_bp.route("/saved-maps", methods=["GET"])
+@user_bp.route("/saved-maps/", methods=["GET"])
 @requires_auth
 def get_saved_maps():
     user = get_auth0_user()

@@ -19,7 +19,7 @@ const notesApi = {
     // Get all notes for the current user
     getNotes: async (): Promise<NoteItem[]> => {
         try {
-            const response = await authFetch(`${API_URL}/api/notes`, {
+            const response = await authFetch(`${API_URL}/api/notes/`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
@@ -42,7 +42,7 @@ const notesApi = {
     // Get a specific note by ID
     getNote: async (noteId: number): Promise<NoteItem> => {
         try {
-            const response = await authFetch(`${API_URL}/api/notes/${noteId}`, {
+            const response = await authFetch(`${API_URL}/api/notes/${noteId}/`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
@@ -72,7 +72,7 @@ const notesApi = {
         is_favorite?: boolean;
     }): Promise<NoteItem> => {
         try {
-            const response = await authFetch(`${API_URL}/api/notes`, {
+            const response = await authFetch(`${API_URL}/api/notes/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -103,7 +103,7 @@ const notesApi = {
         is_favorite?: boolean;
     }): Promise<NoteItem> => {
         try {
-            const response = await authFetch(`${API_URL}/api/notes/${noteId}`, {
+            const response = await authFetch(`${API_URL}/api/notes/${noteId}/`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -127,7 +127,7 @@ const notesApi = {
     // Delete a note
     deleteNote: async (noteId: number): Promise<{ message: string }> => {
         try {
-            const response = await authFetch(`${API_URL}/api/notes/${noteId}`, {
+            const response = await authFetch(`${API_URL}/api/notes/${noteId}/`, {
                 method: 'DELETE',
                 headers: {
                     'Content-Type': 'application/json',
@@ -149,7 +149,7 @@ const notesApi = {
     // Convert a note to a concept map
     convertNoteToConceptMap: async (noteId: number): Promise<MapItem> => {
         try {
-            const response = await authFetch(`${API_URL}/api/notes/${noteId}/convert`, {
+            const response = await authFetch(`${API_URL}/api/notes/${noteId}/convert/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -172,7 +172,7 @@ const notesApi = {
     // Get recent notes
     getRecentNotes: async (userId: number): Promise<NoteItem[]> => {
         try {
-            const response = await authFetch(`${API_URL}/api/users/${userId}/recent-notes`, {
+            const response = await authFetch(`${API_URL}/api/users/${userId}/recent-notes/`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
@@ -195,7 +195,7 @@ const notesApi = {
     // Get favorite notes
     getFavoriteNotes: async (userId: number): Promise<NoteItem[]> => {
         try {
-            const response = await authFetch(`${API_URL}/api/users/${userId}/favorite-notes`, {
+            const response = await authFetch(`${API_URL}/api/users/${userId}/favorite-notes/`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
@@ -222,7 +222,7 @@ const notesApi = {
         is_public: boolean
     }> => {
         try {
-            const response = await authFetch(`${API_URL}/api/notes/${noteId}/share`, {
+            const response = await authFetch(`${API_URL}/api/notes/${noteId}/share/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

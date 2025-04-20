@@ -3,7 +3,7 @@ from flask import Blueprint, request, jsonify
 debug_bp = Blueprint("debug", __name__)
 
 
-@debug_bp.route("/api/debug/process-drawing", methods=["POST"])
+@debug_bp.route("/api/debug/process-drawing/", methods=["POST"])
 def debug_process_drawing():
     """Debug endpoint for drawing processing that always returns valid data"""
     print("DEBUG: Process drawing API called")
@@ -64,7 +64,7 @@ def debug_process_drawing():
 
 
 # Add debug endpoint to list available Gemini models
-@debug_bp.route("/api/debug/list-models", methods=["GET"])
+@debug_bp.route("/api/debug/list-models/", methods=["GET"])
 def list_models():
     """Debug endpoint to list available Gemini models"""
     import google.generativeai as genai

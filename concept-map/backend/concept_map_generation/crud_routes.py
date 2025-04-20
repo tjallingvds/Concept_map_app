@@ -191,7 +191,7 @@ def create_concept_map():
     return jsonify(new_map.to_dict()), 201
 
 
-@concept_map_bp.route("/<int:map_id>", methods=["GET"])
+@concept_map_bp.route("/<int:map_id>/", methods=["GET"])
 @requires_auth
 def get_concept_map(map_id):
     # Find the concept map
@@ -201,7 +201,7 @@ def get_concept_map(map_id):
         return jsonify({"error": "Concept map not found"}), 404
 
 
-@concept_map_bp.route("/<string:share_id>", methods=["GET"])
+@concept_map_bp.route("/<string:share_id>/", methods=["GET"])
 def get_shared_concept_map(share_id):
     # This endpoint is public and doesn't require authentication
     for map in concept_maps:
@@ -215,7 +215,7 @@ def get_shared_concept_map(share_id):
     return jsonify({"error": "Shared concept map not found or not public"}), 404
 
 
-@concept_map_bp.route("/<int:map_id>", methods=["PUT"])
+@concept_map_bp.route("/<int:map_id>/", methods=["PUT"])
 @requires_auth
 def update_concept_map(map_id):
     data = request.json
@@ -311,7 +311,7 @@ def update_concept_map(map_id):
     return jsonify(concept_map.to_dict()), 200
 
 
-@concept_map_bp.route("/<int:map_id>", methods=["DELETE"])
+@concept_map_bp.route("/<int:map_id>/", methods=["DELETE"])
 @requires_auth
 def delete_concept_map(map_id):
     user = get_auth0_user()
@@ -334,7 +334,7 @@ def delete_concept_map(map_id):
     )
 
 
-@concept_map_bp.route("/<int:map_id>/share", methods=["POST"])
+@concept_map_bp.route("/<int:map_id>/share/", methods=["POST"])
 @requires_auth
 def share_concept_map(map_id):
     user = get_auth0_user()

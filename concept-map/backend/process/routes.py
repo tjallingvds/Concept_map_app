@@ -8,7 +8,7 @@ process_bp = Blueprint("process", __name__)
 document_processor = None
 
 
-@process_bp.route("/api/process-document", methods=["POST"])
+@process_bp.route("/api/process-document/", methods=["POST"])
 def process_document():
     """
     Process uploaded document and extract text content
@@ -61,7 +61,7 @@ def process_document():
         return jsonify({"error": f"Failed to process document: {str(e)}"}), 500
 
 
-@process_bp.route("/api/process-financial-document", methods=["POST"])
+@process_bp.route("/api/process-financial-document/", methods=["POST"])
 def process_financial_document():
     """
     Process uploaded financial document with specialized OCR

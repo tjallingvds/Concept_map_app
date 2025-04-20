@@ -76,7 +76,7 @@ const conceptMapsApi = {
             const formData = new FormData();
             formData.append('file', file);
 
-            const response = await authFetch(`${API_URL}/api/process-document`, {
+            const response = await authFetch(`${API_URL}/api/process-document/`, {
                 method: 'POST',
                 body: formData,
                 // Don't set Content-Type header with FormData (browser sets it automatically with boundary)
@@ -150,7 +150,7 @@ const conceptMapsApi = {
                 try {
                     // Generate the concept map from text
                     //TODO: I can not find this endpoint on backend
-                    const genResponse = await authFetch(`${API_URL}/api/concept-map/generate`, {
+                    const genResponse = await authFetch(`${API_URL}/api/concept-map/generate/`, {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json",
@@ -202,7 +202,7 @@ const conceptMapsApi = {
                 format: (isDrawing || mapData.svgContent) ? 'svg' : (generatedMap ? generatedMap.format : 'svg')
             };
 
-            const response = await authFetch(`${API_URL}/api/concept-maps`, {
+            const response = await authFetch(`${API_URL}/api/concept-maps/`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -228,7 +228,7 @@ const conceptMapsApi = {
     // Get a specific concept map by ID
     getMap: async (id: number): Promise<MapItem | null> => {
         try {
-            const response = await authFetch(`${API_URL}/api/concept-maps/${id}`, {
+            const response = await authFetch(`${API_URL}/api/concept-maps/${id}/`, {
                 method: "GET",
                 headers: {
                     "Content-Type": "application/json",
@@ -266,7 +266,7 @@ const conceptMapsApi = {
         is_public?: boolean
     }>): Promise<MapItem | null> => {
         try {
-            const response = await authFetch(`${API_URL}/api/concept-maps/${id}`, {
+            const response = await authFetch(`${API_URL}/api/concept-maps/${id}/`, {
                 method: "PUT",
                 headers: {
                     "Content-Type": "application/json",
@@ -289,7 +289,7 @@ const conceptMapsApi = {
     // Delete a concept map
     deleteMap: async (id: number): Promise<boolean> => {
         try {
-            const response = await authFetch(`${API_URL}/api/concept-maps/${id}`, {
+            const response = await authFetch(`${API_URL}/api/concept-maps/${id}/`, {
                 method: "DELETE",
                 headers: {
                     "Content-Type": "application/json",
@@ -322,7 +322,7 @@ const conceptMapsApi = {
                 throw new Error(`Map with id ${id} not found`);
             }
 
-            const response = await authFetch(`${API_URL}/api/concept-maps/${id}`, {
+            const response = await authFetch(`${API_URL}/api/concept-maps/${id}/`, {
                 method: "PUT",
                 headers: {
                     "Content-Type": "application/json",
@@ -346,7 +346,7 @@ const conceptMapsApi = {
     // Share a concept map to generate a shareable link
     shareMap: async (id: number): Promise<{ shareUrl: string, shareId: string }> => {
         try {
-            const response = await authFetch(`${API_URL}/api/concept-maps/${id}/share`, {
+            const response = await authFetch(`${API_URL}/api/concept-maps/${id}/share/`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -377,7 +377,7 @@ const conceptMapsApi = {
     // Get a shared concept map by share ID
     getSharedMap: async (shareId: string): Promise<MapItem | null> => {
         try {
-            const response = await authFetch(`${API_URL}/api/shared/concept-maps/${shareId}`, {
+            const response = await authFetch(`${API_URL}/api/shared/concept-maps/${shareId}/`, {
                 method: "GET",
                 headers: {
                     "Content-Type": "application/json",
@@ -411,7 +411,7 @@ const conceptMapsApi = {
     // Get all saved maps for the current user
     getSavedMaps: async (): Promise<MapItem[]> => {
         try {
-            const response = await authFetch(`${API_URL}/api/user/saved-maps`, {
+            const response = await authFetch(`${API_URL}/api/user/saved-maps/`, {
                 method: "GET",
                 headers: {
                     "Content-Type": "application/json",

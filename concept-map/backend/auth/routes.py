@@ -20,20 +20,20 @@ def allowed_file(filename):
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif"}
 
 
-@auth_bp.route("/uploads/<filename>")
+@auth_bp.route("/uploads/<filename>/")
 def uploaded_file(filename):
     return send_from_directory(UPLOAD_FOLDER, filename)
 
 
 # User profile routes
-@auth_bp.route("/api/auth/profile", methods=["GET"])
+@auth_bp.route("/api/auth/profile/", methods=["GET"])
 @requires_auth
 def get_profile():
     user = get_auth0_user()
     return jsonify(user.to_dict()), 200
 
 
-@auth_bp.route("/api/auth/profile", methods=["PUT"])
+@auth_bp.route("/api/auth/profile/", methods=["PUT"])
 @requires_auth
 def update_profile():
     user = get_auth0_user()
@@ -43,7 +43,7 @@ def update_profile():
     return jsonify(user.to_dict()), 200
 
 
-@auth_bp.route("/api/auth/profile/avatar", methods=["POST"])
+@auth_bp.route("/api/auth/profile/avatar/", methods=["POST"])
 @requires_auth
 def upload_avatar():
     user = get_auth0_user()
@@ -70,7 +70,7 @@ def upload_avatar():
     return jsonify({"error": "Invalid file type"}), 400
 
 
-@auth_bp.route("/api/auth/profile/avatar", methods=["DELETE"])
+@auth_bp.route("/api/auth/profile/avatar/", methods=["DELETE"])
 @requires_auth
 def remove_avatar():
     user = get_auth0_user()
@@ -89,7 +89,7 @@ def remove_avatar():
     return jsonify({"message": "Avatar removed successfully"}), 200
 
 
-@auth_bp.route("/api/auth/account", methods=["DELETE"])
+@auth_bp.route("/api/auth/account/", methods=["DELETE"])
 @requires_auth
 def delete_account():
     user = get_auth0_user()

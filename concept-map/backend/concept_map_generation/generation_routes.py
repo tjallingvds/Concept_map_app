@@ -30,7 +30,7 @@ def get_gemini_model():
     return genai.GenerativeModel("gemini-2.0-flash")
 
 
-@concept_map_bp.route('/generate', methods=['POST'])
+@concept_map_bp.route('/generate/', methods=['POST'])
 def generate_map():
     """Generate a concept map based on input text and map type"""
     try:
@@ -97,7 +97,7 @@ def generate_map():
         }), 500
 
 
-@concept_map_bp.route('/extract-concepts', methods=['POST'])
+@concept_map_bp.route('/extract-concepts/', methods=['POST'])
 def extract_concepts():
     """Extract key concepts from input text without generating a visualization"""
     try:
@@ -139,7 +139,7 @@ def extract_concepts():
         }), 500
 
 
-@concept_map_bp.route('/process-drawing', methods=['POST'])
+@concept_map_bp.route('/process-drawing/', methods=['POST'])
 def process_drawing():
     """Process a drawing (SVG or PNG) to extract concepts and generate a digital concept map"""
     try:
@@ -233,7 +233,7 @@ def process_drawing():
 
 
 # Add a debug endpoint to visualize concept data directly
-@concept_map_bp.route('/debug/visualize-concepts', methods=['POST'])
+@concept_map_bp.route('/debug/visualize-concepts/', methods=['POST'])
 def debug_visualize_concepts():
     """Debug endpoint to visualize concept data directly without OCR"""
     try:

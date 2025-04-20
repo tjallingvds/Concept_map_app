@@ -38,7 +38,7 @@ export const useAuth = () => {
     }, [isAuthenticated]);
 
     const getUserProfile = async (token: string) => {
-        const res = await fetch(`${API_URL}/api/auth/profile`, {
+        const res = await fetch(`${API_URL}/api/auth/profile/`, {
             headers: {
                 Authorization: `Bearer ${token}`,
             },
