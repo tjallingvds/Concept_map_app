@@ -1,5 +1,5 @@
 import {MapItem} from "../components/file-system";
-import {API_URL, authFetch, useAuthFetch} from "./baseApi.ts";
+import {API_URL, useAuthFetch} from "./baseApi.ts";
 
 
 // Interface for the API response from the backend
@@ -23,8 +23,59 @@ interface ConceptMapResponse {
     learning_objective?: string;
 }
 
+// Interface for note responses
+interface NoteResponse {
+  id: number;
+  title: string;
+  content: any;
+  user_id: number;
+  is_public: boolean;
+  share_id?: string;
+  created_at?: string;
+  updated_at?: string;
+  is_favorite: boolean;
+  tags: string[];
+  description?: string;
+  is_deleted: boolean;
+}
 
+// Interface for frontend note items
+export interface NoteItem {
+  id: number;
+  title: string;
+  content: any;
+  description?: string;
+  createdAt: string;
+  lastEdited: string;
+  isPublic: boolean;
+  isFavorite: boolean;
+  shareId?: string;
+  shareUrl?: string;
+  tags: string[];
+}
 
+// Function to convert backend note to frontend format
+const mapNoteResponseToNoteItem = (response: NoteResponse): NoteItem => {
+  // Generate share URL if the note is public and has a share_id
+  let shareUrl = undefined;
+  if (response.is_public && response.share_id) {
+    shareUrl = `${window.location.origin}/shared/notes/${response.share_id}`;
+  }
+
+  return {
+    id: response.id,
+    title: response.title,
+    content: response.content,
+    description: response.description,
+    createdAt: response.created_at || new Date().toISOString(),
+    lastEdited: response.updated_at || new Date().toISOString(),
+    isPublic: response.is_public || false,
+    isFavorite: response.is_favorite || false,
+    shareId: response.share_id,
+    shareUrl: shareUrl,
+    tags: response.tags || []
+  };
+};
 
 // Function to convert backend concept map format to frontend MapItem format
 const mapResponseToMapItem = (response: ConceptMapResponse): MapItem => {
@@ -188,6 +239,230 @@ export const setAuthFetch = (fetchFn: typeof fetch) => {
     authFetch = fetchFn;
 };
 
+// API service for notes
+const notesApi = {
+  // Get all notes for the current user
+  getNotes: async (): Promise<NoteItem[]> => {
+    try {
+      const response = await authFetch(`${API_URL}/api/notes`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch notes');
+      }
+
+      const data = await response.json();
+      return data.map(mapNoteResponseToNoteItem);
+    } catch (error) {
+      console.error('Error fetching notes:', error);
+      throw error;
+    }
+  },
+
+  // Get a specific note by ID
+  getNote: async (noteId: number): Promise<NoteItem> => {
+    try {
+      const response = await authFetch(`${API_URL}/api/notes/${noteId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch note');
+      }
+
+      const data = await response.json();
+      return mapNoteResponseToNoteItem(data);
+    } catch (error) {
+      console.error(`Error fetching note ${noteId}:`, error);
+      throw error;
+    }
+  },
+
+  // Create a new note
+  createNote: async (noteData: { 
+    title: string; 
+    content: any; 
+    description?: string; 
+    tags?: string[];
+    is_public?: boolean;
+    is_favorite?: boolean;
+  }): Promise<NoteItem> => {
+    try {
+      const response = await authFetch(`${API_URL}/api/notes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(noteData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create note');
+      }
+
+      const data = await response.json();
+      return mapNoteResponseToNoteItem(data);
+    } catch (error) {
+      console.error('Error creating note:', error);
+      throw error;
+    }
+  },
+
+  // Update a note
+  updateNote: async (noteId: number, noteData: { 
+    title?: string; 
+    content?: any; 
+    description?: string; 
+    tags?: string[];
+    is_public?: boolean;
+    is_favorite?: boolean;
+  }): Promise<NoteItem> => {
+    try {
+      const response = await authFetch(`${API_URL}/api/notes/${noteId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(noteData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update note');
+      }
+
+      const data = await response.json();
+      return mapNoteResponseToNoteItem(data);
+    } catch (error) {
+      console.error(`Error updating note ${noteId}:`, error);
+      throw error;
+    }
+  },
+
+  // Delete a note
+  deleteNote: async (noteId: number): Promise<{ message: string }> => {
+    try {
+      const response = await authFetch(`${API_URL}/api/notes/${noteId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete note');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error(`Error deleting note ${noteId}:`, error);
+      throw error;
+    }
+  },
+
+  // Convert a note to a concept map
+  convertNoteToConceptMap: async (noteId: number): Promise<MapItem> => {
+    try {
+      const response = await authFetch(`${API_URL}/api/notes/${noteId}/convert`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to convert note to concept map');
+      }
+
+      const data = await response.json();
+      return mapResponseToMapItem(data.concept_map);
+    } catch (error) {
+      console.error(`Error converting note ${noteId} to concept map:`, error);
+      throw error;
+    }
+  },
+
+  // Get recent notes
+  getRecentNotes: async (userId: number): Promise<NoteItem[]> => {
+    try {
+      const response = await authFetch(`${API_URL}/api/users/${userId}/recent-notes`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch recent notes');
+      }
+
+      const data = await response.json();
+      return data.map(mapNoteResponseToNoteItem);
+    } catch (error) {
+      console.error('Error fetching recent notes:', error);
+      throw error;
+    }
+  },
+
+  // Get favorite notes
+  getFavoriteNotes: async (userId: number): Promise<NoteItem[]> => {
+    try {
+      const response = await authFetch(`${API_URL}/api/users/${userId}/favorite-notes`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch favorite notes');
+      }
+
+      const data = await response.json();
+      return data.map(mapNoteResponseToNoteItem);
+    } catch (error) {
+      console.error('Error fetching favorite notes:', error);
+      throw error;
+    }
+  },
+
+  // Generate a share link for a note
+  shareNote: async (noteId: number, options: { is_public?: boolean; regenerate?: boolean } = {}): Promise<{ share_id: string; share_url: string; is_public: boolean }> => {
+    try {
+      const response = await authFetch(`${API_URL}/api/notes/${noteId}/share`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(options),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to share note');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error(`Error sharing note ${noteId}:`, error);
+      throw error;
+    }
+  },
+};
 
 // API service for concept maps
 const conceptMapsApi = {
@@ -197,7 +472,7 @@ const conceptMapsApi = {
             const formData = new FormData();
             formData.append('file', file);
 
-            const response = await fetch(`${API_URL}/api/process-document`, {
+            const response = await authFetch(`${API_URL}/api/process-document`, {
                 method: 'POST',
                 body: formData,
                 // Don't set Content-Type header with FormData (browser sets it automatically with boundary)
@@ -273,7 +548,6 @@ const conceptMapsApi = {
                     //TODO: I can not find this endpoint on backend
                     const genResponse = await authFetch(`${API_URL}/api/concept-map/generate`, {
                         method: "POST",
-                        credentials: "include",
                         headers: {
                             "Content-Type": "application/json",
                         },
@@ -326,7 +600,6 @@ const conceptMapsApi = {
 
             const response = await authFetch(`${API_URL}/api/concept-maps`, {
                 method: "POST",
-                credentials: "include",
                 headers: {
                     "Content-Type": "application/json",
                 },
@@ -353,7 +626,6 @@ const conceptMapsApi = {
         try {
             const response = await authFetch(`${API_URL}/api/concept-maps/${id}`, {
                 method: "GET",
-                credentials: "include",
                 headers: {
                     "Content-Type": "application/json",
                 },
@@ -392,7 +664,6 @@ const conceptMapsApi = {
         try {
             const response = await authFetch(`${API_URL}/api/concept-maps/${id}`, {
                 method: "PUT",
-                credentials: "include",
                 headers: {
                     "Content-Type": "application/json",
                 },
@@ -416,7 +687,6 @@ const conceptMapsApi = {
         try {
             const response = await authFetch(`${API_URL}/api/concept-maps/${id}`, {
                 method: "DELETE",
-                credentials: "include",
                 headers: {
                     "Content-Type": "application/json",
                 },
@@ -450,7 +720,6 @@ const conceptMapsApi = {
 
             const response = await authFetch(`${API_URL}/api/concept-maps/${id}`, {
                 method: "PUT",
-                credentials: "include",
                 headers: {
                     "Content-Type": "application/json",
                 },
@@ -475,7 +744,6 @@ const conceptMapsApi = {
         try {
             const response = await authFetch(`${API_URL}/api/concept-maps/${id}/share`, {
                 method: "POST",
-                credentials: "include",
                 headers: {
                     "Content-Type": "application/json",
                 },
@@ -541,7 +809,6 @@ const conceptMapsApi = {
         try {
             const response = await authFetch(`${API_URL}/api/user/saved-maps`, {
                 method: "GET",
-                credentials: "include",
                 headers: {
                     "Content-Type": "application/json",
                 },
@@ -563,9 +830,27 @@ const conceptMapsApi = {
     visualizeConcepts
 };
 
+/**
+ * Hook to use the concept maps API with authentication
+ */
 export function useConceptMapsApi() {
-    const authFetch = useAuthFetch();
-    setAuthFetch(authFetch); // 🔥 inject the token-enabled fetch
-
+    const fetchWithAuth = useAuthFetch();
+    setAuthFetch(fetchWithAuth as typeof fetch); // Add type assertion
     return conceptMapsApi;
 }
+
+/**
+ * Hook to use the notes API with authentication
+ */
+export function useNotesApi() {
+    const fetchWithAuth = useAuthFetch();
+    setAuthFetch(fetchWithAuth as typeof fetch); // Add type assertion
+    return notesApi;
+}
+
+// Export the API services and utilities
+export { conceptMapsApi, notesApi, visualizeConcepts };
+
+// Also export conceptMapsApi as default for backward compatibility
+export default conceptMapsApi;
+
