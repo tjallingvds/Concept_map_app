@@ -1,15 +1,16 @@
-import json
 import base64
 import io
-import re
+import json
 import logging
+from typing import Dict, Any
+
 import google.generativeai as genai
 from PIL import Image
-from typing import Dict, Any, List, Tuple
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 def process_svg_for_ocr(svg_content: str) -> Image.Image:
     """
@@ -26,11 +27,11 @@ def process_svg_for_ocr(svg_content: str) -> Image.Image:
     """
     try:
         logger.info(f"Processing SVG content of length: {len(svg_content)}")
-        
+
         # Log the start of the SVG to debug
         svg_preview = svg_content[:100].replace('\n', ' ') + "..."
         logger.info(f"SVG content preview: {svg_preview}")
-        
+
         # Check if it's already a PNG data URL
         if svg_content.startswith('data:image/png;base64,'):
             logger.info("Detected PNG data URL, processing directly")
@@ -40,30 +41,30 @@ def process_svg_for_ocr(svg_content: str) -> Image.Image:
                 png_bytes = base64.b64decode(encoded)
                 img = Image.open(io.BytesIO(png_bytes))
                 logger.info(f"Successfully loaded PNG directly, size: {img.size}")
-                
+
                 # Convert to RGB mode if it has alpha channel to avoid JPEG conversion issues
                 if img.mode == 'RGBA':
                     logger.info("Converting RGBA image to RGB mode")
                     background = Image.new('RGB', img.size, (255, 255, 255))
                     background.paste(img, mask=img.split()[3])  # 3 is the alpha channel
                     img = background
-                
+
                 return img
             except Exception as e:
                 logger.error(f"Failed to process PNG data URL: {str(e)}")
                 # Continue to other methods
-        
+
         # Handle data URLs
         if svg_content.startswith('data:'):
             logger.info("Detected data URL, extracting content")
             # Extract the base64 content from the data URL
             header, encoded = svg_content.split(",", 1)
             logger.info(f"Data URL header: {header}")
-            
+
             # Validate the data URL format
             if not header.startswith('data:image/svg+xml'):
                 raise ValueError(f"Invalid data URL format. Expected 'data:image/svg+xml', got '{header}'")
-                
+
             try:
                 svg_bytes = base64.b64decode(encoded)
                 logger.info(f"Successfully decoded base64 data of length: {len(svg_bytes)}")
@@ -85,7 +86,7 @@ def process_svg_for_ocr(svg_content: str) -> Image.Image:
             except Exception as e:
                 logger.error(f"Failed to process raw SVG content: {str(e)}")
                 raise ValueError(f"Invalid SVG content: {str(e)}")
-        
+
         # Use CairoSVG to convert SVG to PNG
         try:
             import cairosvg
@@ -93,48 +94,48 @@ def process_svg_for_ocr(svg_content: str) -> Image.Image:
             png_bytes = cairosvg.svg2png(bytestring=svg_bytes)
             img = Image.open(io.BytesIO(png_bytes))
             logger.info(f"Successfully converted SVG to PNG image of size: {img.size}")
-            
+
             # Ensure we have an RGB image without transparency to avoid JPEG issues
             if img.mode == 'RGBA':
                 logger.info("Converting RGBA image to RGB mode")
                 background = Image.new('RGB', img.size, (255, 255, 255))
                 background.paste(img, mask=img.split()[3])  # 3 is the alpha channel
                 img = background
-            
+
             return img
         except ImportError:
             logger.warning("CairoSVG not available. Trying rsvg-convert fallback.")
         except Exception as e:
             logger.error(f"CairoSVG conversion failed: {str(e)}")
             # Continue to fallback methods
-        
+
         # Try rsvg-convert fallback
         try:
             import subprocess
             import tempfile
-            
+
             # Write SVG to a temporary file
             with tempfile.NamedTemporaryFile(suffix='.svg', delete=False) as svg_file:
                 svg_file.write(svg_bytes)
                 svg_path = svg_file.name
-            
+
             # Write PNG to a temporary file
             with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as png_file:
                 png_path = png_file.name
-            
+
             try:
                 logger.info(f"Running rsvg-convert on temporary file: {svg_path}")
                 subprocess.run(['rsvg-convert', '-o', png_path, svg_path], check=True)
                 img = Image.open(png_path)
                 logger.info(f"Successfully converted SVG to PNG using rsvg-convert: {img.size}")
-                
+
                 # Ensure we have an RGB image without transparency to avoid JPEG issues
                 if img.mode == 'RGBA':
                     logger.info("Converting RGBA image to RGB mode")
                     background = Image.new('RGB', img.size, (255, 255, 255))
                     background.paste(img, mask=img.split()[3])  # 3 is the alpha channel
                     img = background
-                
+
                 return img
             except subprocess.CalledProcessError as e:
                 logger.error(f"rsvg-convert failed with error code {e.returncode}: {e.output}")
@@ -153,12 +154,12 @@ def process_svg_for_ocr(svg_content: str) -> Image.Image:
         except Exception as e:
             logger.error(f"rsvg-convert fallback failed: {str(e)}")
             # Continue to last resort
-            
+
         # Last resort: create a simple error image
         try:
             from PIL import Image as PILImage, ImageDraw
             logger.info("Creating fallback error image")
-            
+
             # Create a blank image with error message - use RGB mode to avoid JPEG conversion issues
             img = PILImage.new('RGB', (800, 600), color='white')
             draw = ImageDraw.Draw(img)
@@ -169,10 +170,11 @@ def process_svg_for_ocr(svg_content: str) -> Image.Image:
         except Exception as e:
             logger.error(f"All SVG conversion methods failed: {str(e)}")
             raise ValueError(f"Failed to process SVG: {str(e)}")
-            
+
     except Exception as e:
         logger.error(f"Error in SVG processing: {str(e)}")
         raise ValueError(f"Failed to process SVG: {str(e)}")
+
 
 def extract_concepts_and_relations_from_image(image: Image.Image, model: genai.GenerativeModel) -> Dict[str, Any]:
     """
@@ -234,7 +236,7 @@ def extract_concepts_and_relations_from_image(image: Image.Image, model: genai.G
     - Use the exact text from the drawing for concept names
     - Return ONLY the JSON object, no additional text
     """
-    
+
     # Add a secondary prompt to ensure we get a raw text version too
     secondary_prompt = """
     Extract a simple text description of the concepts and their direct connections in this concept map.
@@ -259,54 +261,54 @@ def extract_concepts_and_relations_from_image(image: Image.Image, model: genai.G
     Don't include the brackets in your response, replace them with the actual concept names.
     List all concepts and direct connections you can see in the image.
     """
-    
+
     try:
         logger.info("Sending image to Gemini for concept extraction")
-        
+
         try:
             # For best results with Gemini 2.0 Flash, place the image before the text prompt
             response = model.generate_content([image, prompt])
-            
+
             # Check if the response is valid
             if not response or not hasattr(response, 'text'):
                 raise ValueError("Invalid response from model")
-                
+
             # Get the text from the response
             result = response.text.strip()
             raw_response_text = result  # Store the original response
-            
+
             # Clean and validate the response
             if result.startswith('```json'):
                 result = result[7:]
             if result.endswith('```'):
                 result = result[:-3]
-            
+
             # Try to parse the JSON
             try:
                 data = json.loads(result)
-                
+
                 # Validate the structure
                 if not isinstance(data, dict):
                     raise ValueError("Response is not a dictionary")
-                    
+
                 required_keys = ['concepts', 'relationships', 'structure']
                 for key in required_keys:
                     if key not in data:
                         raise ValueError(f"Missing required key: {key}")
-                        
+
                 # Validate concepts and relationships
                 if not isinstance(data['concepts'], list):
                     raise ValueError("'concepts' must be a list")
                 if not isinstance(data['relationships'], list):
                     raise ValueError("'relationships' must be a list")
-                    
+
                 # Validate each concept has required fields
                 for concept in data['concepts']:
                     if not isinstance(concept, dict):
                         raise ValueError("Each concept must be a dictionary")
                     if 'id' not in concept or 'name' not in concept:
                         raise ValueError("Each concept must have 'id' and 'name'")
-                        
+
                 # Validate relationships reference valid concepts
                 concept_ids = {c['id'] for c in data['concepts']}
                 for rel in data['relationships']:
@@ -318,7 +320,7 @@ def extract_concepts_and_relations_from_image(image: Image.Image, model: genai.G
                         raise ValueError(f"Invalid source concept ID: {rel['source']}")
                     if rel['target'] not in concept_ids:
                         raise ValueError(f"Invalid target concept ID: {rel['target']}")
-                
+
                 # Now get a plain text representation for the text processing pipeline
                 try:
                     text_response = model.generate_content([image, secondary_prompt])
@@ -335,14 +337,14 @@ def extract_concepts_and_relations_from_image(image: Image.Image, model: genai.G
                         source_name = next((c['name'] for c in data['concepts'] if c['id'] == rel['source']), rel['source'])
                         target_name = next((c['name'] for c in data['concepts'] if c['id'] == rel['target']), rel['target'])
                         raw_text_format += f"{source_name} {rel.get('label', 'related to')} {target_name}\n"
-                
+
                 # Add the raw text to the data
                 data['raw_text'] = raw_text_format
                 data['original_response'] = raw_response_text
-                
+
                 logger.info(f"Successfully extracted {len(data['concepts'])} concepts and {len(data['relationships'])} relationships")
                 return data
-                
+
             except json.JSONDecodeError as e:
                 logger.error(f"Failed to parse JSON response: {str(e)}")
                 logger.error(f"Raw response: {result}")
@@ -354,11 +356,11 @@ def extract_concepts_and_relations_from_image(image: Image.Image, model: genai.G
                     "structure": {"type": "unknown"},
                     "raw_text": raw_response_text
                 }
-                
+
         except Exception as e:
             logger.error(f"Error extracting concepts from image: {str(e)}")
             raise
-            
+
     except Exception as e:
         logger.error(f"Error in concept extraction: {str(e)}")
         return {
@@ -368,6 +370,7 @@ def extract_concepts_and_relations_from_image(image: Image.Image, model: genai.G
             "structure": {"type": "unknown"},
             "raw_text": f"Error extracting concepts: {str(e)}"
         }
+
 
 def generate_mind_map_from_ocr_results(ocr_data: Dict[str, Any], model: genai.GenerativeModel) -> str:
     """
@@ -383,17 +386,17 @@ def generate_mind_map_from_ocr_results(ocr_data: Dict[str, Any], model: genai.Ge
     try:
         # Import mind map generator here to avoid circular imports
         from .mind_map import generate_concept_map_svg
-        
+
         # Convert the OCR data into a format suitable for the mind map generator
         concepts = ocr_data.get('concepts', [])
         relationships = ocr_data.get('relationships', [])
-        
+
         # Build the concept map JSON structure expected by generate_concept_map_svg
         concept_map = {
             "nodes": [],
             "edges": []
         }
-        
+
         # Add nodes
         for concept in concepts:
             concept_map["nodes"].append({
@@ -401,7 +404,7 @@ def generate_mind_map_from_ocr_results(ocr_data: Dict[str, Any], model: genai.Ge
                 "label": concept["name"],
                 "description": concept.get("description", "")
             })
-        
+
         # Add edges with simplified relationships
         for rel in relationships:
             # Use simple relationship labels
@@ -409,22 +412,23 @@ def generate_mind_map_from_ocr_results(ocr_data: Dict[str, Any], model: genai.Ge
             # If the label is complex (more than 3 words), simplify it
             if len(label.split()) > 3:
                 label = "relates to"
-                
+
             concept_map["edges"].append({
                 "source": rel["source"],
                 "target": rel["target"],
                 "label": label
             })
-        
+
         # Use network layout for simpler visualization
         layout_style = "network"
-            
+
         svg_b64 = generate_concept_map_svg(concept_map, layout_style)
         return svg_b64
-        
+
     except Exception as e:
         logger.error(f"Error generating mind map from OCR results: {str(e)}")
         raise
+
 
 def process_drawing_for_concept_map(svg_content: str, model: genai.GenerativeModel) -> Dict[str, Any]:
     """
@@ -446,14 +450,14 @@ def process_drawing_for_concept_map(svg_content: str, model: genai.GenerativeMod
                 encoded = svg_content.split(',', 1)[1]
                 png_bytes = base64.b64decode(encoded)
                 img = Image.open(io.BytesIO(png_bytes))
-                
+
                 # Ensure we're in RGB mode to avoid JPEG conversion issues
                 if img.mode == 'RGBA':
                     logger.info("Converting RGBA image to RGB mode")
                     background = Image.new('RGB', img.size, (255, 255, 255))
                     background.paste(img, mask=img.split()[3])  # 3 is the alpha channel
                     img = background
-                
+
                 logger.info(f"Successfully loaded PNG directly, size: {img.size}")
             except Exception as e:
                 logger.error(f"Error processing PNG directly: {str(e)}")
@@ -462,7 +466,7 @@ def process_drawing_for_concept_map(svg_content: str, model: genai.GenerativeMod
         else:
             # Convert SVG to image for OCR
             img = process_svg_for_ocr(svg_content)
-        
+
         # Ensure image is in the correct format and size for Gemini
         # Resize if larger than 768x768 to optimize token usage
         max_size = 768
@@ -472,13 +476,13 @@ def process_drawing_for_concept_map(svg_content: str, model: genai.GenerativeMod
             new_size = (int(img.width * ratio), int(img.height * ratio))
             img = img.resize(new_size, Image.Resampling.LANCZOS)
             logger.info(f"Resized image to {new_size}")
-        
+
         # Get a vision-capable model for image processing 
         try:
             # Use gemini-2.0-flash for vision tasks
             vision_model_name = 'gemini-2.0-flash'
             vision_model = genai.GenerativeModel(vision_model_name)
-            
+
             # Test if the model is available with a simple text generation
             try:
                 test_response = vision_model.generate_content("Test")
@@ -488,7 +492,7 @@ def process_drawing_for_concept_map(svg_content: str, model: genai.GenerativeMod
             except Exception as e:
                 logger.error(f"Vision model test failed: {str(e)}")
                 raise ValueError(f"Vision model not available: {str(e)}")
-                
+
         except Exception as e:
             logger.error(f"Failed to initialize vision model: {str(e)}")
             return {
@@ -497,7 +501,7 @@ def process_drawing_for_concept_map(svg_content: str, model: genai.GenerativeMod
                 "relationships": [],
                 "structure": {"type": "unknown"}
             }
-        
+
         # Extract concepts and relationships from the drawing using the vision model
         try:
             # Convert the image to RGB mode if it has transparency
@@ -507,22 +511,22 @@ def process_drawing_for_concept_map(svg_content: str, model: genai.GenerativeMod
                 background = Image.new('RGB', img.size, (255, 255, 255))
                 background.paste(img, mask=img.split()[3])  # 3 is the alpha channel
                 img = background
-            
+
             # For best results with Gemini, place the image before the text prompt
             ocr_results = extract_concepts_and_relations_from_image(img, vision_model)
-            
+
             # If there was an error in OCR, return it
             if "error" in ocr_results:
                 return ocr_results
-            
+
             # Get raw text for text processing pipeline, if available
             raw_text = ocr_results.get("raw_text", "")
-            
+
             # If we have structured data with concepts and relationships
             if ocr_results.get("concepts") and len(ocr_results["concepts"]) > 0:
                 # Generate a mind map from the OCR results using the original model
                 mind_map_svg = generate_mind_map_from_ocr_results(ocr_results, model)
-                
+
                 # Return the structured results
                 return {
                     "concepts": ocr_results.get("concepts", []),
@@ -545,14 +549,15 @@ def process_drawing_for_concept_map(svg_content: str, model: genai.GenerativeMod
             else:
                 logger.error("No structured data or raw text available from OCR")
                 return create_mock_ocr_result(svg_content)
-            
+
         except Exception as e:
             logger.error(f"Error in OCR processing: {str(e)}")
             return create_mock_ocr_result(svg_content)
-            
+
     except Exception as e:
         logger.error(f"Error processing drawing for concept map: {str(e)}")
         return create_mock_ocr_result(svg_content)
+
 
 def create_mock_ocr_result(svg_content: str) -> Dict[str, Any]:
     """
@@ -565,18 +570,18 @@ def create_mock_ocr_result(svg_content: str) -> Dict[str, Any]:
         Dict: A mock OCR result
     """
     logger.warning("Creating mock OCR result")
-    
+
     # Create some simple mock concepts
     mock_concepts = [
         {"id": "c1", "name": "Concept 1", "description": "First concept"},
         {"id": "c2", "name": "Concept 2", "description": "Second concept"}
     ]
-    
+
     # Create simple relationships
     mock_relationships = [
         {"source": "c1", "target": "c2", "label": "relates to"}
     ]
-    
+
     # Create a simple text representation for text processing pipeline
     mock_text = """
 Digitized concept map with concepts: Concept 1, Concept 2
@@ -588,13 +593,13 @@ Concept 2: Second concept
 Relationships:
 Concept 1 relates to Concept 2
     """
-    
+
     # Create a simple structure
     mock_structure = {
         "type": "network",
         "root": "c1"
     }
-    
+
     # Create the mock result
     mock_data = {
         "concepts": mock_concepts,
@@ -604,5 +609,5 @@ Concept 1 relates to Concept 2
         "format": "svg",
         "raw_text": mock_text.strip()
     }
-    
-    return mock_data 
+
+    return mock_data

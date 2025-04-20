@@ -17,7 +17,6 @@ A powerful application for creating, sharing, and collaborating on concept maps 
   - [Code Style and Standards](#code-style-and-standards)
   - [Pull Request Process](#pull-request-process)
   - [Commit Message Guidelines](#commit-message-guidelines)
-  - [Branch Naming Convention](#branch-naming-convention)
   - [Issue Tracking](#issue-tracking)
 - [Contact](#contact)
 
@@ -30,6 +29,8 @@ Concept Map App is a web-based tool designed to help users create visual represe
 - **Interactive Concept Map Creation**: Drag-and-drop interface for creating nodes and connections
 - **User Accounts**: Personal dashboard to manage your concept maps
 - **Sharing and Collaboration**: Share your maps publicly or collaborate with specific users
+- **Notes & Learn**: Create and manage study notes with rich text editing
+- **Convert Notes to Concept Maps**: Automatically transform your notes into structured concept maps
 - **Templates and Examples**: Get started quickly with pre-built templates
 - **Responsive Design**: Works on desktop and mobile devices
 - **Export Options**: Save your maps in various formats (PNG, PDF, JSON)
@@ -43,6 +44,7 @@ The application follows a client-server architecture:
   - React with TypeScript, using Vite as the build tool
   - Built on [shadcn/ui](https://ui.shadcn.com/) components, a collection of reusable, accessible, and customizable UI components
   - Uses Tailwind CSS for styling
+  - BlockNote for rich text editing in the Notes feature
 - **Backend**: Python Flask API
 - **Data Storage**: Currently uses in-memory storage (JSON), with plans to integrate a database system
 
@@ -250,29 +252,29 @@ Types include:
 - `feat`: A new feature
 - `fix`: A bug fix
 - `docs`: Documentation only changes
-- `style`: Changes that don't affect the code's meaning
-- `refactor`: Code change that neither fixes a bug nor adds a feature
-- `perf`: Code change that improves performance
+- `style`: Changes that do not affect the meaning of the code
+- `refactor`: A code change that neither fixes a bug nor adds a feature
+- `perf`: A code change that improves performance
 - `test`: Adding missing tests or correcting existing tests
 - `chore`: Changes to the build process or auxiliary tools
 
-### Branch Naming Convention
-
-Use the following format for branch names:
-- `feature/short-description`: For new features
-- `bugfix/issue-number-short-description`: For bug fixes
-- `docs/what-you-are-documenting`: For documentation changes
-- `refactor/what-you-are-refactoring`: For code refactoring
-
 ### Issue Tracking
 
-1. **Check Existing Issues**: Before creating a new issue, check if it already exists
-2. **Issue Template**: Fill out the appropriate issue template
-3. **Labels**: Use appropriate labels for your issue
-4. **Assignees**: Don't assign issues to others unless discussed
-5. **Updates**: Keep the issue updated with your progress
+1. **Before submitting an issue**, search to see if it has already been reported
+2. **Use the issue templates** provided in the repository
+3. **Be clear and descriptive** about the problem or feature request
+4. **Provide steps to reproduce** for bug reports
+5. **Include screenshots** if applicable
+6. **Tag issues** appropriately with labels
 
 ## 📞 Contact
 
-For questions, feedback, or support, please contact:
-- GitHub Issues: [Create an issue](https://github.com/tjallingvds/concept_map_app/issues)
+For questions, suggestions, or discussions about the project, please:
+
+- Create an issue in the repository
+- Reach out through the project Notion workspace
+- Contact the project maintainers directly through their provided contact information
+
+---
+
+Thank you for your interest in contributing to the Concept Map App!

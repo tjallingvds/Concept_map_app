@@ -1,14 +1,16 @@
-import json
-import re
-import logging
-import graphviz
-import google.generativeai as genai
 import base64
+import json
+import logging
+import re
 from typing import List, Tuple, Dict, Any
+
+import google.generativeai as genai
+import graphviz
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 ##############################################################################
 #                           GEMINI FLASH 2.0 API SETUP                       #
@@ -73,7 +75,7 @@ def extract_triples_from_text(text: str, model: genai.GenerativeModel) -> List[T
         logger.warning("Input text is too short for meaningful triple extraction")
         # Return a default triple for very short inputs
         return [("Concept", "is", "Empty or too short")]
-    
+
     prompt = f"""
 Your task is to generate a concept map from a given text chunk. The concept map should recursively decompose concepts into hierarchical structures, ensuring that each node is a noun and each edge represents a meaningful relationship. The number of hierarchy levels should not be fixed but should adapt based on the complexity of the information.
 
@@ -114,7 +116,7 @@ Input Text:
     try:
         response = model.generate_content(prompt)
         response_text = response.text
-        
+
         # Parse the response lines for triple notation
         triples = []
         for line in response_text.strip().split("\n"):
@@ -123,7 +125,7 @@ Input Text:
                 parts = [p.strip() for p in line.split("|")]
                 if len(parts) == 3:
                     triples.append((parts[0], parts[1], parts[2]))
-        
+
         # If no valid triples were extracted, create a fallback triple
         if not triples and text.strip():
             # Extract the main topic from the text (first few words or the whole text if short)
@@ -131,7 +133,7 @@ Input Text:
             main_topic = ' '.join(main_topic) if len(main_topic) <= 3 else text.strip()[:30]
             triples = [(main_topic, "is related to", "the topic of interest")]
             logger.info(f"Using fallback triple for text: {text[:50]}...")
-        
+
         return triples
     except Exception as e:
         logger.error(f"Error extracting triples: {str(e)}")
@@ -198,35 +200,35 @@ Expected JSON format:
     try:
         response = model.generate_content(prompt)
         raw_response = response.text.strip()
-        
+
         # 1) Remove unwanted Markdown artifacts (like ```json)
         raw_response = raw_response.replace("```json", "").replace("```", "").strip()
-        
+
         # 2) Fix trailing commas that can break JSON
         raw_response = re.sub(r",\s*]", "]", raw_response)  # Remove comma before closing bracket
         raw_response = re.sub(r",\s*}", "}", raw_response)  # Remove comma before closing brace
-        
+
         # 3) Parse as JSON
         try:
             concept_map = json.loads(raw_response)
-            
+
             # Validate the structure has the expected key
             if not isinstance(concept_map, dict) or 'concept_maps' not in concept_map:
                 logger.warning("Missing 'concept_maps' key in response, attempting to restructure")
-                
+
                 # Try to restructure or create a fallback structure
                 if isinstance(concept_map, dict) and len(concept_map) > 0:
                     # If we got some JSON structure but not with the expected key
                     restructured = {"concept_maps": []}
-                    
+
                     # Try to salvage the content
                     for key, value in concept_map.items():
                         if isinstance(value, dict):
                             restructured["concept_maps"].append({key: value})
-                    
+
                     if restructured["concept_maps"]:
                         return restructured
-                
+
                 # Create a minimal fallback structure
                 return {
                     "concept_maps": [
@@ -237,15 +239,15 @@ Expected JSON format:
                         }
                     ]
                 }
-            
+
             return concept_map
-            
+
         except json.JSONDecodeError as json_err:
             logger.error(f"Error parsing concept map JSON: {str(json_err)}. Raw response: {raw_response[:100]}...")
-            
+
             # Create a basic concept map from the triples
             default_map = {"concept_maps": []}
-            
+
             # If we have triples, create a simple tree structure
             if triples:
                 # Group triples by subject
@@ -253,21 +255,21 @@ Expected JSON format:
                 for s, r, o in triples:
                     if s not in subject_groups:
                         subject_groups[s] = {}
-                    
+
                     if r not in subject_groups[s]:
                         subject_groups[s][r] = []
-                    
+
                     subject_groups[s][r].append(o)
-                
+
                 # Convert to the expected format
                 for subject, relations in subject_groups.items():
                     concept_entry = {subject: relations}
                     default_map["concept_maps"].append(concept_entry)
             else:
                 default_map["concept_maps"].append({"Error": {"occurred during": ["concept map generation"]}})
-            
+
             return default_map
-            
+
     except Exception as e:
         logger.error(f"Error generating concept map JSON: {str(e)}")
         # Create a minimal valid concept map structure for error cases
@@ -299,16 +301,16 @@ def add_node(dot, node_id, label=None, node_attrs=None, added_nodes=None):
     """
     if added_nodes is None:
         added_nodes = set()
-        
+
     if isinstance(node_id, dict):
         # Handle case where a node object is passed
         node_props = node_id
         actual_id = node_props.get('id', f"node_{len(added_nodes)}")
         label = node_props.get('label', 'Unknown')
-        
+
         # Use importance if available
         importance = node_props.get('importance', 0.5)
-        
+
         # Set node attrs based on importance
         if importance > 0.7:
             # More important nodes
@@ -332,7 +334,7 @@ def add_node(dot, node_id, label=None, node_attrs=None, added_nodes=None):
     else:
         # Simple string node ID
         actual_id = node_id
-        
+
         # Default styling if none provided
         if node_attrs is None:
             node_attrs = {
@@ -342,13 +344,14 @@ def add_node(dot, node_id, label=None, node_attrs=None, added_nodes=None):
                 "fontsize": "12",
                 "fontname": "Arial"
             }
-    
+
     # Only add if not already present
     if actual_id not in added_nodes:
         dot.node(str(actual_id), label=label or actual_id, **node_attrs)
         added_nodes.add(actual_id)
-        
+
     return actual_id
+
 
 def build_graph(concept_data, layout_style="hierarchical"):
     """
@@ -363,7 +366,7 @@ def build_graph(concept_data, layout_style="hierarchical"):
         graphviz.Digraph: The completed graph object
     """
     dot = graphviz.Digraph(format="svg")
-    
+
     # Set graph attributes based on layout style
     if layout_style == "hierarchical":
         dot.attr(
@@ -404,7 +407,7 @@ def build_graph(concept_data, layout_style="hierarchical"):
                 parent_id = f"n{next_node_id}"
                 next_node_id += 1
                 node_id_map[parent] = parent_id
-                
+
                 # Add the parent node (more emphasis on root nodes)
                 parent_attrs = {
                     "shape": "box",
@@ -422,7 +425,7 @@ def build_graph(concept_data, layout_style="hierarchical"):
             if isinstance(relations, dict):
                 for relation, children in relations.items():
                     child_ids = []
-                    
+
                     # Process children (could be a list or another dict)
                     if isinstance(children, list):
                         for child in children:
@@ -431,7 +434,7 @@ def build_graph(concept_data, layout_style="hierarchical"):
                                 child_id = f"n{next_node_id}"
                                 next_node_id += 1
                                 node_id_map[child] = child_id
-                                
+
                                 # Add the child node
                                 child_attrs = {
                                     "shape": "box",
@@ -443,16 +446,16 @@ def build_graph(concept_data, layout_style="hierarchical"):
                                 add_node(dot, child_id, label=child, node_attrs=child_attrs, added_nodes=added_nodes)
                             else:
                                 child_id = node_id_map[child]
-                                
+
                             child_ids.append(child_id)
-                    
+
                     # Add all child nodes to the same rank using a subgraph
                     if len(child_ids) > 1:
                         with dot.subgraph() as s:
                             s.attr(rank="same")
                             for child_id in child_ids:
                                 s.node(child_id)
-                    
+
                     # Connect parent to all children with this relation
                     for child_id in child_ids:
                         # Edge styling
@@ -462,16 +465,17 @@ def build_graph(concept_data, layout_style="hierarchical"):
                             "fontsize": "11",
                             "fontname": "Arial"
                         }
-                        
+
                         # Special styling for certain relationship types
                         if any(rel in relation.lower() for rel in ["cause", "result", "lead to", "produce"]):
                             edge_style["color"] = "#E74C3C"  # Red for causation
                         elif any(rel in relation.lower() for rel in ["part", "component", "contain"]):
-                            edge_style["style"] = "dashed"   # Dashed for composition
-                            
+                            edge_style["style"] = "dashed"  # Dashed for composition
+
                         dot.edge(parent_id, child_id, label=relation, **edge_style)
 
     return dot
+
 
 def generate_concept_map_svg(concept_map_json: Dict[str, Any], layout_style: str = "hierarchical") -> str:
     """
@@ -489,28 +493,28 @@ def generate_concept_map_svg(concept_map_json: Dict[str, Any], layout_style: str
         if not concept_map_json or not isinstance(concept_map_json, dict):
             logger.error("Invalid concept map data format")
             raise ValueError("Invalid concept map data format")
-            
+
         # Extract concept_maps from the structure
         if 'concept_maps' not in concept_map_json:
             logger.error("Missing 'concept_maps' key in the data")
             raise ValueError("Missing 'concept_maps' key in the data")
-            
+
         concept_data = concept_map_json['concept_maps']
         if not isinstance(concept_data, list) or not concept_data:
             logger.error("'concept_maps' must be a non-empty list")
             raise ValueError("'concept_maps' must be a non-empty list")
-        
+
         # Build the graph
         dot = build_graph(concept_data, layout_style)
-        
+
         # Render the graph to SVG
         svg_data = dot.pipe()
         if not svg_data:
             raise ValueError("Empty SVG output")
-            
+
         # Convert to base64
         return base64.b64encode(svg_data).decode('utf-8')
-        
+
     except Exception as e:
         logger.error(f"Error generating concept map SVG: {str(e)}")
         # Create a minimal error graph
@@ -544,10 +548,10 @@ def generate_concept_map(input_text: str, model: genai.GenerativeModel, api_key:
     try:
         # Setup Gemini API
         setup_gemini(api_key)
-        
+
         # Create a model instance
         model = genai.GenerativeModel("gemini-2.0-flash")
-        
+
         # Handle empty or very short input
         if not input_text or len(input_text.strip()) < 5:
             logger.warning("Input text is empty or too short")
@@ -556,13 +560,13 @@ def generate_concept_map(input_text: str, model: genai.GenerativeModel, api_key:
         else:
             # Chunk the text for processing if needed
             chunks = split_text_into_chunks(input_text) if len(input_text) > 12000 else [input_text]
-            
+
             # Process each chunk and collect triples
             all_triples = []
             for chunk in chunks:
                 triples = extract_triples_from_text(chunk, model)
                 all_triples.extend(triples)
-            
+
             # If no triples were extracted, create a fallback
             if not all_triples:
                 logger.warning("No triples extracted from input, using fallback")
@@ -571,16 +575,16 @@ def generate_concept_map(input_text: str, model: genai.GenerativeModel, api_key:
                 title = ' '.join(title_words) if title_words else "Concept"
                 # Create a simple fallback triple
                 all_triples = [(title, "is related to", input_text[:50] + "...")]
-        
+
         # Generate hierarchical JSON concept map
         concept_map = generate_concept_map_json(all_triples, model)
-        
+
         # Generate SVG representation
         svg_b64 = generate_concept_map_svg(concept_map, layout_style)
-        
+
         logger.info(f"Concept map generation successful with {layout_style} layout")
         return svg_b64
-        
+
     except Exception as e:
         logger.exception("Concept map generation failed")
         # Return a simple error SVG
