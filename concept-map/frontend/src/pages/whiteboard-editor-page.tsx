@@ -136,6 +136,19 @@ export default function WhiteboardEditorPage() {
     }
   }
 
+  // Reference to the whiteboard editor component
+  const editorRef = React.useRef<React.ElementRef<typeof WhiteboardEditor>>(null)
+  
+  // Function to save the current whiteboard state
+  const saveWhiteboard = React.useCallback(() => {
+    if (editorRef.current) {
+      const content = editorRef.current.getCurrentContent()
+      if (content) {
+        handleSave(content)
+      }
+    }
+  }, [handleSave])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -155,7 +168,14 @@ export default function WhiteboardEditorPage() {
               <SidebarTrigger />
               <span className="text-sm font-medium">{map?.name || "Hand-Drawn Whiteboard"}</span>
             </div>
-            <div>
+            <div className="flex items-center gap-2">
+              <Button 
+                onClick={saveWhiteboard} 
+                disabled={saving}
+                className="shadow-sm"
+              >
+                {saving ? 'Saving...' : 'Save Changes'}
+              </Button>
               <Button variant="outline" onClick={() => navigate("/maps")}>
                 Back to Maps
               </Button>
@@ -165,8 +185,10 @@ export default function WhiteboardEditorPage() {
           <div className="flex-1 overflow-hidden">
             <div className="h-full w-full">
               <WhiteboardEditor 
+                ref={editorRef}
                 whiteboardContent={map.whiteboardContent}
                 onSave={handleSave}
+                hideSaveButton={true}
               />
             </div>
           </div>

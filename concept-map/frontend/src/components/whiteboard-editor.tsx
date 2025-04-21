@@ -81,21 +81,22 @@ export const WhiteboardEditor = React.forwardRef<WhiteboardEditorRef, Whiteboard
     }), [getCurrentContent]);
 
     return (
-      <div className="whiteboard-editor-container flex flex-col h-full">
+      <div className="whiteboard-editor-container flex flex-col h-full relative">
+        {/* Save button positioned in top-right corner */}
+        {!readOnly && onSave && !hideSaveButton && (
+          <div className="absolute top-4 right-4 z-50">
+            <Button onClick={handleSave} variant="default" className="shadow-md">
+              Save Changes
+            </Button>
+          </div>
+        )}
+        
         <div className="flex-grow relative" style={{ minHeight: "100%" }}>
           <Tldraw
             onMount={setEditor}
             autoFocus
           />
         </div>
-        
-        {!readOnly && onSave && !hideSaveButton && (
-          <div className="mt-4 flex justify-end">
-            <Button onClick={handleSave}>
-              Save Changes
-            </Button>
-          </div>
-        )}
       </div>
     )
   }
