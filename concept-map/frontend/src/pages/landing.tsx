@@ -75,7 +75,7 @@ const detailedFeatures = [
     title: 'Learning Progress Overview',
     description:
       "Get a comprehensive overview of your learning progress. Track which concepts you've mastered and which need more attention.",
-    image: '/placeholder.svg',
+    image: '/logo.png',
     alt: 'Learning Progress Overview Dashboard',
     icon: (
       <svg className="h-6 w-6 text-white" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -92,7 +92,7 @@ const detailedFeatures = [
     title: 'Activity Tracking',
     description:
       'Monitor your study sessions and engagement with concepts over time. Identify patterns and optimize your learning schedule.',
-    image: '/placeholder.svg',
+    image: '/logo.png',
     alt: 'Activity Tracking Chart',
     icon: (
       <svg className="h-6 w-6 text-white" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -286,8 +286,8 @@ export default function LandingPage() {
       {/* Header/Nav */}
       <header className="container mx-auto px-4 py-4 flex items-center justify-between z-10 relative border-b border-gray-200">
         <div className="flex items-center">
-          <img src="/placeholder.svg" alt="Concept Map Logo" className="h-8 w-8" />
-          <span className="ml-2 font-bold text-lg text-gray-900">Concept Map</span>
+          <img src="/logo.png" alt="Concept Map Logo" className="h-8" />
+          <span className="ml-2 font-bold text-lg text-gray-900">MAPLET</span>
         </div>
         <nav className="hidden md:flex items-center gap-6 text-sm">
           <a href="#features" className="text-gray-600 hover:text-yellow-700 transition-colors">
@@ -789,7 +789,7 @@ export default function LandingPage() {
             </div>
             <div className="w-full md:w-1/3 flex justify-center items-center">
               <img
-                src="/placeholder.svg"
+                src="/logo.png"
                 alt="Concept Map App Preview"
                 className="w-full md:w-auto max-w-xs rounded-lg border border-gray-200 shadow-xl"
               />
@@ -808,7 +808,7 @@ export default function LandingPage() {
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row justify-between mb-8">
             <div className="mb-6 md:mb-0 max-w-sm">
-              <img src="/placeholder.svg" alt="Concept Map Logo" className="h-8 mb-4" />
+              <img src="/logo.png" alt="Concept Map Logo" className="h-8 mb-4" />
               <p className="text-sm text-gray-600">Transforming learning through AI-powered concept mapping.</p>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-8">
