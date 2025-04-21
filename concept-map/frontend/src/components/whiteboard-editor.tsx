@@ -82,7 +82,7 @@ export const WhiteboardEditor = React.forwardRef<WhiteboardEditorRef, Whiteboard
 
     return (
       <div className="whiteboard-editor-container flex flex-col h-full">
-        <div className="flex-grow" style={{ minHeight: "600px" }}>
+        <div className="flex-grow relative" style={{ minHeight: "100%" }}>
           <Tldraw
             onMount={setEditor}
             autoFocus

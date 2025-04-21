@@ -608,7 +608,7 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
                                                 <div className="text-center py-2 text-muted-foreground">
                                                     <p>Create a hand-drawn whiteboard with freeform drawing tools.</p>
                                                 </div>
-                                                <div className="mt-4 border rounded-lg" style={{ height: '500px' }}>
+                                                <div className="mt-4 border rounded-lg overflow-hidden" style={{ height: '500px', minHeight: '500px', maxHeight: '500px' }}>
                                                     <WhiteboardEditor 
                                                         ref={whiteboardEditorRef}
                                                         whiteboardContent={null} 
