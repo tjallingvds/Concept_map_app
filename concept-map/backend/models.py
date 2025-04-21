@@ -223,6 +223,10 @@ class ConceptMap(db.Model):
             "image": self.image,
             "format": self.format,
             "whiteboard_content": self.whiteboard_content,
+            "learning_objective": self.learning_objective,  # Add this line
+            "description": self.description,  # Also add description
+            "is_favorite": self.is_favorite,  # Add is_favorite
+            "input_text": self.input_text,  # Add input_text
         }
 
     @classmethod
