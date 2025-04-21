@@ -94,12 +94,13 @@ def get_recent_notes(user_id):
     user = get_auth0_user()
 
     if user.id != user_id:
-        return jsonify({"error": "Unauthorized to access these notes"}), 403
+        return jsonify({"error": "Unauthorized to access these notes"}), HTTPStatus.FORBIDDEN
 
     user_notes = [n.to_dict() for n in notes if n.user_id == user_id and not n.is_deleted]
     recent_notes = sorted(user_notes, key=lambda x: x.get("updated_at", ""), reverse=True)[:5]
 
-    return jsonify(recent_notes), 200
+    return jsonify(recent_notes), HTTPStatus.OK
+
 
 
 @user_bp.route("/<int:user_id>/favorite-notes/", methods=["GET"])
@@ -109,13 +110,13 @@ def get_favorite_notes(user_id):
     user = get_auth0_user()
 
     if user.id != user_id:
-        return jsonify({"error": "Unauthorized to access these notes"}), 403
+        return jsonify({"error": "Unauthorized to access these notes"}), HTTPStatus.FORBIDDEN
 
     favorite_notes = [
         n.to_dict() for n in notes if n.user_id == user_id and n.is_favorite and not n.is_deleted
     ]
 
-    return jsonify(favorite_notes), 200
+    return jsonify(favorite_notes), HTTPStatus.OK
 
 
 # TODO: store templates in a database

@@ -15,6 +15,7 @@ from debug.routes import debug_bp
 from models import db
 from notes.routes import notes_bp
 from process.routes import process_bp
+from templates.routes import templates_bp
 from user.routes import user_bp
 
 # Initialize Flask app
@@ -49,6 +50,7 @@ app.register_blueprint(debug_bp)
 app.register_blueprint(process_bp)
 app.register_blueprint(user_bp)
 app.register_blueprint(notes_bp)
+app.register_blueprint(templates_bp)
 
 
 # Health check endpoint

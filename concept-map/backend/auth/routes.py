@@ -86,7 +86,7 @@ def remove_avatar():
     user.update_profile(avatar_url=None)
     db.session.commit()
 
-    return jsonify({"message": "Avatar removed successfully"}), http.HTTPStatus.OK
+    return jsonify({"message": "Avatar removed successfully"}), HTTPStatus.OK
 
 
 @auth_bp.route("/api/auth/account/", methods=["DELETE"])

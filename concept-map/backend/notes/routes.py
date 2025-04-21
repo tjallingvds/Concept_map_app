@@ -1,6 +1,7 @@
 import os
 import secrets
 from datetime import datetime
+from http import HTTPStatus
 
 from flask import Blueprint, request, jsonify
 
@@ -21,7 +22,7 @@ def get_notes():
 
     # Filter notes by user_id and not deleted
     user_notes = [n.to_dict() for n in notes if n.user_id == user.id and not n.is_deleted]
-    return jsonify(user_notes), 200
+    return jsonify(user_notes), HTTPStatus.OK
 
 
 @notes_bp.route("/", methods=["POST"])
@@ -34,7 +35,7 @@ def create_note():
 
     # Basic validation
     if not data or "title" not in data:
-        return jsonify({"error": "Missing required fields"}), 400
+        return jsonify({"error": "Missing required fields"}), HTTPStatus.BAD_REQUEST
 
     # Generate a unique share ID
     share_id = secrets.token_urlsafe(8)
@@ -53,7 +54,7 @@ def create_note():
     )
 
     notes.append(new_note)
-    return jsonify(new_note.to_dict()), 201
+    return jsonify(new_note.to_dict()), HTTPStatus.CREATED
 
 
 @notes_bp.route("/<int:note_id>/", methods=["GET"])
@@ -64,9 +65,9 @@ def get_note(note_id):
     note = next((n for n in notes if n.id == note_id and n.user_id == user.id and not n.is_deleted), None)
 
     if not note:
-        return jsonify({"error": "Note not found"}), 404
+        return jsonify({"error": "Note not found"}), HTTPStatus.NOT_FOUND
 
-    return jsonify(note.to_dict()), 200
+    return jsonify(note.to_dict()), HTTPStatus.OK
 
 
 @notes_bp.route("/shared/<string:share_id>/", methods=["GET"])
@@ -78,9 +79,9 @@ def get_shared_note(share_id):
     )
 
     if not note:
-        return jsonify({"error": "Shared note not found or not public"}), 404
+        return jsonify({"error": "Shared note not found or not public"}), HTTPStatus.NOT_FOUND
 
-    return jsonify(note.to_dict()), 200
+    return jsonify(note.to_dict()), HTTPStatus.OK
 
 
 @notes_bp.route("/<int:note_id>/", methods=["PUT"])
@@ -93,7 +94,7 @@ def update_note(note_id):
     note = next((n for n in notes if n.id == note_id and n.user_id == user.id and not n.is_deleted), None)
 
     if not note:
-        return jsonify({"error": "Note not found"}), 404
+        return jsonify({"error": "Note not found"}), HTTPStatus.NOT_FOUND
 
     # Update the note fields
     if "title" in data:
@@ -112,7 +113,7 @@ def update_note(note_id):
     # Update the timestamp
     note.updated_at = datetime.utcnow()
 
-    return jsonify(note.to_dict()), 200
+    return jsonify(note.to_dict()), HTTPStatus.OK
 
 
 @notes_bp.route("/<int:note_id>/", methods=["DELETE"])
@@ -124,13 +125,13 @@ def delete_note(note_id):
     note = next((n for n in notes if n.id == note_id and n.user_id == user.id and not n.is_deleted), None)
 
     if not note:
-        return jsonify({"error": "Note not found"}), 404
+        return jsonify({"error": "Note not found"}), HTTPStatus.NOT_FOUND
 
     # Mark the note as deleted (soft delete)
     note.is_deleted = True
     note.updated_at = datetime.utcnow()
 
-    return jsonify({"message": f"Note '{note.title}' deleted successfully"}), 200
+    return jsonify({"message": f"Note '{note.title}' deleted successfully"}), HTTPStatus.OK
 
 
 @notes_bp.route("/<int:note_id>/share/", methods=["POST"])
@@ -142,7 +143,7 @@ def share_note(note_id):
     note = next((n for n in notes if n.id == note_id and n.user_id == user.id and not n.is_deleted), None)
 
     if not note:
-        return jsonify({"error": "Note not found"}), 404
+        return jsonify({"error": "Note not found"}), HTTPStatus.NOT_FOUND
 
     data = request.json or {}
 
@@ -160,7 +161,7 @@ def share_note(note_id):
 
     return (
         jsonify({"share_id": note.share_id, "share_url": share_url, "is_public": note.is_public}),
-        200,
+        HTTPStatus.OK,
     )
 
 
@@ -173,7 +174,7 @@ def convert_note_to_concept_map(note_id):
     note = next((n for n in notes if n.id == note_id and n.user_id == user.id and not n.is_deleted), None)
 
     if not note:
-        return jsonify({"error": "Note not found"}), 404
+        return jsonify({"error": "Note not found"}),  HTTPStatus.NOT_FOUND
 
     try:
         # Extract text content from the BlockNote format
@@ -260,9 +261,9 @@ def convert_note_to_concept_map(note_id):
                     "concept_map": new_map.to_dict(),
                 }
             ),
-            201,
+            HTTPStatus.CREATED,
         )
 
     except Exception as e:
         print(f"Error converting note to concept map: {str(e)}")
-        return jsonify({"error": f"Failed to convert note to concept map: {str(e)}"}), 500
+        return jsonify({"error": f"Failed to convert note to concept map: {str(e)}"}), HTTPStatus.INTERNAL_SERVER_ERROR
