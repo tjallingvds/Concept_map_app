@@ -445,7 +445,7 @@ export function TLDrawEditor({
       
       // Send both the full data URL and the raw base64 data to give the backend options
       const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001";
-      const mainEndpoint = `${API_URL}/api/concept-map/process-drawing`;
+      const mainEndpoint = `${API_URL}/api/concept-maps/process-drawing/`;
       
       const response = await fetch(mainEndpoint, {
         method: 'POST',
@@ -491,7 +491,7 @@ export function TLDrawEditor({
           console.log("OCR produced text but not structured data, sending to text processing pipeline");
           
           // Call the text-to-concept-map endpoint with the raw text
-          const textEndpoint = `${API_URL}/api/concept-map/generate`;
+          const textEndpoint = `${API_URL}/api/concept-maps/generate/`;
           
           const textResponse = await fetch(textEndpoint, {
             method: 'POST',
