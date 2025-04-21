@@ -5,6 +5,8 @@ import { toast } from "sonner"
 import { WhiteboardEditor } from "../components/whiteboard-editor"
 import { Button } from "../components/ui/button"
 import {useConceptMapsApi} from "../services/concept_map_api.ts";
+import { SidebarProvider, SidebarTrigger } from "../components/ui/sidebar"
+import { AppSidebar } from "../components/app-sidebar"
 
 export default function WhiteboardEditorPage() {
   const { id } = useParams<{ id: string }>()
@@ -144,25 +146,32 @@ export default function WhiteboardEditorPage() {
   }
 
   return (
-    <div className="container mx-auto py-6 flex flex-col h-screen">
-      <header className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">{map?.name || "Hand-Drawn Whiteboard"}</h1>
-          <p className="text-muted-foreground">{map?.description || "Edit your hand-drawn whiteboard"}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => navigate("/maps")}>
-            Back to Maps
-          </Button>
-        </div>
-      </header>
-      
-      <div className="flex-1 border rounded-lg overflow-hidden">
-        <WhiteboardEditor 
-          whiteboardContent={map.whiteboardContent}
-          onSave={handleSave}
-        />
+    <SidebarProvider>
+      <div className="flex h-screen w-full">
+        <AppSidebar />
+        <main className="flex-1 flex flex-col w-full overflow-hidden bg-background">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+            <div className="flex items-center gap-2">
+              <SidebarTrigger />
+              <span className="text-sm font-medium">{map?.name || "Hand-Drawn Whiteboard"}</span>
+            </div>
+            <div>
+              <Button variant="outline" onClick={() => navigate("/maps")}>
+                Back to Maps
+              </Button>
+            </div>
+          </div>
+          
+          <div className="flex-1 overflow-hidden">
+            <div className="h-full w-full">
+              <WhiteboardEditor 
+                whiteboardContent={map.whiteboardContent}
+                onSave={handleSave}
+              />
+            </div>
+          </div>
+        </main>
       </div>
-    </div>
+    </SidebarProvider>
   )
 } 

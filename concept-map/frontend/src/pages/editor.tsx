@@ -10,7 +10,9 @@ import { Separator } from "../components/ui/separator";
 import { ConceptMapViewer } from "../components/concept-map-viewer";
 import { TLDrawEditor } from "../components/tldraw-editor";
 import { MapItem } from "../components/file-system";
-import {useConceptMapsApi} from "../services/concept_map_api.ts";
+import { useConceptMapsApi } from "../services/concept_map_api.ts";
+import { SidebarProvider, SidebarTrigger } from "../components/ui/sidebar";
+import { AppSidebar } from "../components/app-sidebar";
 
 // Create a full type for the OCR result to avoid linter issues
 interface OcrResult {
@@ -247,169 +249,185 @@ export default function EditorPage() {
   }
 
   return (
-    <div className="container mx-auto py-6 max-w-7xl">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/maps")}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <h1 className="text-2xl font-bold">{map?.title || "Concept Map"}</h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={handleToggleFavorite}>
-            {isFavorite ? (
-              <Star className="h-5 w-5 text-yellow-500 fill-yellow-500" />
-            ) : (
-              <StarOff className="h-5 w-5" />
-            )}
-          </Button>
-          <Button variant="outline" size="icon" onClick={handleShare}>
-            <Share2 className="h-5 w-5" />
-          </Button>
-          {isEditing && currentMapType === "drawing" && (
-            <Button 
-              variant="outline" 
-              size="icon" 
-              title="Digitize drawing with OCR"
-              onClick={() => setShowDigitizeDialog(true)}
-            >
-              <Wand2 className="h-5 w-5" />
-            </Button>
-          )}
-        </div>
-      </div>
-
-      <Tabs defaultValue="result" className="mb-6">
-        <TabsList className="mb-4">
-          <TabsTrigger value="result">Result</TabsTrigger>
-          <TabsTrigger value="input">Input</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="result">
-          {/* Concept Map Viewer */}
-          <Card className="p-6 overflow-auto bg-white">
-            {!isEditing ? (
-              <>
-                {map?.svgContent ? (
-                  <ConceptMapViewer 
-                    svgContent={map.svgContent} 
-                    onSave={handleSave}
-                  />
-                ) : (
-                  <div className="flex items-center justify-center h-[600px] text-muted-foreground">
-                    No preview available
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="border rounded-lg overflow-hidden bg-white">
-                <TLDrawEditor 
-                  className="h-[600px]" 
-                  onSave={handleSave}
-                  enableOcr={showDigitizeDialog}
-                  onOcrProcessed={async (result: OcrResult) => {
-                    setShowDigitizeDialog(false);
-                    
-                    try {
-                      // Save the digitized version
-                      if (result && result.image) {
-                        // Update the map with the digitized SVG
-                        const mapId = map?.id ? Number(map.id) : 0;
-                        
-                        // Ensure we have valid arrays
-                        const conceptNodes = Array.isArray(result.concepts) ? result.concepts : [];
-                        const relationshipEdges = Array.isArray(result.relationships) ? result.relationships : [];
-                        
-                        let updatedMap;
-                        
-                        // Check if the API method exists
-                        if (typeof updateMap === 'function') {
-                          console.log('Using API updateMap method for digitized map');
-                          updatedMap = await updateMap(mapId, {
-                            name: map?.title || '',
-                            image: result.image,
-                            format: 'svg',
-                            nodes: conceptNodes,
-                            edges: relationshipEdges
-                          });
-                        } else {
-                          // Fallback implementation using fetch directly
-                          console.log('API updateMap not found, using fallback for digitized map');
-                          const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001";
-                          
-                          const response = await fetch(`${API_URL}/api/concept-maps/${mapId}`, {
-                            method: "PUT",
-                            credentials: "include",
-                            headers: {
-                              "Content-Type": "application/json",
-                            },
-                            body: JSON.stringify({
-                              name: map?.title || '',
-                              image: result.image,
-                              format: 'svg',
-                              nodes: conceptNodes,
-                              edges: relationshipEdges
-                            }),
-                          });
-
-                          if (!response.ok) {
-                            throw new Error(`Failed to update concept map with id ${mapId}`);
-                          }
-
-                          // Parse the response
-                          const responseData = await response.json();
-                          
-                          // Create a minimal updated map
-                          updatedMap = {
-                            id: mapId,
-                            title: map?.title || '',
-                            description: '',
-                            createdAt: new Date().toISOString(),
-                            lastEdited: new Date().toISOString(),
-                            nodes: conceptNodes.length,
-                            svgContent: result.image
-                          };
-                        }
-                        
-                        if (updatedMap) {
-                          setMap(updatedMap);
-                          setIsEditing(false);
-                          setCurrentMapType("mindmap");
-                          toast.success("Drawing successfully digitized!");
-                        }
-                      }
-                    } catch (error) {
-                      console.error("Error saving digitized map:", error);
-                      toast.error("Failed to save digitized map");
-                    }
-                  }}
-                />
-              </div>
-            )}
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="input">
-          {/* Original Input */}
-          <Card className="p-6 bg-white">
-            <h3 className="text-lg font-medium mb-2">Original Input</h3>
-            <Separator className="mb-4" />
-            <div className="whitespace-pre-wrap bg-gray-50 p-4 rounded-md border">
-              {inputText || "No input text available for this concept map."}
+    <SidebarProvider>
+      <div className="flex h-screen w-full">
+        <AppSidebar />
+        <main className="flex-1 flex flex-col w-full overflow-hidden bg-background">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+            <div className="flex items-center gap-2">
+              <SidebarTrigger />
+              <span className="text-sm font-medium">{map?.title || "Concept Map"}</span>
             </div>
-          </Card>
-        </TabsContent>
-      </Tabs>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="container mx-auto max-w-7xl">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="icon" onClick={() => navigate("/maps")}>
+                    <ArrowLeft className="h-5 w-5" />
+                  </Button>
+                  <h1 className="text-2xl font-bold">{map?.title || "Concept Map"}</h1>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="icon" onClick={handleToggleFavorite}>
+                    {isFavorite ? (
+                      <Star className="h-5 w-5 text-yellow-500 fill-yellow-500" />
+                    ) : (
+                      <StarOff className="h-5 w-5" />
+                    )}
+                  </Button>
+                  <Button variant="outline" size="icon" onClick={handleShare}>
+                    <Share2 className="h-5 w-5" />
+                  </Button>
+                  {isEditing && currentMapType === "drawing" && (
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      title="Digitize drawing with OCR"
+                      onClick={() => setShowDigitizeDialog(true)}
+                    >
+                      <Wand2 className="h-5 w-5" />
+                    </Button>
+                  )}
+                </div>
+              </div>
 
-      {/* Actions */}
-      <div className="mt-4 flex justify-end">
-        {isEditing && (
-          <Button variant="outline" onClick={() => setIsEditing(false)}>
-            Cancel
-          </Button>
-        )}
+              <Tabs defaultValue="result" className="mb-6">
+                <TabsList className="mb-4">
+                  <TabsTrigger value="result">Result</TabsTrigger>
+                  <TabsTrigger value="input">Input</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="result">
+                  {/* Concept Map Viewer */}
+                  <Card className="p-6 overflow-auto bg-white">
+                    {!isEditing ? (
+                      <>
+                        {map?.svgContent ? (
+                          <ConceptMapViewer 
+                            svgContent={map.svgContent} 
+                            onSave={handleSave}
+                          />
+                        ) : (
+                          <div className="flex items-center justify-center h-[600px] text-muted-foreground">
+                            No preview available
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="border rounded-lg overflow-hidden bg-white">
+                        <TLDrawEditor 
+                          className="h-[600px]" 
+                          onSave={handleSave}
+                          enableOcr={showDigitizeDialog}
+                          onOcrProcessed={async (result: OcrResult) => {
+                            setShowDigitizeDialog(false);
+                            
+                            try {
+                              // Save the digitized version
+                              if (result && result.image) {
+                                // Update the map with the digitized SVG
+                                const mapId = map?.id ? Number(map.id) : 0;
+                                
+                                // Ensure we have valid arrays
+                                const conceptNodes = Array.isArray(result.concepts) ? result.concepts : [];
+                                const relationshipEdges = Array.isArray(result.relationships) ? result.relationships : [];
+                                
+                                let updatedMap;
+                                
+                                // Check if the API method exists
+                                if (typeof updateMap === 'function') {
+                                  console.log('Using API updateMap method for digitized map');
+                                  updatedMap = await updateMap(mapId, {
+                                    name: map?.title || '',
+                                    image: result.image,
+                                    format: 'svg',
+                                    nodes: conceptNodes,
+                                    edges: relationshipEdges
+                                  });
+                                } else {
+                                  // Fallback implementation using fetch directly
+                                  console.log('API updateMap not found, using fallback for digitized map');
+                                  const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001";
+                                  
+                                  const response = await fetch(`${API_URL}/api/concept-maps/${mapId}`, {
+                                    method: "PUT",
+                                    credentials: "include",
+                                    headers: {
+                                      "Content-Type": "application/json",
+                                    },
+                                    body: JSON.stringify({
+                                      name: map?.title || '',
+                                      image: result.image,
+                                      format: 'svg',
+                                      nodes: conceptNodes,
+                                      edges: relationshipEdges
+                                    }),
+                                  });
+
+                                  if (!response.ok) {
+                                    throw new Error(`Failed to update concept map with id ${mapId}`);
+                                  }
+
+                                  // Parse the response
+                                  const responseData = await response.json();
+                                  
+                                  // Create a minimal updated map
+                                  updatedMap = {
+                                    id: mapId,
+                                    title: map?.title || '',
+                                    description: '',
+                                    createdAt: new Date().toISOString(),
+                                    lastEdited: new Date().toISOString(),
+                                    nodes: conceptNodes.length,
+                                    svgContent: result.image
+                                  };
+                                }
+                                
+                                if (updatedMap) {
+                                  setMap(updatedMap);
+                                  setIsEditing(false);
+                                  setCurrentMapType("mindmap");
+                                  toast.success("Drawing successfully digitized!");
+                                }
+                              }
+                            } catch (error) {
+                              console.error("Error saving digitized map:", error);
+                              toast.error("Failed to save digitized map");
+                            }
+                          }}
+                        />
+                      </div>
+                    )}
+                  </Card>
+                </TabsContent>
+                
+                <TabsContent value="input">
+                  {/* Original Input */}
+                  <Card className="p-6 bg-white">
+                    <h3 className="text-lg font-medium mb-2">Original Input</h3>
+                    <Separator className="mb-4" />
+                    <div className="whitespace-pre-wrap bg-gray-50 p-4 rounded-md border">
+                      {inputText || "No input text available for this concept map."}
+                    </div>
+                  </Card>
+                </TabsContent>
+              </Tabs>
+
+              {/* Actions */}
+              <div className="mt-4 flex justify-end">
+                {isEditing && (
+                  <Button variant="outline" onClick={() => setIsEditing(false)}>
+                    Cancel
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        </main>
       </div>
-    </div>
+    </SidebarProvider>
   );
 }
