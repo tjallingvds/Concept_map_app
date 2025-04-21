@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from './ui/button';
 import { TLDrawEditor } from './tldraw-editor';
 import { FabricEditor } from './fabric-editor/fabric-editor';
@@ -11,7 +11,8 @@ import {
   Edit, 
   Move, 
   X, 
-  PanelTop
+  PanelTop,
+  Save
 } from 'lucide-react';
 import {
   Popover,
@@ -30,6 +31,15 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { toast } from 'sonner';
 import { ConceptMapImage } from './concept-map-image';
+
+// Add debounce utility
+const debounce = (func: Function, wait: number) => {
+  let timeout: NodeJS.Timeout | undefined;
+  return function(...args: any[]) {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
+};
 
 interface ConceptMapViewerProps {
   svgContent: string;
@@ -66,6 +76,9 @@ export function ConceptMapViewer({ svgContent, onSave }: ConceptMapViewerProps) 
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [exportFormat, setExportFormat] = useState<string | null>(null);
   
+  // Track if there are unsaved changes
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  
   const handleSvgLoaded = (element: SVGSVGElement) => {
     setSvgElement(element);
     // Initialize event listeners for the SVG elements if needed
@@ -73,28 +86,35 @@ export function ConceptMapViewer({ svgContent, onSave }: ConceptMapViewerProps) 
   };
   
   const initializeSvgInteractions = (svg: SVGSVGElement) => {
-    // Find nodes and edges in the SVG
+    // Find nodes and edges in the SVG with more flexible selectors
     const nodes = svg.querySelectorAll('.node, .concept, circle, ellipse, rect:not([width="100%"])');
     const edges = svg.querySelectorAll('.edge, path, line');
     
     // Add event listeners to nodes
     nodes.forEach(node => {
-      // Clean up any existing listeners first
-      node.removeEventListener('click', nodeClickHandler);
-      node.removeEventListener('dblclick', nodeDoubleClickHandler);
+      // Clean up any existing listeners first (important to prevent duplicates)
+      node.removeEventListener('click', nodeClickHandler as EventListener);
+      node.removeEventListener('dblclick', nodeDoubleClickHandler as EventListener);
       
       // Add new listeners
-      node.addEventListener('click', nodeClickHandler);
-      node.addEventListener('dblclick', nodeDoubleClickHandler);
+      node.addEventListener('click', nodeClickHandler as EventListener);
+      node.addEventListener('dblclick', nodeDoubleClickHandler as EventListener);
+      
+      // Add visual styling to indicate interactivity
+      node.setAttribute('data-interactive', 'true');
+      node.setAttribute('style', `${node.getAttribute('style') || ''}; cursor: pointer;`);
     });
     
     // Add event listeners to edges
     edges.forEach(edge => {
-      edge.removeEventListener('mouseenter', edgeMouseEnterHandler);
-      edge.removeEventListener('mouseleave', edgeMouseLeaveHandler);
+      edge.removeEventListener('mouseenter', edgeMouseEnterHandler as EventListener);
+      edge.removeEventListener('mouseleave', edgeMouseLeaveHandler as EventListener);
       
-      edge.addEventListener('mouseenter', edgeMouseEnterHandler);
-      edge.addEventListener('mouseleave', edgeMouseLeaveHandler);
+      edge.addEventListener('mouseenter', edgeMouseEnterHandler as EventListener);
+      edge.addEventListener('mouseleave', edgeMouseLeaveHandler as EventListener);
+      
+      // Add visual styling to indicate interactivity
+      edge.setAttribute('data-interactive', 'true');
     });
   };
   
@@ -117,6 +137,11 @@ export function ConceptMapViewer({ svgContent, onSave }: ConceptMapViewerProps) 
   
   const edgeMouseLeaveHandler = () => {
     setHoveredEdge(null);
+    
+    // When leaving an interactive element, check if we need to save
+    if (hasUnsavedChanges && onSave) {
+      debouncedSave();
+    }
   };
 
   const handleSave = (newSvgContent: string) => {
@@ -262,21 +287,138 @@ export function ConceptMapViewer({ svgContent, onSave }: ConceptMapViewerProps) 
     }
   };
   
+  // Function to save the current SVG content
+  const saveCurrentSvgContent = useCallback(async () => {
+    if (!svgRef.current || !onSave) return;
+    
+    try {
+      // Get the SVG element
+      const svgElement = svgRef.current.querySelector('svg');
+      if (!svgElement) {
+        return;
+      }
+      
+      try {
+        // Serialize the SVG element to a string
+        const updatedSvgContent = new XMLSerializer().serializeToString(svgElement);
+        
+        // Make sure the SVG has proper namespace declarations for browser compatibility
+        const enhancedSvg = updatedSvgContent.includes('xmlns=') 
+          ? updatedSvgContent 
+          : updatedSvgContent.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+        
+        // Convert to data URL with proper encoding
+        const dataUrl = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(enhancedSvg)))}`;
+        
+        // Save a backup in localStorage
+        try {
+          const backupKey = 'concept-map-annotation-backup';
+          localStorage.setItem(backupKey, dataUrl);
+        } catch (storageError) {
+          // Silent catch - no need to notify on storage failure
+        }
+        
+        // Call the save function
+        await onSave(dataUrl);
+        
+        // Reset the unsaved changes flag
+        setHasUnsavedChanges(false);
+        
+        return true;
+      } catch (error) {
+        // Try a different approach - using innerHTML if XMLSerializer fails
+        try {
+          const html = svgRef.current.innerHTML;
+          if (html && html.includes('<svg')) {
+            // Extract just the SVG part
+            const svgMatch = html.match(/<svg[^>]*>[\s\S]*?<\/svg>/i);
+            if (svgMatch) {
+              const svgString = svgMatch[0];
+              // Ensure namespace is properly set
+              const enhancedSvg = svgString.includes('xmlns=') 
+                ? svgString 
+                : svgString.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+              
+              const dataUrl = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(enhancedSvg)))}`;
+              await onSave(dataUrl);
+              setHasUnsavedChanges(false);
+              return true;
+            }
+          }
+          throw new Error("Could not extract SVG using fallback method");
+        } catch (fallbackError) {
+          return false;
+        }
+      }
+    } catch (error) {
+      // Show a subtle notification to the user
+      toast.error("Failed to auto-save annotations. Please use the Save button.");
+      return false;
+    }
+  }, [onSave]);
+  
+  // Add a function to attempt to recover previous annotations if save failed
+  const recoverSavedAnnotations = useCallback(() => {
+    try {
+      const backupKey = 'concept-map-annotation-backup';
+      const backup = localStorage.getItem(backupKey);
+      if (backup && backup.startsWith('data:image/svg+xml;base64,')) {
+        // Show a recovery notification
+        toast.info("Found previously unsaved annotations. Click 'Save Annotations' to recover them.", {
+          duration: 5000,
+          action: {
+            label: 'Recover',
+            onClick: () => {
+              if (onSave) {
+                onSave(backup);
+                localStorage.removeItem(backupKey);
+                toast.success("Annotations recovered and saved");
+              }
+            }
+          }
+        });
+      }
+    } catch (error) {
+      console.error("Error checking for annotation backups:", error);
+    }
+  }, [onSave]);
+  
+  // Check for unsaved annotations on component mount
+  useEffect(() => {
+    recoverSavedAnnotations();
+  }, [recoverSavedAnnotations]);
+  
+  // Debounced version of the save function to avoid too many API calls
+  const debouncedSave = useCallback(debounce(() => {
+    saveCurrentSvgContent().then(success => {
+      if (!success) {
+        // If auto-save fails, make sure the save button is visible
+        setHasUnsavedChanges(true);
+      }
+    });
+  }, 2000), [saveCurrentSvgContent]);
+  
   const handleEditSave = () => {
     if (activeNode && svgRef.current && nodeEditText.trim()) {
       const node = svgRef.current.querySelector(`#${activeNode}`);
       const textElement = node?.querySelector('text');
       
       if (textElement) {
+        // Store the original text for comparison
+        const originalText = textElement.textContent;
+        
+        // Update the text content with the edited value
         textElement.textContent = nodeEditText;
         
-        // Update the SVG content that would be saved
-        if (onSave && svgRef.current.innerHTML) {
-          const updatedSvgContent = svgRef.current.innerHTML;
-          // Note: In a real implementation, we'd need a better way to maintain the full SVG structure
+        // Only mark as having unsaved changes if the text actually changed
+        if (originalText !== nodeEditText) {
+          setHasUnsavedChanges(true);
+          
+          // Trigger the debounced save if auto-save is enabled
+          debouncedSave();
         }
         
-        toast.success('Node updated');
+        toast.success('Node text updated');
       }
     }
     
@@ -761,6 +903,23 @@ export function ConceptMapViewer({ svgContent, onSave }: ConceptMapViewerProps) 
     </div>
   );
 
+  // Add a save button component at the bottom
+  const SaveButton = () => {
+    if (!onSave) return null;
+    
+    return (
+      <Button 
+        variant="default"
+        className="fixed bottom-4 right-4 z-10 shadow-md flex items-center gap-2"
+        onClick={saveCurrentSvgContent}
+        disabled={!hasUnsavedChanges}
+      >
+        <Save className="h-4 w-4" />
+        Save Annotations
+      </Button>
+    );
+  };
+
   if (isBase64Image || isSvgContent) {
     return (
       <div className="w-full h-[600px] overflow-hidden p-4 flex flex-col relative">
@@ -789,6 +948,7 @@ export function ConceptMapViewer({ svgContent, onSave }: ConceptMapViewerProps) 
           />
         </div>
         {editingOverlay}
+        {hasUnsavedChanges && <SaveButton />}
       </div>
     );
   } else {
@@ -796,6 +956,8 @@ export function ConceptMapViewer({ svgContent, onSave }: ConceptMapViewerProps) 
     return (
       <div className="w-full h-[600px] overflow-auto p-4 flex items-center justify-center text-muted-foreground">
         <p>Unable to display content. Unsupported format.</p>
+        {/* Still show the save button if we have unsaved changes */}
+        {hasUnsavedChanges && <SaveButton />}
       </div>
     );
   }

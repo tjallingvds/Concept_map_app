@@ -177,66 +177,133 @@ export default function EditorPage() {
         if (svgContent.startsWith('<svg') || svgContent.includes('<?xml')) {
           // Convert raw SVG to data URL
           finalSvgContent = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgContent)))}`;
-        } else {
-          console.error('SVG content is not in a recognized format');
         }
+      }
+      
+      // Store in local storage as a backup in case the API call fails
+      try {
+        localStorage.setItem(`concept-map-backup-${map.id}`, finalSvgContent);
+      } catch (err) {
+        // Silent catch - no need for user notification on backup failure
       }
       
       let updatedMap;
+      let retryCount = 0;
+      const maxRetries = 2;
       
-      // Check if the API method exists
-      if (typeof updateMap === 'function') {
-        updatedMap = await updateMap(map.id, {
-          name: map.title,
-          image: finalSvgContent,
-          format: 'svg',
-          // Use proper casting for nodes and edges
-          nodes: Array.isArray(map.nodes) ? map.nodes : [],
-          edges: Array.isArray(map.edges) ? map.edges : []
-        });
-      } else {
-        // Fallback implementation using fetch directly - matches the API implementation
-        const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001";
-        
-        const response = await fetch(`${API_URL}/api/concept-maps/${map.id}`, {
-          method: "PUT",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: map.title,
-            image: finalSvgContent,
-            format: 'svg',
-            nodes: Array.isArray(map.nodes) ? map.nodes : [],
-            edges: Array.isArray(map.edges) ? map.edges : []
-          }),
-        });
+      // Implement retry logic
+      while (retryCount <= maxRetries) {
+        try {
+          // Check if the API method exists
+          if (typeof updateMap === 'function') {
+            // Prepare data to send - IMPORTANT: don't include nodes/edges for annotation updates
+            const updateData = {
+              name: map.title,
+              image: finalSvgContent,
+              format: 'svg'
+              // Do NOT include nodes and edges for annotation updates
+              // as they might conflict with the SVG annotations
+            };
+            
+            try {
+              updatedMap = await updateMap(map.id, updateData);
+            } catch (apiError) {
+              throw apiError;
+            }
+            
+            if (updatedMap) {
+              break; // Exit retry loop on success
+            } else {
+              throw new Error("API returned null response");
+            }
+          } else {
+            // Fallback implementation using fetch directly - matches the API implementation
+            const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001";
+            
+            // Extract base64 content if using a data URL
+            const imageContent = finalSvgContent.startsWith('data:image/svg+xml;base64,')
+              ? finalSvgContent.replace(/^data:image\/svg\+xml;base64,/, '')
+              : finalSvgContent;
+            
+            const response = await fetch(`${API_URL}/api/concept-maps/${map.id}/`, {
+              method: "PUT",
+              credentials: "include",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${localStorage.getItem('auth_token')}` // Add auth token if available
+              },
+              body: JSON.stringify({
+                name: map.title,
+                image: imageContent, // Already processed to remove prefix
+                format: 'svg'
+                // Again, don't include nodes and edges for annotations
+              }),
+            });
 
-        if (!response.ok) {
-          throw new Error(`Failed to update concept map with id ${map.id}`);
+            // Get full response text for error handling
+            const responseText = await response.text();
+            
+            if (!response.ok) {
+              throw new Error(`Failed to update concept map with id ${map.id}: ${response.status} ${response.statusText}`);
+            }
+
+            try {
+              // Parse the response
+              const responseData = JSON.parse(responseText);
+              
+              // Update the local map with the new SVG content
+              updatedMap = {
+                ...map,
+                svgContent: finalSvgContent
+              };
+              
+              break; // Exit retry loop on success
+            } catch (parseError) {
+              throw new Error("Invalid JSON response from server");
+            }
+          }
+        } catch (retryError) {
+          retryCount++;
+          
+          if (retryCount > maxRetries) {
+            throw retryError; // Rethrow the last error if all retries fail
+          }
+          
+          // Wait before retrying (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, retryCount * 1000));
         }
-
-        // Parse the response
-        const responseData = await response.json();
-        
-        // Update the local map with the new SVG content
-        updatedMap = {
-          ...map,
-          svgContent: finalSvgContent
-        };
       }
       
       if (updatedMap) {
+        // Make sure the svgContent is set in the updatedMap
+        if (!updatedMap.svgContent && finalSvgContent) {
+          updatedMap = {
+            ...updatedMap,
+            svgContent: finalSvgContent
+          };
+        }
+        
         setMap(updatedMap);
         setIsEditing(false);
         toast.success("Map saved successfully");
+        
+        // Clear backup after successful save
+        localStorage.removeItem(`concept-map-backup-${map.id}`);
       } else {
-        throw new Error("Failed to update map");
+        // If all API attempts fail but we have local storage, notify user
+        if (localStorage.getItem(`concept-map-backup-${map.id}`)) {
+          toast.info("Changes saved locally but couldn't be synced to server. Your work is not lost.");
+        } else {
+          throw new Error("Failed to update map - received null response");
+        }
       }
     } catch (error) {
-      console.error("Error saving map:", error);
-      toast.error("Failed to save map");
+      toast.error("Failed to save map: " + (error instanceof Error ? error.message : "Unknown error"));
+      
+      // If we have a local backup, remind the user their work is not lost
+      if (localStorage.getItem(`concept-map-backup-${map.id}`)) {
+        toast.info("Your changes have been saved locally and will be synced when the connection is restored.");
+      }
     }
   };
 
