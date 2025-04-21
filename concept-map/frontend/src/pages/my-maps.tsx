@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom"
 import { SidebarProvider, SidebarTrigger } from "../components/ui/sidebar"
 import { AppSidebar } from "../components/app-sidebar"
 import { FileSystem, MapItem, FileSearchBar } from "../components/file-system"
-import { Plus } from "lucide-react"
+import { Plus, Check } from "lucide-react"
 import { Button } from "../components/ui/button"
 import { useAuth } from "../contexts/auth-context"
 import { CreateMapDialog } from "../components/create-map-dialog"
@@ -21,7 +21,23 @@ export default function MyMapsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
-  const [sortMode, setSortMode] = useState<"az" | "za">("az") 
+  // Update the initial state to read from localStorage
+  const [sortMode, setSortMode] = useState<"az" | "za" | "newest" | "oldest">(
+    () => (localStorage.getItem("conceptMapSortMode") as "az" | "za" | "newest" | "oldest") || "az"
+  )
+
+  // Add effect to save sort preference
+  useEffect(() => {
+    localStorage.setItem("conceptMapSortMode", sortMode)
+  }, [sortMode])
+
+  // Remove these duplicate declarations
+  // const navigate = useNavigate()
+  // const [myMaps, setMyMaps] = useState<MapItem[]>([])
+  // const [loading, setLoading] = useState(true)
+  // const [error, setError] = useState<string | null>(null)
+  // const [searchQuery, setSearchQuery] = useState("")
+  // const [sortMode, setSortMode] = useState<"az" | "za" | "newest" | "oldest">("az") 
 
   // Fetch user's maps on component mount
   useEffect(() => {
@@ -157,11 +173,21 @@ export default function MyMapsPage() {
                 <Button size="sm" variant="outline" className="ml-2">Sort</Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
-                <DropdownMenuItem onClick={() => setSortMode("az")}>
+                <DropdownMenuItem onClick={() => setSortMode("az")} className="flex items-center justify-between">
                   A–Z (Title)
+                  {sortMode === "az" && <Check className="h-4 w-4 ml-2" />}
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSortMode("za")}>
-                  Z-A(Title)
+                <DropdownMenuItem onClick={() => setSortMode("za")} className="flex items-center justify-between">
+                  Z-A (Title)
+                  {sortMode === "za" && <Check className="h-4 w-4 ml-2" />}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setSortMode("newest")} className="flex items-center justify-between">
+                  Newest First
+                  {sortMode === "newest" && <Check className="h-4 w-4 ml-2" />}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setSortMode("oldest")} className="flex items-center justify-between">
+                  Oldest First
+                  {sortMode === "oldest" && <Check className="h-4 w-4 ml-2" />}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -205,8 +231,12 @@ export default function MyMapsPage() {
                         return a.title.localeCompare(b.title)
                       } else if (sortMode === "za") {
                         return b.title.localeCompare(a.title)
+                      } else if (sortMode === "newest") {
+                        return new Date(b.lastEdited).getTime() - new Date(a.lastEdited).getTime()
+                      } else if (sortMode === "oldest") {
+                        return new Date(a.lastEdited).getTime() - new Date(b.lastEdited).getTime()
                       } else {
-                        return 0 // default sort (no sorting applied)
+                        return 0
                       }
                     })
                 }
