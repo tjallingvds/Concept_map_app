@@ -40,6 +40,7 @@ import { Separator } from "./ui/separator"
 import { toast } from "sonner"
 
 import { TLDrawEditor } from "./tldraw-editor"
+import { WhiteboardEditor } from "./whiteboard-editor"
 import {useConceptMapsApi} from "../services/concept_map_api.ts";
 
 // Form schema validation
@@ -47,9 +48,9 @@ const formSchema = z.object({
     title: z.string().min(1, "Title is required").max(100, "Title must be less than 100 characters"),
     learningObjective: z.string().min(1, "Learning objective is required").max(200, "Learning objective must be less than 200 characters"),
     description: z.string().max(500, "Description must be less than 500 characters").optional(),
-    mapType: z.enum(["mindmap", "wordcloud", "bubblechart"]).default("mindmap"),
+    mapType: z.enum(["mindmap", "wordcloud", "bubblechart", "handdrawn"]).default("mindmap"),
     isPublic: z.boolean().default(false),
-    contentSource: z.enum(["empty", "file", "text", "drawing"]).default("empty"),
+    contentSource: z.enum(["digitize", "whiteboard", "file", "text"]).default("file"),
     fileUpload: z.any().optional(),
     textContent: z.string().max(1000000, "Text content must be less than 1,000,000 characters").optional(),
     tldrawContent: z.string().optional(),
@@ -57,6 +58,7 @@ const formSchema = z.object({
     svgContent: z.string().optional(),
     conceptData: z.any().optional(),
     hasTLDrawContent: z.boolean().default(false),
+    whiteboardContent: z.any().optional(),
 })
 
 export type CreateMapData = z.infer<typeof formSchema>
@@ -83,14 +85,31 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
             description: "",
             mapType: "mindmap",
             isPublic: false,
-            contentSource: "empty",
+            contentSource: "file",
             textContent: "",
             isDigitized: false,
-            hasTLDrawContent: false
+            hasTLDrawContent: false,
+            whiteboardContent: null
         },
     })
 
     const contentSource = form.watch("contentSource")
+    const mapType = form.watch("mapType")
+
+    // Update content source when map type changes
+    React.useEffect(() => {
+        if (mapType === "handdrawn") {
+            // For handdrawn maps, set content source to digitize or whiteboard
+            if (contentSource !== "digitize" && contentSource !== "whiteboard") {
+                form.setValue("contentSource", "digitize");
+            }
+        } else {
+            // For other map types, set content source to file or text
+            if (contentSource !== "file" && contentSource !== "text") {
+                form.setValue("contentSource", "file");
+            }
+        }
+    }, [mapType, contentSource, form]);
 
     // Monitor contentSource changes for debugging
     React.useEffect(() => {
@@ -139,39 +158,7 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
         setSelectedFile(null);
         // Clear the extracted text when removing a file
         form.setValue("textContent", "");
-        if (contentSource === "file") {
-            form.setValue("contentSource", "empty");
-        }
     }
-
-    // Function to download image (supports both SVG and PNG formats)
-    const downloadImage = (imageContent: string, fileName: string) => {
-        // Check if the content is a data URL
-        if (imageContent.startsWith('data:')) {
-            // Extract the MIME type from the data URL
-            const mimeType = imageContent.split(';')[0].split(':')[1];
-            const fileExtension = mimeType === 'image/svg+xml' ? 'svg' : 'png';
-
-            // For data URLs, we can use them directly
-            const link = document.createElement('a');
-            link.href = imageContent;
-            link.download = `${fileName}.${fileExtension}`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        } else {
-            // If it's not a data URL, assume it's SVG content
-            const blob = new Blob([imageContent], { type: 'image/svg+xml' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `${fileName}.svg`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-        }
-    };
 
     // Form submit handler
     const onSubmit = async (data: CreateMapData) => {
@@ -189,18 +176,12 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
                 isDigitized: data.isDigitized,
                 hasTLDrawContent: !!data.tldrawContent || !!data.svgContent,
                 hasSVGContent: !!data.svgContent,
+                hasWhiteboardContent: !!data.whiteboardContent,
                 textLength: data.textContent?.length || 0
             });
 
-            // Safety check: If we have a drawing but contentSource is empty, fix it
-            if (data.contentSource === "empty" && (data.svgContent || data.hasTLDrawContent)) {
-                console.log("Correcting contentSource from empty to drawing");
-                data.contentSource = "drawing";
-            }
-
-            // If this is a digitized drawing with structured concept data,
-            // use that directly instead of trying to process the text
-            if (data.isDigitized && data.conceptData) {
+            // Handle digitized drawing content
+            if (data.contentSource === "digitize" && data.isDigitized && data.conceptData) {
                 console.log("Using structured concept data from OCR for digitized drawing");
 
                 // Create map with the structured concept data
@@ -243,55 +224,65 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
                 return; // Exit early since we've handled the digitized map case
             }
 
-            let textContent = "";
+            // Handle whiteboard content
+            if (data.contentSource === "whiteboard" && data.whiteboardContent) {
+                console.log("Creating whiteboard with content");
+                
+                // Create map with whiteboard content and explicitly set format to handdrawn
+                const newMap = await createMap({
+                    title: data.title || "Whiteboard",
+                    description: data.description || "",
+                    learningObjective: data.learningObjective,
+                    isPublic: data.isPublic,
+                    mapType: "handdrawn",  // Use mapType handdrawn to identify this as a whiteboard
+                    // Store whiteboard content as tldrawContent since that's what's used in the backend
+                    tldrawContent: data.whiteboardContent,
+                    // Force the format field to be handdrawn
+                    format: "handdrawn"
+                });
 
-            // Validate content based on source
-            if (data.contentSource === "empty") {
-                // Check if we have any drawing content
-                if (!data.tldrawContent && !data.svgContent) {
-                    throw new Error("Please draw something on the canvas before creating the map");
+                if (!newMap) {
+                    throw new Error("Failed to create whiteboard");
                 }
 
-                // If we have drawing content that has been digitized, use that content
-                if (data.isDigitized && data.textContent) {
-                    textContent = data.textContent;
-                    console.log("Using digitized content text:", textContent.substring(0, 50));
-                }
-            } else if (data.contentSource === "drawing") {
-                // This is content from the drawing tab
-                if (!data.svgContent) {
-                    throw new Error("Please draw something on the canvas before creating the map");
+                // Handle success
+                toast.success("Whiteboard created successfully!");
+
+                // Close the dialog
+                setOpen(false);
+
+                // Handle map created callback or navigation
+                if (onMapCreated && newMap.id) {
+                    onMapCreated(newMap.id);
+                } else if (newMap.id) {
+                    // Navigate to the whiteboard editor
+                    navigate(`/whiteboard-editor/${newMap.id}`);
                 }
 
-                // If we have drawing content that has been digitized, use that content
-                if (data.isDigitized && data.textContent) {
-                    textContent = data.textContent;
-                    console.log("Using digitized content text:", textContent.substring(0, 50));
-                }
-            } else if (data.contentSource === "file") {
-                if (!data.textContent) {
-                    throw new Error("Please process a file before creating the map");
-                }
-                textContent = data.textContent;
-            } else if (data.contentSource === "text") {
-                if (!data.textContent) {
-                    throw new Error("Please enter some text before creating the map");
-                }
-                textContent = data.textContent;
+                return;
             }
 
-            // For digitized drawings, set the map type to "mindmap" to avoid text generation
-            if (data.isDigitized) {
-                console.log("Map is digitized, ensuring map type is set to mindmap");
-                data.mapType = "mindmap"; // Ensure mapType is explicitly set to mindmap
+            let textContent = "";
+
+            // Validate content based on source for non-handdrawn maps
+            if (data.mapType !== "handdrawn") {
+                if (data.contentSource === "file") {
+                    if (!data.textContent) {
+                        throw new Error("Please process a file before creating the map");
+                    }
+                    textContent = data.textContent;
+                } else if (data.contentSource === "text") {
+                    if (!data.textContent) {
+                        throw new Error("Please enter some text before creating the map");
+                    }
+                    textContent = data.textContent;
+                }
             }
 
             console.log("Creating map with:", {
                 title: data.title,
                 mapType: data.mapType,
                 isDigitized: data.isDigitized,
-                hasTLDrawContent: !!data.tldrawContent || !!data.svgContent,
-                hasSVGContent: !!data.svgContent,
                 textLength: textContent.length
             });
 
@@ -317,65 +308,6 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
                 throw new Error("Failed to create map");
             }
 
-            // Handle SVG content if available
-            if (newMap.svgContent) {
-                console.log('Received image content:', newMap.svgContent.substring(0, 50) + '...');
-
-                // Download the image
-                downloadImage(newMap.svgContent, data.title);
-
-                // Open in new window if requested
-                const newWindow = window.open();
-                if (newWindow && newMap.svgContent) {
-                    // Check if the content is SVG
-                    const isSvg = newMap.svgContent.includes('image/svg+xml');
-
-                    // Set the content type
-                    newWindow.document.write(`
-            <!DOCTYPE html>
-            <html>
-              <head>
-                <title>${data.title} - Concept Map</title>
-                <style>
-                  body {
-                    margin: 0;
-                    padding: 0;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    min-height: 100vh;
-                    background-color: #f8f9fa;
-                  }
-                  img {
-                    max-width: 90%;
-                    max-height: 90vh;
-                    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-                  }
-                </style>
-              </head>
-              <body>
-          `);
-
-                    // Add either SVG or image content
-                    if (isSvg) {
-                        const svgContent = atob(newMap.svgContent.split(',')[1]);
-                        newWindow.document.write(`
-              ${svgContent}
-            `);
-                    } else {
-                        newWindow.document.write(`
-              <img src="${newMap.svgContent}" alt="${data.title}" />
-            `);
-                    }
-
-                    newWindow.document.write(`
-              </body>
-            </html>
-          `);
-                    newWindow.document.close();
-                }
-            }
-
             // Map creation successful
             toast.success("Concept map created successfully!");
 
@@ -386,7 +318,7 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
                 description: "",
                 mapType: "mindmap",
                 isPublic: false,
-                contentSource: "empty",
+                contentSource: "file",
                 textContent: "",
             });
 
@@ -469,6 +401,7 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
                                                     <SelectItem value="mindmap">Mind Map</SelectItem>
                                                     <SelectItem value="wordcloud">Word Cloud</SelectItem>
                                                     <SelectItem value="bubblechart">Bubble Chart</SelectItem>
+                                                    <SelectItem value="handdrawn">Handdrawn</SelectItem>
                                                 </SelectContent>
                                             </Select>
                                             <FormDescription>
@@ -539,46 +472,31 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
                                 render={({ field }) => (
                                     <FormItem>
                                         <Tabs
-                                            defaultValue="empty"
-                                            value={field.value === "drawing" ? "empty" : field.value}
+                                            defaultValue="file"
+                                            value={field.value}
                                             onValueChange={(value) => {
-                                                // If changing from "drawing" content source to another tab,
-                                                // make sure we preserve the data but update the tab selection
-                                                if (field.value === "drawing" && value !== "empty") {
-                                                    // Save the current svgContent and drawing data
-                                                    const currentSvgContent = form.getValues("svgContent");
-                                                    const isDigitized = form.getValues("isDigitized");
-                                                    const conceptData = form.getValues("conceptData");
-
-                                                    // Change tab
-                                                    field.onChange(value);
-
-                                                    // But keep the drawing data
-                                                    if (currentSvgContent) {
-                                                        form.setValue("svgContent", currentSvgContent);
-                                                        form.setValue("hasTLDrawContent", true);
-                                                    }
-                                                    if (isDigitized) {
-                                                        form.setValue("isDigitized", isDigitized);
-                                                    }
-                                                    if (conceptData) {
-                                                        form.setValue("conceptData", conceptData);
-                                                    }
-                                                } else {
-                                                    // Normal tab change
-                                                    field.onChange(value);
-                                                }
+                                                // Update field value
+                                                field.onChange(value);
                                             }}
                                             className="w-full"
                                         >
-                                            <TabsList className="grid w-full grid-cols-3">
-                                                <TabsTrigger value="empty">Empty Canvas</TabsTrigger>
-                                                <TabsTrigger value="file">Upload File</TabsTrigger>
-                                                <TabsTrigger value="text">Text Input</TabsTrigger>
-                                            </TabsList>
-                                            <TabsContent value="empty" className="pt-4">
+                                            {/* Show different tabs based on mapType */}
+                                            {mapType === "handdrawn" ? (
+                                                <TabsList className="grid w-full grid-cols-2">
+                                                    <TabsTrigger value="digitize">Digitize Drawing</TabsTrigger>
+                                                    <TabsTrigger value="whiteboard">Whiteboard</TabsTrigger>
+                                                </TabsList>
+                                            ) : (
+                                                <TabsList className="grid w-full grid-cols-2">
+                                                    <TabsTrigger value="file">File</TabsTrigger>
+                                                    <TabsTrigger value="text">Text</TabsTrigger>
+                                                </TabsList>
+                                            )}
+                                            
+                                            {/* Digitize Drawing tab for handdrawn maps - replaces empty canvas */}
+                                            <TabsContent value="digitize" className="pt-4">
                                                 <div className="text-center py-2 text-muted-foreground">
-                                                    <p>Start with a blank canvas and build your concept map from scratch.</p>
+                                                    <p>Draw your concept map and digitize it using AI recognition.</p>
                                                 </div>
                                                 <div className="mt-4 border rounded-lg" style={{ height: '500px' }}>
                                                     <TLDrawEditor
@@ -589,17 +507,6 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
                                                             // Update form when drawing is saved
                                                             form.setValue("svgContent", svgContent);
                                                             form.setValue("hasTLDrawContent", true);
-                                                            // Change contentSource from "empty" to indicate we have content
-                                                            form.setValue("contentSource", "drawing", {
-                                                                shouldDirty: true,
-                                                                shouldTouch: true,
-                                                                shouldValidate: true
-                                                            });
-                                                            // Log the current form values after update
-                                                            console.log("Form values after save:", {
-                                                                contentSource: form.getValues("contentSource"),
-                                                                hasTLDrawContent: form.getValues("hasTLDrawContent")
-                                                            });
                                                         }}
                                                         onOcrProcessed={(result) => {
                                                             console.log("OCR processing result received:", result);
@@ -609,16 +516,9 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
                                                                 form.setValue("svgContent", result.image);
                                                             }
 
-                                                            // Set flags for digitized content - using full options to ensure values are registered
+                                                            // Set flags for digitized content
                                                             form.setValue("isDigitized", true, { shouldDirty: true, shouldTouch: true });
-                                                            form.setValue("mapType", "mindmap", { shouldDirty: true, shouldTouch: true });
                                                             form.setValue("hasTLDrawContent", true, { shouldDirty: true, shouldTouch: true });
-                                                            // Change contentSource from "empty" to indicate we have content
-                                                            form.setValue("contentSource", "drawing", {
-                                                                shouldDirty: true,
-                                                                shouldTouch: true,
-                                                                shouldValidate: true
-                                                            });
 
                                                             // Store the extracted concepts and relationships
                                                             if (result.concepts && result.concepts.length > 0) {
@@ -678,6 +578,25 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
                                                     />
                                                 </div>
                                             </TabsContent>
+                                            
+                                            {/* Whiteboard tab for handdrawn maps */}
+                                            <TabsContent value="whiteboard" className="pt-4">
+                                                <div className="text-center py-2 text-muted-foreground">
+                                                    <p>Create a hand-drawn whiteboard with freeform drawing tools.</p>
+                                                </div>
+                                                <div className="mt-4 border rounded-lg" style={{ height: '500px' }}>
+                                                    <WhiteboardEditor 
+                                                        whiteboardContent={form.watch("whiteboardContent")}
+                                                        onSave={(content) => {
+                                                            console.log("Whiteboard content saved");
+                                                            form.setValue("whiteboardContent", content);
+                                                            form.setValue("mapType", "handdrawn");
+                                                        }}
+                                                    />
+                                                </div>
+                                            </TabsContent>
+                                            
+                                            {/* Regular file upload tab for non-handdrawn maps */}
                                             <TabsContent value="file" className="pt-4">
                                                 <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
                                                     {selectedFile ? (
@@ -782,6 +701,8 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
                                                     </div>
                                                 )}
                                             </TabsContent>
+
+                                            {/* Text input tab for non-handdrawn maps */}
                                             <TabsContent value="text" className="pt-4">
                                                 <FormField
                                                     control={form.control}
@@ -845,30 +766,12 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
                                 type="button"
                                 className="px-8"
                                 disabled={isCreating}
-                                variant={form.watch("contentSource") === "file" && form.watch("textContent") ? "default" : "default"}
                                 onClick={() => {
-                                    // Ensure form data is up to date
-                                    const currentFormState = form.getValues();
-                                    console.log("Current form state before submit:", currentFormState);
-
-                                    // If we have drawing content but contentSource is still "empty", fix it
-                                    if (currentFormState.contentSource === "empty" &&
-                                        (currentFormState.svgContent || currentFormState.hasTLDrawContent)) {
-                                        console.log("Setting contentSource to drawing before submission");
-                                        form.setValue("contentSource", "drawing", {
-                                            shouldDirty: true, shouldTouch: true, shouldValidate: true
-                                        });
-                                    }
-
                                     // Submit the form
                                     form.handleSubmit(onSubmit)();
                                 }}
                             >
-                                {isCreating ? "Creating..." :
-                                    form.watch("contentSource") === "file" && form.watch("textContent")
-                                        ? "Generate Map from Document"
-                                        : "Create Map"
-                                }
+                                {isCreating ? "Creating..." : "Create Map"}
                             </Button>
                         </DialogFooter>
                     </form>

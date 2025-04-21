@@ -127,11 +127,13 @@ const conceptMapsApi = {
     svgContent?: string,
     tldrawContent?: string,
     isDigitized?: boolean,
-    conceptData?: any
+    conceptData?: any,
+    format?: string
   }): Promise<MapItem | null> => {
     try {
       // Check if this is a drawing type map
       const isDrawing = mapData.mapType === 'drawing';
+      const isHanddrawn = mapData.mapType === 'handdrawn';
       const hasDigitizedContent = mapData.isDigitized === true;
       const hasTextInput = mapData.text && mapData.text.length > 0;
 
@@ -145,7 +147,7 @@ const conceptMapsApi = {
         imageContent = mapData.svgContent;
       }
       // For text input where we want to generate a mind map
-      else if (hasTextInput && !isDrawing) {
+      else if (hasTextInput && !isHanddrawn) {
         try {
           // Generate the concept map from text
           //TODO: I can not find this endpoint on backend
@@ -187,6 +189,8 @@ const conceptMapsApi = {
         learning_objective: mapData.learningObjective || "",
         input_text: mapData.text || "",
         is_public: mapData.isPublic || false,
+        // For handdrawn maps, include the whiteboard content
+        whiteboard_content: isHanddrawn ? mapData.tldrawContent : undefined,
         // Include nodes and edges from conceptData if available
         ...(isDrawing && hasDigitizedContent && mapData.conceptData ? {
           // Properly extract nodes and edges from conceptData
@@ -198,7 +202,8 @@ const conceptMapsApi = {
           edges: generatedMap?.edges || []
         }),
         image: imageContent,
-        format: (isDrawing || mapData.svgContent) ? 'svg' : (generatedMap ? generatedMap.format : 'svg')
+        // Use the specified format if provided, otherwise determine based on the mapType
+        format: mapData.format || (isHanddrawn ? 'handdrawn' : (isDrawing || mapData.svgContent) ? 'svg' : (generatedMap ? generatedMap.format : 'svg'))
       };
 
       const response = await authFetch(`${API_URL}/api/concept-maps/`, {

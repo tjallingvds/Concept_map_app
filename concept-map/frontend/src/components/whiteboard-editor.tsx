@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Tldraw, Editor } from '@tldraw/tldraw'
+import { Tldraw, Editor, loadSnapshot } from '@tldraw/tldraw'
 import '@tldraw/tldraw/tldraw.css'
 import { Button } from "./ui/button"
 
@@ -16,8 +16,8 @@ export function WhiteboardEditor({ whiteboardContent, onSave, readOnly = false }
   React.useEffect(() => {
     if (editor && whiteboardContent) {
       try {
-        // Load the saved snapshot into the editor
-        editor.store.loadSnapshot(whiteboardContent)
+        // Load the saved snapshot into the editor using the recommended method
+        loadSnapshot(editor.store, whiteboardContent)
       } catch (error) {
         console.error("Error loading whiteboard content:", error)
       }
