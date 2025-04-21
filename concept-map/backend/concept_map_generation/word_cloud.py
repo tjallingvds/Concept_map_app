@@ -43,12 +43,15 @@ def count_concepts_in_text(text, key_concepts):
 
 
 def generate_word_cloud(concept_freq, title="Word Cloud of Key Concepts"):
-    """Generates a word cloud image based on concept frequencies."""
+    """Generates a word cloud image based on concept frequencies and returns it as SVG."""
     if not concept_freq:
         return None
 
     # Create a new figure to avoid any potential conflict
     plt.figure(figsize=(10, 6))
+
+    # Configure SVG font handling
+    plt.rcParams['svg.fonttype'] = 'none'  # Embed actual fonts, not paths
 
     # Create a WordCloud from the frequencies
     wc = WordCloud(
@@ -58,12 +61,15 @@ def generate_word_cloud(concept_freq, title="Word Cloud of Key Concepts"):
         colormap="viridis"
     ).generate_from_frequencies(concept_freq)
 
-    # Save the plot to a bytes buffer
+    # Save the plot to a bytes buffer as SVG
     img_data = io.BytesIO()
     plt.imshow(wc, interpolation="bilinear")
     plt.title(title)
     plt.axis("off")
-    plt.savefig(img_data, format='png', bbox_inches='tight')
+    plt.savefig(img_data, format='svg', bbox_inches='tight',
+               svg_fonttype='none',  # Embed actual fonts instead of paths
+               fontsize=10,          # Default font size
+               dpi=300)              # Higher resolution
     plt.close()  # Ensure figure is closed to free resources
     img_data.seek(0)
 

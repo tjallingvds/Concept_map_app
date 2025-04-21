@@ -74,6 +74,9 @@ def generate_packed_bubble_chart(concepts, use_importance=False, title="Packed B
     if not concepts:
         print("No concept data provided. Cannot generate a bubble chart.")
         return
+        
+    # Configure matplotlib for SVG output with better text handling
+    plt.rcParams['svg.fonttype'] = 'none'  # Embed fonts, don't convert to paths
 
     # 1. Decide which numeric metric to use for radius
     metric_key = "importance_score" if use_importance else "frequency"
@@ -158,11 +161,18 @@ def generate_packed_bubble_chart(concepts, use_importance=False, title="Packed B
         else:
             label_text = concept_name
 
-        ax.text(x, y, label_text,
+        # Improve text handling for SVG output
+        text_obj = ax.text(x, y, label_text,
                 ha="center", va="center",
                 fontsize=font_size,
                 fontweight='bold',
-                color='#333333')
+                color='#333333',
+                zorder=10,  # Ensure text appears above circles
+                family='Arial',  # Use a web-safe font
+                clip_on=False)  # Don't clip text to axis boundaries
+        
+        # Add SVG text properties to ensure visibility
+        text_obj.set_path_effects([])
 
     # 6. Legend for categories
     legend_patches = [Patch(facecolor=cat_color_map[cat], label=cat) for cat in unique_cats]
@@ -275,7 +285,7 @@ def process_text_for_bubble_chart(text, model):
             title="Concept Frequency"
         )
         print("Saving frequency chart to buffer")
-        plt.savefig(freq_img_data, format='png', bbox_inches='tight')
+        plt.savefig(freq_img_data, format='svg', bbox_inches='tight', dpi=300)
         plt.close()
         freq_img_data.seek(0)
         freq_img_b64 = base64.b64encode(freq_img_data.read()).decode('utf-8')
