@@ -22,6 +22,9 @@ export default function MyMapsPage() {
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [sortMode, setSortMode] = useState<"az" | "za">("az") 
+  // Add state for dialog management
+  const [createMapOpen, setCreateMapOpen] = useState(false)
+  const [initialDialogData, setInitialDialogData] = useState(null)
 
   // Fetch user's maps on component mount
   useEffect(() => {
@@ -167,8 +170,11 @@ export default function MyMapsPage() {
             </DropdownMenu>
 
             <CreateMapDialog 
+              open={createMapOpen}
+              onOpenChange={setCreateMapOpen}
+              initialData={initialDialogData}
               trigger={
-                <Button size="sm" className="gap-1 ml-3">
+                <Button size="sm" className="gap-1 ml-3" onClick={() => setCreateMapOpen(true)}>
                   <Plus className="h-4 w-4" />
                   <span>New Map</span>
                 </Button>
