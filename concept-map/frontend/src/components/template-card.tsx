@@ -19,7 +19,7 @@ const TemplateCard: React.FC<TemplateCardProps> = ({ template, onUseTemplate }) 
         <img
           src={template.imageUrl}
           alt={`${template.name} Template Preview`}
-          className="w-full h-full object-cover object-top"
+          className="w-full h-full object-contain bg-white object-center"
         />
       </div>
 
