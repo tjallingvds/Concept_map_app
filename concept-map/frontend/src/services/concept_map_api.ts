@@ -352,6 +352,8 @@ const conceptMapsApi = {
   // Share a concept map to generate a shareable link
   shareMap: async (id: number): Promise<{ shareUrl: string, shareId: string }> => {
     try {
+      console.log(`Attempting to share concept map with ID: ${id}`);
+      
       const response = await authFetch(`${API_URL}/api/concept-maps/${id}/share/`, {
         method: "POST",
         headers: {
@@ -359,11 +361,24 @@ const conceptMapsApi = {
         },
       });
 
+      // Get the response text for error logging
+      const responseText = await response.text();
+      
       if (!response.ok) {
+        console.error(`Share request failed (${response.status}):`, responseText);
         throw new Error(`Failed to share concept map with id ${id}`);
       }
 
-      const data = await response.json();
+      // Parse the JSON response, handling empty responses
+      let data;
+      try {
+        data = responseText ? JSON.parse(responseText) : {};
+      } catch (parseError) {
+        console.error("Error parsing share response:", parseError, "Response was:", responseText);
+        throw new Error(`Invalid response from server when sharing map ${id}`);
+      }
+      
+      console.log("Share response data:", data);
 
       // Construct full URL with origin
       const fullShareUrl = data.share_url ?
@@ -383,7 +398,8 @@ const conceptMapsApi = {
   // Get a shared concept map by share ID
   getSharedMap: async (shareId: string): Promise<MapItem | null> => {
     try {
-      const response = await authFetch(`${API_URL}/api/shared/concept-maps/${shareId}/`, {
+      // Use the correct endpoint that matches our backend route
+      const response = await authFetch(`${API_URL}/api/concept-maps/shared/concept-maps/${shareId}/`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
