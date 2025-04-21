@@ -399,10 +399,10 @@ export function FileSearchBar({
 }) {
   return (
     <div className="relative flex-1 max-w-2xl">
-      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
       <Input
         placeholder="Search maps..."
-        className="pl-9 h-9 w-full"
+        className="pl-10 h-9 w-full"
         value={searchQuery}
         onChange={onSearch}
       />
