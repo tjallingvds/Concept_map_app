@@ -14,7 +14,7 @@ export default function PublicMapsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
-  const { toggleFavorite } = useConceptMapsApi();
+  const { toggleFavorite, getPublicMaps } = useConceptMapsApi();
 
   // Fetch public maps on component mount
   useEffect(() => {
@@ -23,7 +23,7 @@ export default function PublicMapsPage() {
         setLoading(true)
         
         // Use the real API to fetch public maps
-        const maps = await conceptMapsApi.getPublicMaps()
+        const maps = await getPublicMaps()
         setPublicMaps(maps)
         setError(null)
       } catch (err) {

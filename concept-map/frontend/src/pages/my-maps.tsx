@@ -9,64 +9,8 @@ import { useAuth } from "../contexts/auth-context"
 import { CreateMapDialog } from "../components/create-map-dialog"
 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuItem } from "../components/ui/dropdown-menu"
-import { toast } from 'sonner';
-import { MapItemActions } from '../components/map-item-actions';
 import {useConceptMapsApi} from "../services/concept_map_api.ts";
 
-
-// Mock data for personal concept maps
-const mockPersonalMaps: MapItem[] = [
-  { 
-    id: 1, 
-    title: "Study Notes: Machine Learning", 
-    description: "My personal notes on deep learning concepts", 
-    createdAt: "2023-10-15", 
-    lastEdited: "2023-10-26", 
-    nodes: 24, 
-    isFavorite: true,
-    isPublic: false
-  },
-  { 
-    id: 2, 
-    title: "Project Planning", 
-    description: "Task breakdown for the new app development", 
-    createdAt: "2023-09-28", 
-    lastEdited: "2023-10-22", 
-    nodes: 18, 
-    isFavorite: false,
-    isPublic: false
-  },
-  { 
-    id: 3, 
-    title: "Research Ideas", 
-    description: "Brainstorming for next semester's research project", 
-    createdAt: "2023-10-05", 
-    lastEdited: "2023-10-18", 
-    nodes: 12, 
-    isFavorite: false,
-    isPublic: false
-  },
-  { 
-    id: 4, 
-    title: "Book Analysis: Design Patterns", 
-    description: "Notes and connections from the GoF book", 
-    createdAt: "2023-09-10", 
-    lastEdited: "2023-10-01", 
-    nodes: 32,
-    isFavorite: true,
-    isPublic: true
-  },
-  { 
-    id: 5, 
-    title: "Personal Goals 2024", 
-    description: "My goals for next year and how they connect", 
-    createdAt: "2023-10-20", 
-    lastEdited: "2023-10-25", 
-    nodes: 15,
-    isFavorite: false,
-    isPublic: false
-  }
-]
 
 export default function MyMapsPage() {
   const { user } = useAuth()
