@@ -1,6 +1,7 @@
-from functools import wraps
-
 import os
+from functools import wraps
+from http import HTTPStatus
+
 import requests
 from authlib.jose import JsonWebToken
 from flask import request, jsonify
@@ -20,7 +21,7 @@ def requires_auth(f):
     def wrapper(*args, **kwargs):
         auth_header = request.headers.get("Authorization", "")
         if not auth_header.startswith("Bearer "):
-            return jsonify({"error": "Authorization header missing or malformed"}), 401
+            return jsonify({"error": "Authorization header missing or malformed"}), HTTPStatus.UNAUTHORIZED
 
         token = auth_header.split(" ")[1]
 
@@ -36,7 +37,7 @@ def requires_auth(f):
             claims.validate()  # ✅ no args needed
             request.auth_user = claims
         except Exception as e:
-            return jsonify({"error": "Token invalid", "message": str(e)}), 401
+            return jsonify({"error": "Token invalid", "message": str(e)}), HTTPStatus.UNAUTHORIZED
 
         return f(*args, **kwargs)
 

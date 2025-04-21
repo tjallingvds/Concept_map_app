@@ -11,10 +11,9 @@ import EditorPage from './pages/editor';
 import SharedMapPage from './pages/shared-map';
 import EditorNotesPage from './pages/editor-notes';
 import NotesPage from './pages/notes';
+import TemplatesPage from './pages/templates';
 import WhiteboardEditorPage from './pages/whiteboard-editor-page';
 import { LoginForm } from './components/login-form';
-import { useAuth } from './contexts/auth-context';
-import TemplatesPage from './pages/templates';
 import { useAuth, AuthProvider } from './contexts/auth-context';
 
 
@@ -26,7 +25,7 @@ function ProtectedRoute() {
     }
 
     if (!user) {
-        return <Navigate to="/login" replace />;
+        return <Navigate to="/" replace />;
     }
 
     return <Outlet />;
@@ -112,7 +111,7 @@ function App() {
       </Router>
     </AuthProvider>
   );
-}
+  
 
 export default App;
 

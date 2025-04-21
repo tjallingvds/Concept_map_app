@@ -18,7 +18,7 @@ const userApi = {
             bio?: string;
         }
     ) => {
-        const res = await authFetch(`${API_URL}/api/auth/profile`, {
+        const res = await authFetch(`${API_URL}/api/auth/profile/`, {
             method: "PUT",
             body: JSON.stringify(updates),
             headers: {
@@ -38,7 +38,7 @@ const userApi = {
         const formData = new FormData();
         formData.append("avatar", avatar);
 
-        const res = await authFetch(`${API_URL}/api/auth/profile/avatar`, {
+        const res = await authFetch(`${API_URL}/api/auth/profile/avatar/`, {
             method: "POST",
             body: formData,
             // Remove the Content-Type header to let the browser set it automatically
@@ -74,7 +74,7 @@ const userApi = {
         }
     },
     getUserProfile: async () => {
-        const res = await authFetch(`${API_URL}/api/auth/profile`);
+        const res = await authFetch(`${API_URL}/api/auth/profile/`);
 
         if (!res.ok) {
             throw new Error("Failed to fetch user profile from backend");

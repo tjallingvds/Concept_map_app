@@ -15,12 +15,16 @@ import {
   SuggestionMenuController
 } from "@blocknote/react"
 import { toast } from "sonner"
-import { notesApi, NoteItem, conceptMapsApi } from "../services/api"
 import { useAuth } from "../contexts/auth-context"
+import {useNotesApi} from "../services/notes_api.ts";
+import {NoteItem} from "../types/notes.ts";
+import {useConceptMapsApi} from "../services/concept_map_api.ts";
 
 export default function EditorNotesPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const notesApi = useNotesApi()
+  const conceptMapsApi = useConceptMapsApi()
   const { user } = useAuth()
   const [noteName, setNoteName] = useState(`Note ${id || ""}`)
   const [isSaving, setIsSaving] = useState(false)

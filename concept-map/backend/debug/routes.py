@@ -1,9 +1,11 @@
+from http import HTTPStatus
+
 from flask import Blueprint, request, jsonify
 
 debug_bp = Blueprint("debug", __name__)
 
 
-@debug_bp.route("/api/debug/process-drawing", methods=["POST"])
+@debug_bp.route("/api/debug/process-drawing/", methods=["POST"])
 def debug_process_drawing():
     """Debug endpoint for drawing processing that always returns valid data"""
     print("DEBUG: Process drawing API called")
@@ -33,10 +35,10 @@ def debug_process_drawing():
             print(f"DEBUG: SVG content preview: {content_preview}")
         else:
             print("DEBUG: No image or SVG content received")
-            return jsonify({"error": "No image or SVG content provided"}), 400
+            return jsonify({"error": "No image or SVG content provided"}), HTTPStatus.BAD_REQUEST
     else:
         print("DEBUG: No data received")
-        return jsonify({"error": "No data provided"}), 400
+        return jsonify({"error": "No data provided"}), HTTPStatus.BAD_REQUEST
 
     # Create a mock OCR response
     mock_response = {
@@ -64,7 +66,7 @@ def debug_process_drawing():
 
 
 # Add debug endpoint to list available Gemini models
-@debug_bp.route("/api/debug/list-models", methods=["GET"])
+@debug_bp.route("/api/debug/list-models/", methods=["GET"])
 def list_models():
     """Debug endpoint to list available Gemini models"""
     import google.generativeai as genai
@@ -88,4 +90,4 @@ def list_models():
         return jsonify({"models": model_info, "count": len(model_info)})
     except Exception as e:
         print(f"DEBUG: Error listing models: {str(e)}")
-        return jsonify({"error": f"Failed to list models: {str(e)}"}), 500
+        return jsonify({"error": f"Failed to list models: {str(e)}"}), HTTPStatus.INTERNAL_SERVER_ERROR

@@ -6,7 +6,7 @@ import { FileSystem, MapItem, FileSearchBar } from "../components/file-system"
 import { Button } from "../components/ui/button"
 import { Plus } from "lucide-react"
 import { CreateMapDialog } from "../components/create-map-dialog"
-import {useConceptMapsApi} from "../services/api.ts";
+import {useConceptMapsApi} from "../services/concept_map_api.ts";
 
 export default function PublicMapsPage() {
   const navigate = useNavigate()

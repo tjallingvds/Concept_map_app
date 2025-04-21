@@ -6,7 +6,7 @@ import { Button } from '../components/ui/button';
 import { Skeleton } from '../components/ui/skeleton';
 import { MapItem } from '../components/file-system';
 import { ConceptMapViewer } from '../components/concept-map-viewer';
-import {useConceptMapsApi} from "../services/api.ts";
+import {useConceptMapsApi} from "../services/concept_map_api.ts";
 
 export default function SharedMapPage() {
   const { shareId } = useParams<{ shareId: string }>();

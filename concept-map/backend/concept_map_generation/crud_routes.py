@@ -1,6 +1,7 @@
 import secrets
 import uuid
 from datetime import datetime
+from http import HTTPStatus
 
 from flask import request, jsonify
 
@@ -8,24 +9,23 @@ from auth_utils import requires_auth, get_auth0_user
 from concept_map_generation.generation_routes import concept_map_bp
 from models import db, ConceptMap, Node, Edge, User
 
-
 concept_maps = []
 users = []  # List to store user objects
 notes = []  # List to store note objects
 
 
 # Concept Map routes
-@concept_map_bp.route("/api/concept-maps", methods=["GET"])
+@concept_map_bp.route("/", methods=["GET"])
 @requires_auth
 def get_concept_maps():
     user = get_auth0_user()
 
     # Filter maps by user_id and not deleted
     user_maps = ConceptMap.query.filter_by(user_id=user.id, is_deleted=False).all()
-    return jsonify([map.to_dict() for map in user_maps]), 200
+    return jsonify([map.to_dict() for map in user_maps]), HTTPStatus.OK
 
 
-@concept_map_bp.route("/api/concept-maps", methods=["POST"])
+@concept_map_bp.route("/", methods=["POST"])
 @requires_auth
 def create_concept_map():
     user = get_auth0_user()
@@ -34,7 +34,7 @@ def create_concept_map():
 
     # Basic validation
     if not data or "name" not in data:
-        return jsonify({"error": "Missing required fields"}), 400
+        return jsonify({"error": "Missing required fields"}), HTTPStatus.BAD_REQUEST
 
     # Generate a unique share ID
     share_id = secrets.token_urlsafe(8)
@@ -147,7 +147,7 @@ def create_concept_map():
                 "learning_objective": new_map.learning_objective,
             }
         ),
-        201,
+        HTTPStatus.CREATED,
     )
 
     # Create a new concept map
@@ -189,20 +189,21 @@ def create_concept_map():
 
     db.session.commit()
 
-    return jsonify(new_map.to_dict()), 201
+    return jsonify(new_map.to_dict()), HTTPStatus.CREATED
 
 
-@concept_map_bp.route("/api/concept-maps/<int:map_id>", methods=["GET"])
+@concept_map_bp.route("/<int:map_id>/", methods=["GET"])
 @requires_auth
 def get_concept_map(map_id):
     # Find the concept map
     concept_map = ConceptMap.query.filter_by(id=map_id).first()
 
     if not concept_map:
-        return jsonify({"error": "Concept map not found"}), 404
+        return jsonify({"error": "Concept map not found"}), HTTPStatus.NOT_FOUND
+    return jsonify(concept_map.to_dict()), HTTPStatus.OK
 
 
-@concept_map_bp.route("/api/shared/concept-maps/<string:share_id>", methods=["GET"])
+@concept_map_bp.route("/<string:share_id>/", methods=["GET"])
 def get_shared_concept_map(share_id):
     # This endpoint is public and doesn't require authentication
     for map in concept_maps:
@@ -211,12 +212,12 @@ def get_shared_concept_map(share_id):
                 and map.get("is_public")
                 and not map.get("deleted", False)
         ):
-            return jsonify(map), 200
+            return jsonify(map), HTTPStatus.OK
 
-    return jsonify({"error": "Shared concept map not found or not public"}), 404
+    return jsonify({"error": "Shared concept map not found or not public"}), HTTPStatus.NOT_FOUND
 
 
-@concept_map_bp.route("/api/concept-maps/<int:map_id>", methods=["PUT"])
+@concept_map_bp.route("/<int:map_id>/", methods=["PUT"])
 @requires_auth
 def update_concept_map(map_id):
     data = request.json
@@ -255,7 +256,7 @@ def update_concept_map(map_id):
                     "learning_objective", map.get("learning_objective", "")
                 ),  # Preserve learning objective
             }
-            return jsonify(concept_maps[i]), 200
+            return jsonify(concept_maps[i]), HTTPStatus.OK
 
     # Find the concept map
     concept_map = ConceptMap.query.filter_by(
@@ -263,7 +264,7 @@ def update_concept_map(map_id):
     ).first()
 
     if not concept_map:
-        return jsonify({"error": "Concept map not found"}), 404
+        return jsonify({"error": "Concept map not found"}), HTTPStatus.NOT_FOUND
 
     # Update the map properties
     if "name" in data:
@@ -309,10 +310,10 @@ def update_concept_map(map_id):
 
     db.session.commit()
 
-    return jsonify(concept_map.to_dict()), 200
+    return jsonify(concept_map.to_dict()), HTTPStatus.OK
 
 
-@concept_map_bp.route("/api/concept-maps/<int:map_id>", methods=["DELETE"])
+@concept_map_bp.route("/<int:map_id>/", methods=["DELETE"])
 @requires_auth
 def delete_concept_map(map_id):
     user = get_auth0_user()
@@ -323,7 +324,7 @@ def delete_concept_map(map_id):
     ).first()
 
     if not concept_map:
-        return jsonify({"error": "Concept map not found"}), 404
+        return jsonify({"error": "Concept map not found"}), HTTPStatus.NOT_FOUND
 
     # Mark as deleted (soft delete)
     concept_map.is_deleted = True
@@ -331,88 +332,11 @@ def delete_concept_map(map_id):
 
     return (
         jsonify({"message": f"Concept map '{concept_map.name}' deleted successfully"}),
-        200,
+        HTTPStatus.OK,
     )
 
 
-@concept_map_bp.route("/api/user/recent-maps", methods=["GET"])
-@requires_auth
-def get_recent_maps():
-    # TODO: maybe it is better to just remove the user_id parameter?
-    user = get_auth0_user()
-    user_id = user.id
-
-    # Find user by ID
-    user = User.query.filter_by(id=user_id, is_active=True).first()
-
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-
-    # Get user's maps, sorted by most recent first (in a real app, this would be by last modified date)
-    user_maps = [
-        m
-        for m in concept_maps
-        if m.get("user_id") == user_id and not m.get("deleted", False)
-    ]
-
-    # Sort by updated_at if available
-    user_maps.sort(key=lambda x: x.get("updated_at", ""), reverse=True)
-
-    # Limit to 5 most recent maps and format for the response
-
-    # Get user's maps, sorted by most recent first
-    user_maps = (
-        ConceptMap.query.filter_by(user_id=user_id, is_deleted=False)
-        .order_by(ConceptMap.updated_at.desc())
-        .limit(5)
-        .all()
-    )
-
-    # Format for the response
-    recent_maps = []
-    for map in user_maps[:5]:
-        recent_maps.append(
-            {
-                "id": map["id"],
-                "name": map["name"],
-                "url": f"/maps/{map['id']}",
-                "share_url": (
-                    f"/shared/{map['share_id']}" if map.get("is_public") else None
-                ),
-            }
-        )
-
-    for map in user_maps:
-        recent_maps.append({"id": map.id, "name": map.name, "url": f"/maps/{map.id}"})
-
-    return jsonify({"maps": recent_maps}), 200
-
-
-@concept_map_bp.route("/api/user/saved-maps", methods=["GET"])
-@requires_auth
-def get_saved_maps():
-    user = get_auth0_user()
-    user_id = user.id
-    # Find user by ID
-    user = next((u for u in users if u.id == user_id and u.is_active), None)
-
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-
-    # Get all user's maps that aren't deleted
-    user_maps = [
-        m
-        for m in concept_maps
-        if m.get("user_id") == user_id and not m.get("deleted", False)
-    ]
-
-    # Sort by updated_at if available
-    user_maps.sort(key=lambda x: x.get("updated_at", ""), reverse=True)
-
-    return jsonify(user_maps), 200
-
-
-@concept_map_bp.route("/api/concept-maps/<int:map_id>/share", methods=["POST"])
+@concept_map_bp.route("/<int:map_id>/share/", methods=["POST"])
 @requires_auth
 def share_concept_map(map_id):
     user = get_auth0_user()
@@ -437,7 +361,7 @@ def share_concept_map(map_id):
                         "share_id": map["share_id"],
                     }
                 ),
-                200,
+                HTTPStatus.OK,
             )
 
-    return jsonify({"error": "Concept map not found"}), 404
+    return jsonify({"error": "Concept map not found"}), HTTPStatus.NOT_FOUND

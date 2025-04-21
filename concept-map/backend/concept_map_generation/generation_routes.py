@@ -1,4 +1,5 @@
 import os
+from http import HTTPStatus
 
 from dotenv import load_dotenv
 from flask import Blueprint, jsonify, request
@@ -13,14 +14,220 @@ load_dotenv()
 
 
 # Create a blueprint for concept map generation routes
-concept_map_bp = Blueprint("concept_map", __name__, url_prefix="/api/concept-map")
+concept_map_bp = Blueprint('concept_map', __name__, url_prefix='/api/concept-maps')
 
 
 # Initialize Gemini model
+def get_gemini_model():
+    """Initialize and return a Gemini model instance"""
+    genai.configure(api_key=GEMINI_API_KEY)
+    return genai.GenerativeModel("gemini-2.0-flash")
+
+
+@concept_map_bp.route('/generate/', methods=['POST'])
+def generate_map():
+    """Generate a concept map based on input text and map type"""
+    try:
+        data = request.json
+
+        # Validate request data
+        if not data or 'text' not in data or 'mapType' not in data:
+            return jsonify({
+                'error': 'Missing required fields: text and mapType'
+            }), 400
+
+        text = data['text']
+        map_type = data['mapType']
+        title = data.get('title', 'Concept Map')
+
+        # Check if text is provided
+        if not text.strip():
+            return jsonify({
+                'error': 'Text content cannot be empty'
+            }), HTTPStatus.BAD_REQUEST
+
+        # Initialize Gemini model
+        try:
+            model = get_gemini_model()
+        except ValueError as e:
+            return jsonify({
+                'error': str(e)
+            }), HTTPStatus.INTERNAL_SERVER_ERROR
+
+        # Generate the appropriate visualization based on map type
+        if map_type == 'mindmap':
+            result = generate_concept_map(text, model, GEMINI_API_KEY)
+            # Ensure we're returning a properly formatted response
+            # The frontend expects either a data URL or a base64 string with format
+            return jsonify({
+                'image': result,  # This is already base64 encoded from generate_concept_map
+                'format': 'svg'
+            })
+
+        elif map_type == 'wordcloud':
+            result = process_text_for_wordcloud(text, model, GEMINI_API_KEY)
+            return jsonify({
+                'image': result['word_cloud'],
+                'concepts': result['concepts'],
+                'format': 'png'
+            })
+
+        elif map_type == 'bubblechart':
+            result = process_text_for_bubble_chart(text, model)
+            return jsonify({
+                'image': result['bubble_chart'],
+                'concepts': result['concepts'],
+                'format': 'png'
+            })
+
+        else:
+            return jsonify({
+                'error': f'Unsupported map type: {map_type}'
+            }), HTTPStatus.BAD_REQUEST
+
+    except Exception as e:
+        return jsonify({
+            'error': f'Error generating concept map: {str(e)}'
+        }), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@concept_map_bp.route('/extract-concepts/', methods=['POST'])
+def extract_concepts():
+    """Extract key concepts from input text without generating a visualization"""
+    try:
+        data = request.json
+
+        # Validate request data
+        if not data or 'text' not in data:
+            return jsonify({
+                'error': 'Missing required field: text'
+            }), HTTPStatus.BAD_REQUEST
+
+        text = data['text']
+
+        # Check if text is provided
+        if not text.strip():
+            return jsonify({
+                'error': 'Text content cannot be empty'
+            }), HTTPStatus.BAD_REQUEST
+
+        # Initialize Gemini model
+        try:
+            model = get_gemini_model()
+        except ValueError as e:
+            return jsonify({
+                'error': str(e)
+            }), HTTPStatus.INTERNAL_SERVER_ERROR
+
+        # Extract concepts using the word cloud module's function
+        from .word_cloud import extract_concepts_from_text
+        concepts = extract_concepts_from_text(text, model)
+
+        return jsonify({
+            'concepts': concepts
+        })
+
+    except Exception as e:
+        return jsonify({
+            'error': f'Error extracting concepts: {str(e)}'
+        }), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@concept_map_bp.route('/process-drawing/', methods=['POST'])
+def process_drawing():
+    """Process a drawing (SVG or PNG) to extract concepts and generate a digital concept map"""
+    try:
+        print("*** Process Drawing API called ***")
+        data = request.json
+
+        # Validate request data - accept either svgContent or imageContent
+        if not data:
+            print("Missing request data")
+            return jsonify({
+                'error': 'Missing request data'
+            }), HTTPStatus.BAD_REQUEST
+
+        # Check if we have image content (PNG, JPEG, etc.)
+        if 'imageContent' in data:
+            image_content = data['imageContent']
+            print(f"Received image content length: {len(image_content)}")
+
+            # Check if content is provided
+            if not image_content.strip():
+                print("Image content is empty")
+                return jsonify({
+                    'error': 'Image content cannot be empty'
+                }), HTTPStatus.BAD_REQUEST
+
+            # Check if format parameters are provided
+            image_format = data.get('format', '').lower()
+            prevent_jpeg = data.get('preventJpegConversion', False)
+
+            print(f"Image format: {image_format}, Prevent JPEG conversion: {prevent_jpeg}")
+
+            # For PNG data URLs, we can now pass them directly to the OCR function
+            if image_content.startswith('data:image/png') or image_format == 'png':
+                print("Direct PNG processing")
+                svg_content = image_content  # Pass the PNG data URL directly
+            else:
+                # For compatibility, convert image data URL to SVG format our backend expects
+                print("Creating SVG wrapper for image")
+                svg_content = f'<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><image href="{image_content}" width="800" height="600"/></svg>'
+
+            print(f"Prepared content for processing, length: {len(svg_content)}")
+
+        # Check for SVG content (backwards compatibility)
+        elif 'svgContent' in data:
+            svg_content = data['svgContent']
+            print(f"Received SVG content length: {len(svg_content)}")
+
+            # Check if content is provided
+            if not svg_content.strip():
+                print("SVG content is empty")
+                return jsonify({
+                    'error': 'SVG content cannot be empty'
+                }), HTTPStatus.BAD_REQUEST
+        else:
+            print("Missing required field: imageContent or svgContent")
+            return jsonify({
+                'error': 'Missing required field: imageContent or svgContent'
+            }), HTTPStatus.BAD_REQUEST
+
+        # Initialize Gemini model
+        try:
+            print("Initializing Gemini model")
+            model = get_gemini_model()
+        except ValueError as e:
+            print(f"Error initializing Gemini model: {str(e)}")
+            return jsonify({
+                'error': str(e)
+            }), HTTPStatus.INTERNAL_SERVER_ERROR
+
+        # Process the drawing with OCR and generate concept map
+        print("Processing drawing with OCR")
+        result = process_drawing_for_concept_map(svg_content, model)
+
+        # Check if there was an error during processing
+        if 'error' in result:
+            print(f"Error processing drawing: {result['error']}")
+            return jsonify({
+                'error': result['error']
+            }), HTTPStatus.INTERNAL_SERVER_ERROR
+
+        print(f"OCR processing successful with {len(result.get('concepts', []))} concepts")
+        return jsonify(result)
+
+    except Exception as e:
+        print(f"Exception in process_drawing route: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'error': f'Error processing drawing: {str(e)}'
+        }), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
 # Add a debug endpoint to visualize concept data directly
-@concept_map_bp.route("/debug/visualize-concepts", methods=["POST"])
+@concept_map_bp.route('/debug/visualize-concepts/', methods=['POST'])
 def debug_visualize_concepts():
     """Debug endpoint to visualize concept data directly without OCR"""
     try:
@@ -109,4 +316,4 @@ def debug_visualize_concepts():
 
     except Exception as e:
         print(f"Error visualizing concepts: {str(e)}")
-        return jsonify({"error": f"Failed to visualize concepts: {str(e)}"}), 500
+        return jsonify({'error': f'Failed to visualize concepts: {str(e)}'}), HTTPStatus.INTERNAL_SERVER_ERROR

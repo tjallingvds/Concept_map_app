@@ -8,10 +8,10 @@ import { Button } from "../components/ui/button"
 import { useAuth } from "../contexts/auth-context"
 import { CreateMapDialog } from "../components/create-map-dialog"
 
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuItem } from "../components/ui/dropdown-menu"
-import {useConceptMapsApi} from "../services/api.ts"; // ✅ NEW
-import { toast } from 'sonner'
-import { MapItemActions } from '../components/map-item-actions'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuItem } from "../components/ui/dropdown-menu"import { useConceptMapsApi } from "../services/api"; // ✅ NEW
+import { toast } from 'sonner';
+import { MapItemActions } from '../components/map-item-actions';
+
 
 // Mock data for personal concept maps
 const mockPersonalMaps: MapItem[] = [
