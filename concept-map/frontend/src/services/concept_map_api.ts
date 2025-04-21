@@ -126,6 +126,7 @@ const conceptMapsApi = {
     text?: string,
     svgContent?: string,
     tldrawContent?: string,
+    whiteboardContent?: any,
     isDigitized?: boolean,
     conceptData?: any,
     format?: string
@@ -190,7 +191,7 @@ const conceptMapsApi = {
         input_text: mapData.text || "",
         is_public: mapData.isPublic || false,
         // For handdrawn maps, include the whiteboard content
-        whiteboard_content: isHanddrawn ? mapData.tldrawContent : undefined,
+        whiteboard_content: isHanddrawn ? (mapData.tldrawContent || mapData.whiteboardContent) : undefined,
         // Include nodes and edges from conceptData if available
         ...(isDrawing && hasDigitizedContent && mapData.conceptData ? {
           // Properly extract nodes and edges from conceptData
@@ -267,7 +268,8 @@ const conceptMapsApi = {
     image?: string,
     format?: string,
     input_text?: string,
-    is_public?: boolean
+    is_public?: boolean,
+    whiteboard_content?: any
   }>): Promise<MapItem | null> => {
     try {
       const response = await authFetch(`${API_URL}/api/concept-maps/${id}/`, {

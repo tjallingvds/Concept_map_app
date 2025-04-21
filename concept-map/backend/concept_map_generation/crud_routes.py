@@ -100,7 +100,12 @@ def create_concept_map():
         input_text=data.get("input_text", ""),
         description=data.get("description", ""),
         learning_objective=data.get("learning_objective", ""),
+        whiteboard_content=data.get("whiteboard_content"),
     )
+
+    # For whiteboard maps, log that we're saving the content
+    if data.get("format") == "handdrawn" and "whiteboard_content" in data:
+        print(f"Creating whiteboard map with whiteboard content, size: {len(str(data['whiteboard_content']))}")
 
     # Add nodes if they exist
     if nodes:
@@ -144,6 +149,9 @@ def create_concept_map():
                 "input_text": new_map.input_text,
                 "description": new_map.description,
                 "learning_objective": new_map.learning_objective,
+                "whiteboard_content": new_map.whiteboard_content,
+                "nodes": [node.to_dict() for node in new_map.nodes],
+                "edges": [edge.to_dict() for edge in new_map.edges],
             }
         ),
         HTTPStatus.CREATED,
@@ -272,6 +280,10 @@ def update_concept_map(map_id):
         concept_map.description = data["description"]
     if "is_public" in data:
         concept_map.is_public = data["is_public"]
+    # Save whiteboard content if provided
+    if "whiteboard_content" in data:
+        concept_map.whiteboard_content = data["whiteboard_content"]
+        print(f"Updating whiteboard content for map {map_id}, size: {len(str(data['whiteboard_content']))}")
 
     # Update nodes if provided
     if "nodes" in data and isinstance(data["nodes"], list):

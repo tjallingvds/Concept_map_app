@@ -40,7 +40,7 @@ import { Separator } from "./ui/separator"
 import { toast } from "sonner"
 
 import { TLDrawEditor } from "./tldraw-editor"
-import { WhiteboardEditor } from "./whiteboard-editor"
+import { WhiteboardEditor, WhiteboardEditorRef } from "./whiteboard-editor"
 import {useConceptMapsApi} from "../services/concept_map_api.ts";
 
 // Form schema validation
@@ -75,6 +75,9 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
     const [selectedFile, setSelectedFile] = React.useState<File | null>(null)
     const [isProcessingFile, setIsProcessingFile] = React.useState(false)
     const { processDocument, createMap } = useConceptMapsApi();
+    
+    // Create a ref for the whiteboard editor
+    const whiteboardEditorRef = React.useRef<WhiteboardEditorRef>(null);
 
     // Form setup
     const form = useForm<CreateMapData>({
@@ -180,6 +183,27 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
                 textLength: data.textContent?.length || 0
             });
 
+            // If this is a whiteboard, get the latest content directly from the editor
+            if (data.contentSource === "whiteboard") {
+                console.log("Getting current whiteboard content from editor");
+                
+                // Get the current content from the editor if available
+                if (whiteboardEditorRef.current) {
+                    const currentContent = whiteboardEditorRef.current.getCurrentContent();
+                    if (currentContent) {
+                        console.log("Got current whiteboard content, size:", JSON.stringify(currentContent).length);
+                        data.whiteboardContent = currentContent;
+                    }
+                }
+                
+                if (!data.whiteboardContent) {
+                    console.error("No whiteboard content available");
+                    toast.error("Please draw something on the whiteboard before creating");
+                    setIsCreating(false);
+                    return;
+                }
+            }
+
             // Handle digitized drawing content
             if (data.contentSource === "digitize" && data.isDigitized && data.conceptData) {
                 console.log("Using structured concept data from OCR for digitized drawing");
@@ -235,8 +259,8 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
                     learningObjective: data.learningObjective,
                     isPublic: data.isPublic,
                     mapType: "handdrawn",  // Use mapType handdrawn to identify this as a whiteboard
-                    // Store whiteboard content as tldrawContent since that's what's used in the backend
-                    tldrawContent: data.whiteboardContent,
+                    // Store whiteboard content directly
+                    whiteboardContent: data.whiteboardContent,
                     // Force the format field to be handdrawn
                     format: "handdrawn"
                 });
@@ -586,11 +610,15 @@ export function CreateMapDialog({ trigger, onMapCreated }: CreateMapDialogProps)
                                                 </div>
                                                 <div className="mt-4 border rounded-lg" style={{ height: '500px' }}>
                                                     <WhiteboardEditor 
-                                                        whiteboardContent={form.watch("whiteboardContent")}
-                                                        onSave={(content) => {
-                                                            console.log("Whiteboard content saved");
-                                                            form.setValue("whiteboardContent", content);
-                                                            form.setValue("mapType", "handdrawn");
+                                                        ref={whiteboardEditorRef}
+                                                        whiteboardContent={null} 
+                                                        hideSaveButton={true}
+                                                        onSave={() => {
+                                                            // Only set these values once
+                                                            if (form.getValues().contentSource !== "whiteboard") {
+                                                                form.setValue("mapType", "handdrawn");
+                                                                form.setValue("contentSource", "whiteboard");
+                                                            }
                                                         }}
                                                     />
                                                 </div>

@@ -31,6 +31,7 @@ export default function WhiteboardEditorPage() {
           return
         }
         
+        // Log detailed info about the map data for debugging
         console.log("Loaded map data:", {
           id: mapData.id,
           format: mapData.format,
@@ -38,11 +39,49 @@ export default function WhiteboardEditorPage() {
           contentSize: mapData.whiteboardContent ? JSON.stringify(mapData.whiteboardContent).length : 0
         })
         
-        // Check if this is actually a hand-drawn whiteboard
+        // First check if this is actually a hand-drawn whiteboard by format
         if (mapData.format !== "handdrawn") {
           console.error("Map is not a hand-drawn whiteboard:", mapData.format)
           toast.error("This is not a hand-drawn whiteboard")
           navigate(`/editor/${id}`)
+          return
+        }
+        
+        // Then check if it has whiteboard content
+        if (!mapData.whiteboardContent || Object.keys(mapData.whiteboardContent).length === 0) {
+          console.error("Map doesn't contain editable whiteboard content")
+          
+          console.log("Creating empty whiteboard content for map:", mapData.id)
+          // Create empty whiteboard content if missing - initialize with base structure
+          const emptyContent = { 
+            document: {
+              id: "doc",
+              name: "New Whiteboard",
+              version: 15.5,
+              pages: {
+                page: {
+                  id: "page",
+                  name: "Page 1",
+                  shapes: {},
+                  bindings: {}
+                }
+              },
+              pageStates: {
+                page: {
+                  id: "page",
+                  selectedIds: [],
+                  camera: {
+                    point: [0, 0],
+                    zoom: 1
+                  }
+                }
+              },
+              assets: {}
+            }
+          }
+          
+          // Use emptyContent but save it immediately after the component mounts
+          setMap({...mapData, whiteboardContent: emptyContent})
           return
         }
         
@@ -69,6 +108,7 @@ export default function WhiteboardEditorPage() {
         contentSize: JSON.stringify(whiteboardContent).length
       })
       
+      // Save only the whiteboard content
       const updatedMap = await updateMap(Number(id), {
         whiteboard_content: whiteboardContent,
       })
@@ -77,7 +117,13 @@ export default function WhiteboardEditorPage() {
         throw new Error("Failed to save whiteboard")
       }
       
-      console.log("Whiteboard saved successfully")
+      // Debug to check if the content is correctly returned after saving
+      console.log("Whiteboard saved successfully. Updated map:", {
+        id: updatedMap.id, 
+        hasWhiteboardContent: !!updatedMap.whiteboardContent,
+        contentSize: updatedMap.whiteboardContent ? JSON.stringify(updatedMap.whiteboardContent).length : 0
+      })
+      
       toast.success("Whiteboard saved successfully")
       setMap(updatedMap)
     } catch (error) {
@@ -112,19 +158,10 @@ export default function WhiteboardEditorPage() {
       </header>
       
       <div className="flex-1 border rounded-lg overflow-hidden">
-        {map?.whiteboardContent ? (
-          <WhiteboardEditor 
-            whiteboardContent={map.whiteboardContent}
-            onSave={handleSave}
-          />
-        ) : (
-          <div className="flex flex-col items-center justify-center h-full">
-            <p className="text-muted-foreground mb-4">No whiteboard content found</p>
-            <Button onClick={() => navigate("/maps")}>
-              Go back to Maps
-            </Button>
-          </div>
-        )}
+        <WhiteboardEditor 
+          whiteboardContent={map.whiteboardContent}
+          onSave={handleSave}
+        />
       </div>
     </div>
   )
