@@ -14,29 +14,48 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+  DialogHeader,
+  DialogFooter,
+  DialogClose,
 } from './ui/dialog';
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from './ui/form';
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from './ui/form';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { Button } from './ui/button';
 import { Switch } from './ui/switch';
+import { Checkbox } from './ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+import { Separator } from './ui/separator';
 import { toast } from 'sonner';
 
 import { TLDrawEditor } from './tldraw-editor';
+import { TLDrawWhiteboard } from './tldraw-whiteboard';
 import { useConceptMapsApi } from '../services/api.ts';
 
 // Form schema validation
 const formSchema = z.object({
   title: z.string().min(1, 'Title is required').max(100, 'Title must be less than 100 characters'),
-  learningObjective: z
-    .string()
-    .min(1, 'Learning objective is required')
-    .max(200, 'Learning objective must be less than 200 characters'),
+  learningObjective: z.string().min(1, 'Learning objective is required').max(200, 'Learning objective must be less than 200 characters'),
   description: z.string().max(500, 'Description must be less than 500 characters').optional(),
-  mapType: z.enum(['mindmap', 'wordcloud', 'bubblechart']).default('mindmap'),
+  mapType: z.enum(['mindmap', 'wordcloud', 'bubblechart', 'handdrawn']).default('mindmap'),
   isPublic: z.boolean().default(false),
-  contentSource: z.enum(['empty', 'file', 'text', 'drawing']).default('empty'),
+  contentSource: z.enum(['empty', 'file', 'text', 'drawing', 'handdrawn']).default('empty'),
+});
+
   fileUpload: z.any().optional(),
   textContent: z.string().max(1000000, 'Text content must be less than 1,000,000 characters').optional(),
   tldrawContent: z.string().optional(),
@@ -47,7 +66,9 @@ const formSchema = z.object({
   isFromTemplate: z.boolean().default(false),
   templateNodes: z.any().optional(),
   templateEdges: z.any().optional(),
+  whiteboardContent: z.any().optional(),
 });
+
 
 export type CreateMapData = z.infer<typeof formSchema>;
 
@@ -142,6 +163,29 @@ export function CreateMapDialog({ trigger, onMapCreated, open, initialData, onOp
       setIsCreating(false); // Ensure creating state is reset
     }
   }, [open, initialData, form]);
+
+
+React.useEffect(() => {
+  const subscription = form.watch((value, { name }) => {
+    if (name === "mapType") {
+      console.log("mapType changed to:", value.mapType);
+    }
+  });
+
+  return () => subscription.unsubscribe();
+}, [form]);
+
+    
+    // When mapType is changed to handdrawn, update contentSource as well
+    if (mapType === "handdrawn") {
+      // Set contentSource to handdrawn when mapType is handdrawn
+      form.setValue("contentSource", "handdrawn", { 
+        shouldDirty: true, 
+        shouldTouch: true, 
+        shouldValidate: true 
+      });
+    }
+  }, [form.watch("mapType")]);
 
   // Handle file selection
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -283,7 +327,11 @@ export function CreateMapDialog({ trigger, onMapCreated, open, initialData, onOp
           onMapCreated(newMap.id);
         } else if (newMap.id) {
           // Navigate to the created map
-          navigate(`/editor/${newMap.id}`);
+          if (data.mapType === "handdrawn") {
+            navigate(`/whiteboard-editor/${newMap.id}`);
+          } else {
+            navigate(`/editor/${newMap.id}`);
+          }
         }
 
         return; // Exit early since we've handled the digitized map case
@@ -314,7 +362,18 @@ export function CreateMapDialog({ trigger, onMapCreated, open, initialData, onOp
           textContent = data.textContent;
           console.log('Using digitized content text:', textContent.substring(0, 50));
         }
-      } else if (data.contentSource === 'file') {
+      } else if (data.contentSource === "handdrawn") {
+        if (!data.whiteboardContent) {
+          console.error("Missing whiteboard content for handdrawn map", {
+            contentSource: data.contentSource,
+            mapType: data.mapType,
+            hasWhiteboardContent: !!data.whiteboardContent,
+          });
+          throw new Error("Please save your drawing by clicking the 'Save Drawing' button before continuing");
+        }
+        console.log("Using hand-drawn whiteboard content");
+      } else if (data.contentSource === "file") {
+
         if (!data.textContent) {
           throw new Error('Please process a file before creating the map');
         }
@@ -352,17 +411,18 @@ export function CreateMapDialog({ trigger, onMapCreated, open, initialData, onOp
         svgContent: data.svgContent,
         tldrawContent: data.tldrawContent,
         isDigitized: data.isDigitized,
-        conceptData:
-          data.isDigitized && data.conceptData
-            ? {
-                nodes: data.conceptData.nodes,
-                edges: data.conceptData.edges,
-                structure: data.conceptData.structure || {
-                  type: 'hierarchical',
-                  root: data.conceptData.nodes?.[0]?.id || 'c1',
-                },
-              }
-            : undefined,
+        whiteboardContent: data.whiteboardContent,
+        conceptData: data.isDigitized && data.conceptData
+          ? {
+              nodes: data.conceptData.nodes,
+              edges: data.conceptData.edges,
+              structure: data.conceptData.structure || {
+                type: 'hierarchical',
+                root: data.conceptData.nodes?.[0]?.id || 'c1',
+              },
+            }
+          : undefined,
+
       });
 
       if (!newMap) {
@@ -441,19 +501,23 @@ export function CreateMapDialog({ trigger, onMapCreated, open, initialData, onOp
         contentSource: 'empty',
         textContent: '',
       });
-
       // Clear selected file and extracted text
       setSelectedFile(null);
 
-      // Close the dialog
-      onOpenChange(false);
+      // Close the dialog (works with both local and controlled)
+      onOpenChange?.(false);
+      setOpen?.(false);
 
-      // Handle map created callback
+      // Handle map created callback or navigation
       if (onMapCreated && newMap.id) {
         onMapCreated(newMap.id);
       } else if (newMap.id) {
-        // Navigate to the created map
-        navigate(`/editor/${newMap.id}`);
+        if (data.mapType === "handdrawn") {
+          navigate(`/whiteboard-editor/${newMap.id}`);
+        } else {
+          navigate(`/editor/${newMap.id}`);
+        }
+
       }
     } catch (error) {
       console.error('Error creating map:', error);
@@ -520,6 +584,7 @@ export function CreateMapDialog({ trigger, onMapCreated, open, initialData, onOp
                           <SelectItem value="mindmap">Mind Map</SelectItem>
                           <SelectItem value="wordcloud">Word Cloud</SelectItem>
                           <SelectItem value="bubblechart">Bubble Chart</SelectItem>
+                          <SelectItem value="handdrawn">Hand-Drawn Whiteboard</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormDescription>Choose how you want to visualize your concept map</FormDescription>
@@ -620,10 +685,17 @@ export function CreateMapDialog({ trigger, onMapCreated, open, initialData, onOp
                       }}
                       className="w-full"
                     >
-                      <TabsList className="grid w-full grid-cols-3">
-                        <TabsTrigger value="empty">Empty Canvas</TabsTrigger>
-                        <TabsTrigger value="file">Upload File</TabsTrigger>
-                        <TabsTrigger value="text">Text Input</TabsTrigger>
+                      <TabsList className="grid w-full grid-cols-4">
+                        {form.watch("mapType") !== "handdrawn" && (
+                          <>
+                            <TabsTrigger value="empty">Empty Canvas</TabsTrigger>
+                            <TabsTrigger value="file">Upload File</TabsTrigger>
+                            <TabsTrigger value="text">Text Input</TabsTrigger>
+                          </>
+                        )}
+                        <TabsTrigger value="handdrawn" className={form.watch("mapType") === "handdrawn" ? "col-span-4" : ""}>
+                          Hand-Drawn
+                        </TabsTrigger>
                       </TabsList>
                       <TabsContent value="empty" className="pt-4">
                         <div className="text-center py-2 text-muted-foreground">
@@ -870,6 +942,44 @@ export function CreateMapDialog({ trigger, onMapCreated, open, initialData, onOp
                             </FormItem>
                           )}
                         />
+                      </TabsContent>
+                      <TabsContent value="handdrawn" className="pt-4">
+                        <div className="text-center py-2 text-muted-foreground">
+                          <p>Create a hand-drawn whiteboard that you can edit later.</p>
+                        </div>
+                        <div className="mt-4 border rounded-lg" style={{ height: '500px' }}>
+                          <TLDrawWhiteboard 
+                            onSave={(whiteboardContent) => {
+                              console.log("Whiteboard saved, updating form values", {
+                                hasContent: !!whiteboardContent,
+                                contentSize: whiteboardContent ? JSON.stringify(whiteboardContent).length : 0
+                              });
+                              
+                              // Update form with whiteboard content
+                              form.setValue("whiteboardContent", whiteboardContent, {
+                                shouldDirty: true,
+                                shouldTouch: true,
+                                shouldValidate: true
+                              });
+                              
+                              // Set map type to handdrawn
+                              form.setValue("mapType", "handdrawn", {
+                                shouldDirty: true,
+                                shouldTouch: true
+                              });
+                              
+                              // Set content source to handdrawn
+                              form.setValue("contentSource", "handdrawn", { 
+                                shouldDirty: true, 
+                                shouldTouch: true, 
+                                shouldValidate: true 
+                              });
+
+                              // Show a success toast notification to confirm to the user
+                              toast.success("Drawing saved!");
+                            }}
+                          />
+                        </div>
                       </TabsContent>
                     </Tabs>
                   </FormItem>

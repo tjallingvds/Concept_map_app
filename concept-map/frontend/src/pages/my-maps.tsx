@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { SidebarProvider, SidebarTrigger } from "../components/ui/sidebar"
 import { AppSidebar } from "../components/app-sidebar"
@@ -10,6 +10,8 @@ import { CreateMapDialog } from "../components/create-map-dialog"
 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuItem } from "../components/ui/dropdown-menu"
 import {useConceptMapsApi} from "../services/api.ts"; // ✅ NEW
+import { toast } from 'sonner'
+import { MapItemActions } from '../components/map-item-actions'
 
 // Mock data for personal concept maps
 const mockPersonalMaps: MapItem[] = [
@@ -112,9 +114,14 @@ export default function MyMapsPage() {
     }
   }
   
-  const handleEdit = (id: number) => {
-    navigate(`/editor/${id}`)
-  }
+  const handleEdit = useCallback((id: number) => {
+    const map = myMaps.find(m => m.id === id);
+    if (map && map.format === 'handdrawn') {
+      navigate(`/whiteboard-editor/${id}`);
+    } else {
+      navigate(`/editor/${id}`);
+    }
+  }, [myMaps, navigate]);
   
   const handleShare = async (id: number) => {
     try {

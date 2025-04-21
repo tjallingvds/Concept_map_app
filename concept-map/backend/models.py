@@ -198,6 +198,7 @@ class ConceptMap(db.Model):
     description = db.Column(db.Text, nullable=True)
     learning_objective = db.Column(db.Text, nullable=True)
     is_deleted = db.Column(db.Boolean, default=False)
+    whiteboard_content = db.Column(db.JSON, nullable=True)  # Added for storing hand-drawn whiteboard content
 
     # Relationships
     nodes = db.relationship(
@@ -221,6 +222,7 @@ class ConceptMap(db.Model):
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "image": self.image,
             "format": self.format,
+            "whiteboard_content": self.whiteboard_content,
         }
 
     @classmethod
@@ -324,5 +326,5 @@ class Note:
         
         if "is_deleted" in data:
             note.is_deleted = bool(data["is_deleted"])
-            
+
         return note

@@ -86,7 +86,18 @@ interface TemplateData {
 }
 
 export default function DashboardPage() {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
+  const [createMapOpen, setCreateMapOpen] = useState(false);
+  const [maps, setMaps] = useState<MapItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { createMap, getMyMaps } = useConceptMapsApi();
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredMaps = maps.filter((map) =>
+    map.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    map.description.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
 
   const [createMapOpen, setCreateMapOpen] = useState(false);
   const [initialDialogData, setInitialDialogData] = useState<TemplateData | null>(null);
@@ -160,12 +171,32 @@ export default function DashboardPage() {
 
               {/* Search Input */}
               <div className="relative w-full">
-                <Input
-                  placeholder="Search for concept maps..."
+                <Input 
+                  placeholder="Search for concept maps..." 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+
                   className="w-full pl-10 py-6 text-lg rounded-md border border-input"
                 />
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
               </div>
+              {/* Filtered Maps */}
+              {filteredMaps.length === 0 ? (
+                <p className="text-muted-foreground mt-6 text-center">
+                  No concept maps found.
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-10">
+                  {filteredMaps.map((map) => (
+                    <ConceptMapItem
+                      key={map.id}
+                      map={map}
+                      onSelect={() => navigate(`/editor/${map.id}`)}
+                    />
+                  ))}
+                </div>
+              )}
 
               {/* Action Cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">

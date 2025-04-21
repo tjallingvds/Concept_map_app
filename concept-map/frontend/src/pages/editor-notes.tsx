@@ -6,12 +6,16 @@ import { Button } from "../components/ui/button"
 import { ArrowLeft, Save, GitMerge } from "lucide-react"
 
 // Import BlockNote components
-import "@blocknote/core/fonts/inter.css"
 import { BlockNoteView } from "@blocknote/mantine"
 import "@blocknote/mantine/style.css"
-import { useCreateBlockNote } from "@blocknote/react"
+import { filterSuggestionItems } from "@blocknote/core"
+import { 
+  useCreateBlockNote, 
+  getDefaultReactSlashMenuItems, 
+  SuggestionMenuController
+} from "@blocknote/react"
 import { toast } from "sonner"
-import { notesApi, NoteItem } from "../services/api"
+import { notesApi, NoteItem, conceptMapsApi } from "../services/api"
 import { useAuth } from "../contexts/auth-context"
 
 export default function EditorNotesPage() {
@@ -114,17 +118,55 @@ export default function EditorNotesPage() {
     }
   };
 
+  // Extract plain text content from BlockNote editor
+  const extractPlainText = (blocks: any[]): string => {
+    let text = "";
+    
+    // Recursively process blocks and their content
+    const processContent = (content: any[]): string => {
+      if (!content || !Array.isArray(content)) return "";
+      
+      return content.map(item => {
+        if (item.type === "text") {
+          return item.text || "";
+        } else if (item.content) {
+          return processContent(item.content);
+        }
+        return "";
+      }).join(" ");
+    };
+    
+    // Process each top-level block
+    blocks.forEach(block => {
+      // Add block text
+      if (block.content) {
+        text += processContent(block.content) + "\n\n";
+      }
+      
+      // Process children blocks if any
+      if (block.children && Array.isArray(block.children)) {
+        block.children.forEach((childBlock: any) => {
+          if (childBlock.content) {
+            text += processContent(childBlock.content) + "\n";
+          }
+        });
+      }
+    });
+    
+    return text.trim();
+  };
+
   // Handle converting to concept map
   const handleConvertToConceptMap = async () => {
     try {
       setIsConverting(true);
       
-      // If the note hasn't been saved yet, save it first
+      // Save the note first if needed
       let noteId = id ? parseInt(id) : null;
+      const editorContent = editor.topLevelBlocks;
       
       if (!noteId) {
         // Create the note first
-        const editorContent = editor.topLevelBlocks;
         const newNote = await notesApi.createNote({
           title: noteName,
           content: editorContent
@@ -133,10 +175,29 @@ export default function EditorNotesPage() {
         setNote(newNote);
         // Update URL to include the new note ID
         navigate(`/notes/edit/${newNote.id}`, { replace: true });
+      } else {
+        // Make sure the note is saved with latest content
+        await notesApi.updateNote(noteId, {
+          title: noteName,
+          content: editorContent
+        });
       }
       
-      // Convert note to concept map
-      const conceptMap = await notesApi.convertNoteToConceptMap(noteId);
+      // Extract text content from the note for the concept map
+      const noteText = extractPlainText(editorContent);
+      
+      // Create concept map directly without showing popup
+      const conceptMap = await conceptMapsApi.createMap({
+        title: noteName,
+        description: "", 
+        mapType: "mindmap",
+        isPublic: false,
+        text: noteText,
+      });
+      
+      if (!conceptMap) {
+        throw new Error("Failed to create concept map");
+      }
       
       // Navigate to the concept map editor with the new map
       toast.success("Note converted to concept map!");
@@ -151,11 +212,11 @@ export default function EditorNotesPage() {
   
   return (
     <SidebarProvider>
-      <div className="flex h-screen w-full">
+      <div className="flex h-screen w-full overflow-hidden">
         <AppSidebar />
-        <main className="flex-1 flex flex-col w-full overflow-hidden bg-background">
+        <main className="flex-1 flex flex-col w-full bg-background">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border sticky top-0 z-10 bg-background">
             <div className="flex items-center gap-2">
               <SidebarTrigger />
               <Button variant="outline" size="icon" className="mr-2" onClick={() => navigate("/notes")}>
@@ -194,7 +255,7 @@ export default function EditorNotesPage() {
           </div>
           
           {/* Editor - Full Page */}
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 overflow-auto">
             {isLoading ? (
               <div className="h-full flex items-center justify-center">
                 <p className="text-muted-foreground">Loading note...</p>
@@ -204,8 +265,21 @@ export default function EditorNotesPage() {
                 <BlockNoteView 
                   editor={editor}
                   theme="light"
-                  className="h-full"
-                />
+                  className="h-full overflow-visible"
+                  slashMenu={false}
+                >
+                  <SuggestionMenuController
+                    triggerCharacter="/"
+                    getItems={async (query) => {
+                      // Get default items but filter out audio, video, and file
+                      const defaultItems = getDefaultReactSlashMenuItems(editor);
+                      const filteredItems = defaultItems.filter(
+                        (item) => !["Audio", "Video", "File"].includes(item.title)
+                      );
+                      return filterSuggestionItems(filteredItems, query);
+                    }}
+                  />
+                </BlockNoteView>
               </div>
             )}
           </div>
