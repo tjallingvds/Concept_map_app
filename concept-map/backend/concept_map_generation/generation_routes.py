@@ -65,14 +65,14 @@ def generate_map():
             return jsonify({
                 'image': result['word_cloud'],
                 'concepts': result['concepts'],
-                'format': 'png'
+                'format': 'svg'
             })
         elif map_type == 'bubblechart':
             result = process_text_for_bubble_chart(text, model)
             return jsonify({
                 'image': result['bubble_chart'],
                 'concepts': result['concepts'],
-                'format': 'png'
+                'format': 'svg'
             })
         else:
             return jsonify({
