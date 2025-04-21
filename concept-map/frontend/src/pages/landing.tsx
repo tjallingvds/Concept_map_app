@@ -197,7 +197,7 @@ const testimonials = [
   },
   {
     quote:
-      'The Ezedu tool has become an essential part of our curriculum. It allows teachers to easily create visual materials and students to better absorb the material.',
+      'The MAPLET tool has become an essential part of my academic life. It allows me to easily create visual materials and better prepare for exams.',
     author: 'Professor David Chen',
     title: 'Computer Science Faculty, State College',
     avatar: '/avatar-david-chen.png',
@@ -205,7 +205,7 @@ const testimonials = [
   },
   {
     quote:
-      "Concept Map's solution exceeded our expectations. The ease of use combined with the power of AI makes it an ideal tool for modern learning.",
+      "MAPLET's solution exceeded our expectations. The ease of use combined with the power of AI makes it an ideal tool for modern learning.",
     author: 'Maria Gonzalez',
     title: 'Curriculum Coordinator, Progress School',
     avatar: '/avatar-maria-gonzalez.png',
@@ -539,54 +539,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Benefits Section */}
-      <section
-        id="benefits"
-        ref={benefitsSectionRef.ref}
-        className={`container mx-auto px-4 py-16 md:py-24
-                 opacity-0 transition-all duration-1000 ease-out
-                 ${benefitsSectionRef.isVisible ? 'opacity-100 translate-y-0' : 'translate-y-10'}`}
-      >
-        <div className="grid md:grid-cols-2 gap-12 items-center">
-          {/* These individual items are not wrapped in FadeInItem, so they appear with the section */}
-          <div>
-            <span className="inline-block bg-yellow-200 text-yellow-800 text-xs font-semibold px-3 py-1 rounded-full mb-4">
-              Benefits for You
-            </span>
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">
-              Master complex subjects easily, quickly, and effectively!
-            </h2>
-            <p className="text-gray-600 mb-8">
-              Our AI-powered concept mapping tool transforms the way you learn by visualizing connections between ideas.
-              Research shows that concept maps can improve knowledge retention by up to 50% compared to traditional
-              note-taking.
-            </p>
-            <Button
-              size="lg"
-              className="bg-yellow-500 text-white hover:bg-yellow-600 shadow-lg hover:shadow-xl transition-shadow"
-            >
-              Learn More About Benefits
-            </Button>
-          </div>
-          <div className="relative p-6 bg-yellow-100 rounded-xl shadow-xl transform -rotate-2 translate-x-3 hidden md:block">
-            <img
-              src="/placeholder.svg"
-              alt="Concept Map Benefits Visualization"
-              className="w-full rounded-lg border border-yellow-200 shadow-lg rotate-2"
-            />
-            <div className="absolute -top-4 -right-4 w-24 h-24 bg-yellow-300 rounded-full mix-blend-multiply filter blur-xl opacity-50 animate-blob animation-delay-4000"></div>
-            <div className="absolute -bottom-4 -left-4 w-24 h-24 bg-yellow-400 rounded-full mix-blend-multiply filter blur-xl opacity-50 animate-blob animation-delay-6000"></div>
-          </div>
-          <div className="md:hidden relative p-4 bg-yellow-100 rounded-lg shadow-lg">
-            <img
-              src="/placeholder.svg"
-              alt="Concept Map Benefits Visualization"
-              className="w-full rounded-lg border border-yellow-200 shadow-lg"
-            />
-          </div>
-        </div>
-      </section>
-
       {/* Features Grid */}
       <section
         ref={benefitHighlightsSectionRef.ref}
@@ -694,19 +646,9 @@ export default function LandingPage() {
             <FadeInItem key={index}>
               <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 flex flex-col h-full">
                 <div className="flex justify-center mb-6">
-                  <img
-                    src="/placeholder.svg"
-                    alt={`${testimonial.title.split(',')[1].trim()} Logo`}
-                    className="h-10 opacity-80"
-                  />
                 </div>
                 <p className="text-gray-600 mb-6 italic text-center flex-grow">"{testimonial.quote}"</p>
                 <div className="flex items-center mt-auto">
-                  <img
-                    src="/placeholder.svg"
-                    alt={`Avatar of ${testimonial.author}`}
-                    className="w-12 h-12 rounded-full mr-4 object-cover"
-                  />
                   <div>
                     <p className="font-semibold text-gray-900">{testimonial.author}</p>
                     <p className="text-sm text-gray-600">{testimonial.title}</p>
