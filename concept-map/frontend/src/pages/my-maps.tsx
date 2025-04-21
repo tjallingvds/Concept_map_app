@@ -8,9 +8,10 @@ import { Button } from "../components/ui/button"
 import { useAuth } from "../contexts/auth-context"
 import { CreateMapDialog } from "../components/create-map-dialog"
 
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuItem } from "../components/ui/dropdown-menu"import { useConceptMapsApi } from "../services/api"; // ✅ NEW
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuItem } from "../components/ui/dropdown-menu"
 import { toast } from 'sonner';
 import { MapItemActions } from '../components/map-item-actions';
+import {useConceptMapsApi} from "../services/concept_map_api.ts";
 
 
 // Mock data for personal concept maps

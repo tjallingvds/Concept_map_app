@@ -11,7 +11,6 @@ export const setAuthFetch = (fetchFn: typeof fetch) => {
     authFetch = fetchFn;
 };
 
-// Function to convert backend note to frontend format
 
 
 // API service for notes

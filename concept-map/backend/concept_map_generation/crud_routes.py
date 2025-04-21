@@ -11,7 +11,6 @@ from models import db, ConceptMap, Node, Edge, User
 
 concept_maps = []
 users = []  # List to store user objects
-notes = []  # List to store note objects
 
 
 # Concept Map routes

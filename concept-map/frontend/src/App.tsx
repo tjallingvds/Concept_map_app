@@ -13,8 +13,7 @@ import EditorNotesPage from './pages/editor-notes';
 import NotesPage from './pages/notes';
 import TemplatesPage from './pages/templates';
 import WhiteboardEditorPage from './pages/whiteboard-editor-page';
-import { LoginForm } from './components/login-form';
-import { useAuth, AuthProvider } from './contexts/auth-context';
+import { useAuth } from './contexts/auth-context';
 
 
 function ProtectedRoute() {
@@ -100,18 +99,14 @@ function AppRoutes() {
       </Route>
     </Routes>
   );
-
 }
 
 function App() {
-  return (
-    <AuthProvider>
-      <Router>
-        <AppRoutes />
-      </Router>
-    </AuthProvider>
-  );
-  
+    return (
+        <Router>
+            <AppRoutes/>
+        </Router>
+    );
+}
 
 export default App;
-

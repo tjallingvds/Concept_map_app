@@ -5,6 +5,7 @@ from flask import jsonify, Blueprint
 from auth_utils import get_auth0_user, requires_auth
 from concept_map_generation.crud_routes import concept_maps, users
 from models import User, ConceptMap
+from notes.routes import notes
 
 user_bp = Blueprint('user', __name__, url_prefix='/api/user')
 
@@ -84,3 +85,34 @@ def get_saved_maps():
     user_maps.sort(key=lambda x: x.get("updated_at", ""), reverse=True)
 
     return jsonify(user_maps), HTTPStatus.OK
+
+
+@user_bp.route("/<int:user_id>/recent-notes/", methods=["GET"])
+@requires_auth
+def get_recent_notes(user_id):
+    """Get the most recent notes for a user."""
+    user = get_auth0_user()
+
+    if user.id != user_id:
+        return jsonify({"error": "Unauthorized to access these notes"}), HTTPStatus.FORBIDDEN
+
+    user_notes = [n.to_dict() for n in notes if n.user_id == user_id and not n.is_deleted]
+    recent_notes = sorted(user_notes, key=lambda x: x.get("updated_at", ""), reverse=True)[:5]
+
+    return jsonify(recent_notes), HTTPStatus.OK
+
+
+@user_bp.route("/<int:user_id>/favorite-notes/", methods=["GET"])
+@requires_auth
+def get_favorite_notes(user_id):
+    """Get the favorite notes for a user."""
+    user = get_auth0_user()
+
+    if user.id != user_id:
+        return jsonify({"error": "Unauthorized to access these notes"}), HTTPStatus.FORBIDDEN
+
+    favorite_notes = [
+        n.to_dict() for n in notes if n.user_id == user_id and n.is_favorite and not n.is_deleted
+    ]
+
+    return jsonify(favorite_notes), HTTPStatus.OK
