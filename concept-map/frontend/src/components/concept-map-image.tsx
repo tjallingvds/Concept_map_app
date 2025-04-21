@@ -34,7 +34,6 @@ export function ConceptMapImage({
           const svgData = new XMLSerializer().serializeToString(svgElement);
           return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgData)))}`;
         } catch (error) {
-          console.error('Error creating SVG data URL:', error);
           return null;
         }
       }
@@ -86,7 +85,6 @@ export function ConceptMapImage({
             onSvgLoaded(svgElement as SVGSVGElement);
           }
         } catch (error) {
-          console.error('Error processing SVG element:', error);
           setSvgError(true);
         }
       }
@@ -117,7 +115,7 @@ export function ConceptMapImage({
             // Call the callback with the SVG element
             onSvgLoaded(svgElement);
           } catch (error) {
-            console.error('Error creating SVG from image:', error);
+            // Silent catch - no need for error reporting
           }
         }
       };

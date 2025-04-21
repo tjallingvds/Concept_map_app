@@ -9,6 +9,8 @@ from auth_utils import requires_auth, get_auth0_user
 from concept_map_generation.generation_routes import concept_map_bp
 from models import db, ConceptMap, Node, Edge, User
 
+# NOTE: This list is kept for backward compatibility but is no longer used.
+# All data is now stored in the database.
 concept_maps = []
 users = []  # List to store user objects
 
@@ -213,15 +215,14 @@ def get_concept_map(map_id):
 @concept_map_bp.route("/<string:share_id>/", methods=["GET"])
 def get_shared_concept_map(share_id):
     # This endpoint is public and doesn't require authentication
-    for map in concept_maps:
-        if (
-                map.get("share_id") == share_id
-                and map.get("is_public")
-                and not map.get("deleted", False)
-        ):
-            return jsonify(map), HTTPStatus.OK
-
-    return jsonify({"error": "Shared concept map not found or not public"}), HTTPStatus.NOT_FOUND
+    
+    # Find the concept map in the database by share_id
+    concept_map = ConceptMap.query.filter_by(share_id=share_id, is_public=True, is_deleted=False).first()
+    
+    if not concept_map:
+        return jsonify({"error": "Shared concept map not found or not public"}), HTTPStatus.NOT_FOUND
+    
+    return jsonify(concept_map.to_dict()), HTTPStatus.OK
 
 
 @concept_map_bp.route("/<int:map_id>/", methods=["PUT"])
@@ -229,41 +230,6 @@ def get_shared_concept_map(share_id):
 def update_concept_map(map_id):
     data = request.json
     user = get_auth0_user()
-
-    for i, map in enumerate(concept_maps):
-        if (
-                map["id"] == map_id
-                and map.get("user_id") == user.id
-                and not map.get("deleted", False)
-        ):
-            # Get the new nodes or keep existing ones
-            nodes = data.get("nodes", map["nodes"])
-
-            # Update the map
-            concept_maps[i] = {
-                "id": map_id,
-                "name": data.get("name", map["name"]),
-                "nodes": nodes,
-                "edges": data.get("edges", map["edges"]),
-                "user_id": user.id,
-                "is_public": data.get("is_public", map.get("is_public", False)),
-                "is_favorite": data.get("is_favorite", map.get("is_favorite", False)),
-                "share_id": map.get("share_id"),
-                "image": data.get("image", map.get("image")),
-                "format": data.get("format", map.get("format")),
-                "created_at": map.get("created_at"),
-                "updated_at": datetime.utcnow().isoformat(),
-                "input_text": data.get(
-                    "input_text", map.get("input_text", "")
-                ),  # Preserve input text
-                "description": data.get(
-                    "description", map.get("description", "")
-                ),  # Preserve description
-                "learning_objective": data.get(
-                    "learning_objective", map.get("learning_objective", "")
-                ),  # Preserve learning objective
-            }
-            return jsonify(concept_maps[i]), HTTPStatus.OK
 
     # Find the concept map
     concept_map = ConceptMap.query.filter_by(
@@ -280,6 +246,16 @@ def update_concept_map(map_id):
         concept_map.description = data["description"]
     if "is_public" in data:
         concept_map.is_public = data["is_public"]
+    if "is_favorite" in data:
+        concept_map.is_favorite = data["is_favorite"]
+    if "image" in data:
+        concept_map.image = data["image"]
+    if "format" in data:
+        concept_map.format = data["format"]
+    if "input_text" in data:
+        concept_map.input_text = data["input_text"]
+    if "learning_objective" in data:
+        concept_map.learning_objective = data["learning_objective"]
     # Save whiteboard content if provided
     if "whiteboard_content" in data:
         concept_map.whiteboard_content = data["whiteboard_content"]
@@ -319,6 +295,10 @@ def update_concept_map(map_id):
             )
             db.session.add(edge)
 
+    # Update the timestamp
+    concept_map.updated_at = datetime.utcnow()
+    
+    # Commit changes to database
     db.session.commit()
 
     return jsonify(concept_map.to_dict()), HTTPStatus.OK
@@ -352,27 +332,46 @@ def delete_concept_map(map_id):
 def share_concept_map(map_id):
     user = get_auth0_user()
 
-    # Find the map by ID and user ID
-    for i, map in enumerate(concept_maps):
-        if (
-                map["id"] == map_id
-                and map.get("user_id") == user.id
-                and not map.get("deleted", False)
-        ):
-            # Update the map to be public
-            concept_maps[i]["is_public"] = True
-            concept_maps[i]["updated_at"] = datetime.utcnow().isoformat()
+    # Find the concept map in the database
+    concept_map = ConceptMap.query.filter_by(id=map_id, user_id=user.id, is_deleted=False).first()
+    
+    if not concept_map:
+        return jsonify({"error": "Concept map not found"}), HTTPStatus.NOT_FOUND
+    
+    # Update the map to be public
+    concept_map.is_public = True
+    concept_map.updated_at = datetime.utcnow()
+    
+    # Make sure there's a share_id
+    if not concept_map.share_id:
+        concept_map.share_id = secrets.token_urlsafe(8)
+    
+    # Save changes to the database
+    db.session.commit()
 
-            # Return just the share_id, frontend will build complete URL
-            return (
-                jsonify(
-                    {
-                        "message": "Concept map shared successfully",
-                        "share_url": "/shared/" + map["share_id"],
-                        "share_id": map["share_id"],
-                    }
-                ),
-                HTTPStatus.OK,
-            )
+    # Return just the share_id, frontend will build complete URL
+    return (
+        jsonify(
+            {
+                "message": "Concept map shared successfully",
+                "share_url": "/shared/" + concept_map.share_id,
+                "share_id": concept_map.share_id,
+            }
+        ),
+        HTTPStatus.OK,
+    )
 
-    return jsonify({"error": "Concept map not found"}), HTTPStatus.NOT_FOUND
+# Add a route for shared maps
+@concept_map_bp.route("/shared/concept-maps/<string:share_id>/", methods=["GET"])
+def get_public_concept_map(share_id):
+    """
+    Get a public concept map by its share ID.
+    This endpoint matches the frontend expectation at /api/shared/concept-maps/{share_id}/
+    """
+    # Find the concept map in the database by share_id
+    concept_map = ConceptMap.query.filter_by(share_id=share_id, is_public=True, is_deleted=False).first()
+    
+    if not concept_map:
+        return jsonify({"error": "Shared concept map not found or not public"}), HTTPStatus.NOT_FOUND
+    
+    return jsonify(concept_map.to_dict()), HTTPStatus.OK
