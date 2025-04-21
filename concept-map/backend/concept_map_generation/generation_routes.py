@@ -1,6 +1,7 @@
 import os
 from http import HTTPStatus
 
+import google.generativeai as genai
 from dotenv import load_dotenv
 from flask import Blueprint, jsonify, request
 
@@ -12,6 +13,7 @@ from .word_cloud import process_text_for_wordcloud
 # Load environment variables
 load_dotenv()
 
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # Create a blueprint for concept map generation routes
 concept_map_bp = Blueprint('concept_map', __name__, url_prefix='/api/concept-maps')
@@ -29,23 +31,19 @@ def generate_map():
     """Generate a concept map based on input text and map type"""
     try:
         data = request.json
-
         # Validate request data
         if not data or 'text' not in data or 'mapType' not in data:
             return jsonify({
                 'error': 'Missing required fields: text and mapType'
             }), 400
-
         text = data['text']
         map_type = data['mapType']
         title = data.get('title', 'Concept Map')
-
         # Check if text is provided
         if not text.strip():
             return jsonify({
                 'error': 'Text content cannot be empty'
             }), HTTPStatus.BAD_REQUEST
-
         # Initialize Gemini model
         try:
             model = get_gemini_model()
@@ -53,7 +51,6 @@ def generate_map():
             return jsonify({
                 'error': str(e)
             }), HTTPStatus.INTERNAL_SERVER_ERROR
-
         # Generate the appropriate visualization based on map type
         if map_type == 'mindmap':
             result = generate_concept_map(text, model, GEMINI_API_KEY)
@@ -63,7 +60,6 @@ def generate_map():
                 'image': result,  # This is already base64 encoded from generate_concept_map
                 'format': 'svg'
             })
-
         elif map_type == 'wordcloud':
             result = process_text_for_wordcloud(text, model, GEMINI_API_KEY)
             return jsonify({
@@ -71,7 +67,6 @@ def generate_map():
                 'concepts': result['concepts'],
                 'format': 'png'
             })
-
         elif map_type == 'bubblechart':
             result = process_text_for_bubble_chart(text, model)
             return jsonify({
@@ -79,7 +74,6 @@ def generate_map():
                 'concepts': result['concepts'],
                 'format': 'png'
             })
-
         else:
             return jsonify({
                 'error': f'Unsupported map type: {map_type}'

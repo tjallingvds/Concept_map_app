@@ -88,10 +88,6 @@ function AppRoutes() {
         <Route path="/notes/edit/:id" element={<EditorNotesPage />} />
         <Route path="/whiteboard-editor/:id" element={<WhiteboardEditorPage />} />
 
-        {/* Redirects for backward compatibility */}
-        <Route path="/editor-notes" element={<Navigate to="/notes/edit" replace />} />
-        <Route path="/editor-notes/:id" element={<Navigate to="/notes/edit/:id" replace />} />
-
         <Route path="/templates" element={<TemplatesPage />} />
 
         {/* Add more protected routes here */}

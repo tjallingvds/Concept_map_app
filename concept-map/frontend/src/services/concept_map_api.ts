@@ -20,7 +20,7 @@ const visualizeConcepts = async (conceptData: any, mapType: string = 'mindmap'):
       throw new Error("No valid concepts to visualize");
     }
 
-    const response = await fetch(`${API_URL}/api/concept-map/debug/visualize-concepts`, {
+    const response = await fetch(`${API_URL}/api/concept-maps/debug/visualize-concepts`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -149,7 +149,7 @@ const conceptMapsApi = {
         try {
           // Generate the concept map from text
           //TODO: I can not find this endpoint on backend
-          const genResponse = await authFetch(`${API_URL}/api/concept-map/generate/`, {
+          const genResponse = await authFetch(`${API_URL}/api/concept-maps/generate/`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
