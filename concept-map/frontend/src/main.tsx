@@ -13,7 +13,8 @@ createRoot(document.getElementById('root')!).render(
             clientId={config.clientId}
             authorizationParams={{
                 redirect_uri: window.location.origin,
-                audience: config.audience, // optional if you're calling backend
+                audience: config.audience,
+                scope: "openid profile email offline_access",
             }}
             cacheLocation="localstorage"
             useRefreshTokens={true}
