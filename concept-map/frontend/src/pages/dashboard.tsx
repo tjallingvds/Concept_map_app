@@ -127,12 +127,13 @@ export default function DashboardPage() {
 
               {/* Search Input */}
               <div className="relative w-full">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                 <Input 
                   placeholder="Search for concept maps..." 
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 h-9 w-full"
                 />
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
               </div>
               {/* Filtered Maps */}
               {filteredMaps.length === 0 ? (
