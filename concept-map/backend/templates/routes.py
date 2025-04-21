@@ -2,7 +2,7 @@ from http import HTTPStatus
 
 from flask import jsonify, Blueprint
 
-from user.routes import mock_template_structures
+from templates.templates_utils import mock_template_structures
 
 templates_bp = Blueprint("templates", __name__, url_prefix='/api/templates')
 

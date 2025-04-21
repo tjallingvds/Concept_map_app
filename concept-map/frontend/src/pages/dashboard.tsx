@@ -9,52 +9,10 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Badge } from '../components/ui/badge';
 import { formatDistanceToNow } from 'date-fns';
 import { MapItem } from '../components/file-system';
-import { useConceptMapsApi } from '../services/api';
 import { toast } from 'sonner';
+import {useConceptMapsApi} from "../services/concept_map_api.ts";
+import {useTemplatesApi} from "../services/templates_api.ts";
 
-// Mock data for concept maps (to be replaced with real data later)
-const mockConceptMaps = [
-  {
-    id: 1,
-    title: 'Web Development Fundamentals',
-    description: 'HTML, CSS, JavaScript basics and their relationships',
-    createdAt: '2023-09-15',
-    lastEdited: '2023-10-20',
-    nodes: 32,
-  },
-  {
-    id: 2,
-    title: 'Machine Learning Pipeline',
-    description: 'Data preparation, model training, and evaluation flow',
-    createdAt: '2023-10-01',
-    lastEdited: '2023-10-18',
-    nodes: 24,
-  },
-  {
-    id: 3,
-    title: 'Biology Cell Structure',
-    description: 'Organelles and their functions in eukaryotic cells',
-    createdAt: '2023-08-22',
-    lastEdited: '2023-09-30',
-    nodes: 18,
-  },
-  {
-    id: 4,
-    title: 'Project Management',
-    description: 'Agile vs Waterfall methodologies comparison',
-    createdAt: '2023-07-10',
-    lastEdited: '2023-10-05',
-    nodes: 15,
-  },
-  {
-    id: 5,
-    title: 'Physics Mechanics',
-    description: "Newton's laws and their applications",
-    createdAt: '2023-09-05',
-    lastEdited: '2023-10-10',
-    nodes: 22,
-  },
-];
 
 const ConceptMapItem = ({ map, onSelect }: { map: MapItem; onSelect: () => void }) => {
   return (
@@ -87,10 +45,10 @@ interface TemplateData {
 
 export default function DashboardPage() {
   const { user, logout } = useAuth();
-  const [createMapOpen, setCreateMapOpen] = useState(false);
   const [maps, setMaps] = useState<MapItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const { createMap, getMyMaps } = useConceptMapsApi();
+  const { getTemplate } = useTemplatesApi();
+
   const [searchQuery, setSearchQuery] = useState("");
 
   const filteredMaps = maps.filter((map) =>
@@ -101,8 +59,6 @@ export default function DashboardPage() {
 
   const [createMapOpen, setCreateMapOpen] = useState(false);
   const [initialDialogData, setInitialDialogData] = useState<TemplateData | null>(null);
-  const { createMap, getTemplate } = useConceptMapsApi();
-
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -175,9 +131,6 @@ export default function DashboardPage() {
                   placeholder="Search for concept maps..." 
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                />
-
-                  className="w-full pl-10 py-6 text-lg rounded-md border border-input"
                 />
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
               </div>
