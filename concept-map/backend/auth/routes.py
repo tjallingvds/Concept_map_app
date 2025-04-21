@@ -4,7 +4,6 @@ from http import HTTPStatus
 
 from flask import Blueprint, jsonify, request, send_from_directory
 from werkzeug.utils import secure_filename
-from app import ALLOWED_EXTENSIONS
 from auth_utils import get_auth0_user, requires_auth
 from models import db
 

@@ -1,3 +1,5 @@
+import os
+from datetime import datetime
 from http import HTTPStatus
 
 from flask import Blueprint, request, jsonify
@@ -91,3 +93,26 @@ def list_models():
     except Exception as e:
         print(f"DEBUG: Error listing models: {str(e)}")
         return jsonify({"error": f"Failed to list models: {str(e)}"}), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@debug_bp.route("/api/test/concept-maps", methods=["GET"])
+def test_get_concept_maps():
+    if os.environ.get("FLASK_ENV") == "production":
+        return jsonify({"error": "Test route disabled in production"}), HTTPStatus.FORBIDDEN
+    try:
+        return jsonify([
+            {
+                "id": 1,
+                "name": "Test Map",
+                "user_id": 1,
+                "is_public": True,
+                "created_at": datetime.utcnow().isoformat(),
+                "updated_at": datetime.utcnow().isoformat(),
+                "nodes": [],
+                "edges": [],
+                "format": "mindmap",
+            }
+        ]), 200
+    except Exception as e:
+        print(f"Error in test_get_concept_maps: {str(e)}")
+        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR

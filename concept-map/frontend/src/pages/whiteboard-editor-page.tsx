@@ -4,7 +4,7 @@ import { toast } from "sonner"
 
 import { WhiteboardEditor } from "../components/whiteboard-editor"
 import { Button } from "../components/ui/button"
-import { useConceptMapsApi } from "../services/api"
+import {useConceptMapsApi} from "../services/concept_map_api.ts";
 
 export default function WhiteboardEditorPage() {
   const { id } = useParams<{ id: string }>()
