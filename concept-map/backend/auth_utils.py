@@ -11,7 +11,21 @@ from models import User, db
 AUTH0_DOMAIN = os.getenv("AUTH0_DOMAIN", "your-tenant.auth0.com")
 API_AUDIENCE = os.getenv("AUTH0_API_AUDIENCE", "https://your-api-identifier")
 JWKS_URL = f"https://{AUTH0_DOMAIN}/.well-known/jwks.json"
-JWKS = requests.get(JWKS_URL).json()
+
+# Safely get JWKS with error handling
+try:
+    response = requests.get(JWKS_URL)
+    if response.status_code != 200:
+        print(f"Error fetching JWKS: HTTP {response.status_code}")
+        print(f"Please check your AUTH0_DOMAIN environment variable (current: {AUTH0_DOMAIN})")
+        JWKS = {"keys": []}  # Empty JWKS as fallback
+    else:
+        JWKS = response.json()
+except requests.exceptions.RequestException as e:
+    print(f"Network error fetching JWKS: {e}")
+    print(f"Please check your AUTH0_DOMAIN environment variable (current: {AUTH0_DOMAIN})")
+    print("Make sure you've set up the correct Auth0 domain in your .env file")
+    JWKS = {"keys": []}  # Empty JWKS as fallback
 
 jwt = JsonWebToken(["RS256"])
 
