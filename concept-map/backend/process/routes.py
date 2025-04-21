@@ -3,7 +3,7 @@ from http import HTTPStatus
 from flask import Blueprint, request, jsonify
 from werkzeug.utils import secure_filename
 
-from document_processor import DocumentProcessor
+from concept_map_generation.document_processor import DocumentProcessor
 
 process_bp = Blueprint("process", __name__)
 # Initialize document processor
