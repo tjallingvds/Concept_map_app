@@ -66,7 +66,7 @@ def get_auth0_user():
     if user:
         return user
 
-    # Fetch user info
+    # Fetch user info from Auth0
     resp = requests.get(
         f"https://{AUTH0_DOMAIN}/userinfo",
         headers={"Authorization": f"Bearer {token}"}
@@ -80,12 +80,20 @@ def get_auth0_user():
     name = info.get("name", "")
     picture = info.get("picture", "")
 
-    user = User(
-        auth0_id=sub,
-        email=email,
-        display_name=name,
-        avatar_url=picture
-    )
-    db.session.add(user)
+    # Check if a user with this email already exists
+    user = User.query.filter_by(email=email).first()
+    if user:
+        # Associate the new auth0_id with this user
+        user.auth0_id = sub
+    else:
+        # Create new user
+        user = User(
+            auth0_id=sub,
+            email=email,
+            display_name=name,
+            avatar_url=picture
+        )
+        db.session.add(user)
+
     db.session.commit()
     return user
