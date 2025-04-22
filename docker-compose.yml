@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  frontend:
+    build: ./concept-map/frontend
+    ports:
+      - "5173:5173"  # Expose Vite dev port
+      
+
+  backend:
+    build: ./concept-map/backend
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./concept-map/backend:/app  # Useful for hot reload and persistent DB
