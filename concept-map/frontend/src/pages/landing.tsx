@@ -220,7 +220,7 @@ const testimonials = [
 ];
 
 export default function LandingPage() {
-  const { loading, login, isAuthenticated } = useAuth();
+  const { loading, login, isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
 
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
@@ -278,7 +278,7 @@ export default function LandingPage() {
   ];
 
   useEffect(() => {
-    if (!loading && isAuthenticated) {
+    if (!loading && isAuthenticated && user) {
       navigate('/dashboard');
     }
   }, [loading, isAuthenticated]);
