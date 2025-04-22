@@ -12,9 +12,9 @@ const faqItems = [
       'A concept map is a visual representation showing relationships between ideas. Our AI takes this educational tool to the next level by automatically identifying connections and creating beautiful, clear maps from your content.',
   },
   {
-    question: 'Is Ezedu easy to use?',
+    question: 'Is MAPLET easy to use?',
     answer:
-      'Ezedu is designed for maximum simplicity. The intuitive interface makes it easy to create and edit concept maps even without prior experience. You can start working in minutes.',
+      'MAPLET is designed for maximum simplicity. The intuitive interface makes it easy to create and edit concept maps even without prior experience. You can start working in minutes.',
   },
   {
     question: 'How do I input my content?',
@@ -27,7 +27,7 @@ const faqItems = [
       "We offer a free plan to explore the basic features. For advanced capabilities and higher generation volume, various paid plans are available. See the 'Pricing' section for details.",
   },
   {
-    question: 'Can Ezedu be used on mobile devices?',
+    question: 'Can MAPLET be used on mobile devices?',
     answer:
       'Yes, our platform is fully responsive and optimized for use on any device, including smartphones and tablets, allowing you to study anywhere, anytime.',
   },
@@ -37,7 +37,7 @@ const keyBenefits = [
   {
     title: 'Real-Time Analysis',
     description:
-      'Our AI analyzes your content in real-time and generates concept maps that highlight key relationships and hierarchies.',
+      'AI analyzes your content in real-time and generates concept maps that highlight key relationships and hierarchies.',
     icon: (
       <svg className="h-6 w-6 text-primary" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M12 6v6m0 0v6m0-6h6m-6 0H6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -72,10 +72,10 @@ const keyBenefits = [
 
 const detailedFeatures = [
   {
-    title: 'Learning Progress Overview',
+    title: 'Gemini-Powered Concept Map Generation',
     description:
-      "Get a comprehensive overview of your learning progress. Track which concepts you've mastered and which need more attention.",
-    image: '/logo.png',
+      "Just type your topic or paste your notes, and watch AI structure them into a visual concept map with relevant connections.",
+    image: '/gemini.jpeg',
     alt: 'Learning Progress Overview Dashboard',
     icon: (
       <svg className="h-6 w-6 text-white" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -89,10 +89,10 @@ const detailedFeatures = [
     ),
   },
   {
-    title: 'Activity Tracking',
+    title: 'Notion-Like Notes Editor',
     description:
-      'Monitor your study sessions and engagement with concepts over time. Identify patterns and optimize your learning schedule.',
-    image: '/logo.png',
+      'A clean, minimal editor for structured thinking. Organize your thoughts in a distraction-free space – designed to feel familiar if you love Notion.',
+    image: '/notion.jpeg',
     alt: 'Activity Tracking Chart',
     icon: (
       <svg className="h-6 w-6 text-white" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -101,10 +101,10 @@ const detailedFeatures = [
     ),
   },
   {
-    title: 'Concept Connection Analytics',
+    title: 'Drawing Canvas',
     description:
-      'Gain insights into your learning patterns and concept relationships. Our AI identifies connections you might miss.',
-    image: '/placeholder.svg',
+      'Sketch, connect, or annotate directly on the canvas to expand on your concept map or brainstorm ideas without limits.',
+    image: '/draw.png',
     alt: 'Concept Connection Analytics Graph',
     icon: (
       <svg className="h-6 w-6 text-white" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -118,11 +118,16 @@ const detailedFeatures = [
     ),
   },
   {
-    title: 'Product Demo Video',
-    description: 'See how easy and fast it is to create amazing concept maps with our AI.',
-    image: '/placeholder.svg',
-    alt: 'Video Thumbnail of Product Demo',
-    icon: null,
+    title: 'Access',
+    description:
+      'Easily share maps with classmates or teammates, export them in one click, and work in real time across both desktop and mobile devices.',
+    image: '/share.jpeg',
+    alt: 'Activity Tracking Chart',
+    icon: (
+      <svg className="h-6 w-6 text-white" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M16 8v8m-8-5v5m4-9v9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    ),
   },
 ];
 
@@ -190,8 +195,8 @@ const testimonials = [
   {
     quote:
       "The AI-generated concept maps have transformed how our students approach complex subjects. They're understanding connections faster and retaining information longer.",
-    author: 'Dr. Sarah Parker',
-    title: 'Education Director, University of Technology',
+    author: 'Dr. Shivam Rawat',
+    title: 'Education Director, Minerva University',
     avatar: '/avatar-sarah-parker.png',
     logo: '/university-logo-1.svg',
   },
@@ -200,6 +205,7 @@ const testimonials = [
       'The MAPLET tool has become an essential part of my academic life. It allows me to easily create visual materials and better prepare for exams.',
     author: 'Professor David Chen',
     title: 'Computer Science Faculty, State College',
+
     avatar: '/avatar-david-chen.png',
     logo: '/university-logo-2.svg',
   },
@@ -334,11 +340,12 @@ export default function LandingPage() {
             AI-Powered Learning
           </span>
           <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-gray-900 mb-4 leading-tight">
-            Optimize Your Learning With AI-Powered Concept Maps
+            Optimize Your Learning With Our AI-Powered Concept Maps
           </h1>
           <p className="text-lg text-gray-600 mb-8">
-            Based on cutting-edge AI technology, our platform creates intuitive concept maps that help you understand
-            complex topics faster, retain information longer, and connect ideas more effectively.
+            The platform creates intuitive concept maps to help you grasp complex topics faster, retain information longer, and connect ideas more effectively.
+
+
           </p>
           <div className="flex flex-col sm:flex-row gap-4">
             <Button
@@ -359,7 +366,7 @@ export default function LandingPage() {
         </div>
         <div className="relative p-6 bg-yellow-100 rounded-xl shadow-xl transform rotate-3 translate-x-4 hidden md:block">
           <img
-            src="/placeholder.svg"
+            src="/logo.png"
             alt="Concept Map Dashboard Preview"
             className="w-full rounded-lg border border-yellow-200 shadow-lg -rotate-3"
           />
@@ -384,12 +391,12 @@ export default function LandingPage() {
                  opacity-0 transition-opacity duration-1000 ease-out
                  ${logosRef.isVisible ? 'opacity-100' : ''}`}
       >
-        <p className="text-sm text-gray-500 mb-6">Trusted by top educational institutions</p>
+        <p className="text-sm text-gray-500 mb-6">Trusted by the top educational institution</p>
         <div className="flex flex-wrap justify-center items-center gap-8 md:gap-16">
-          {[1, 2, 3, 4, 5].map((i) => (
+          {[1].map((i) => (
             <img
               key={i}
-              src={`/placeholder.svg`}
+              src={`/minerva.png`}
               alt={`Partner ${i} Logo`}
               className="h-8 opacity-70 grayscale hover:grayscale-0 transition-all duration-300"
             />
@@ -412,8 +419,7 @@ export default function LandingPage() {
           With innovative features and an intuitive interface
         </h2>
         <p className="text-gray-600 max-w-2xl mx-auto mb-16">
-          Our platform combines powerful AI with user-friendly design to make concept mapping more efficient and
-          effective.
+          Platform combines powerful AI with user-friendly design to make concept mapping effective.
         </p>
         <div className="grid md:grid-cols-3 gap-8">
           {/* Wrap each item in FadeInItem */}
@@ -446,8 +452,6 @@ export default function LandingPage() {
         </span>
         <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">All the features you need for success</h2>
         <p className="text-gray-600 max-w-2xl mx-auto mb-16">
-          Our AI-powered concept mapping tool provides everything you need to transform complex information into clear,
-          memorable visual representations.
         </p>
         <div className="grid md:grid-cols-2 gap-12 md:gap-16 text-left">
           {detailedFeatures.map((feature, index) => {
@@ -639,7 +643,7 @@ export default function LandingPage() {
           Testimonials
         </span>
         <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-12 text-center">
-          Kind words from education leaders
+          Testimonials from devoted users
         </h2>
         <div className="grid md:grid-cols-3 gap-8">
           {testimonials.map((testimonial, index) => (
@@ -790,7 +794,7 @@ export default function LandingPage() {
                   <li>
                     Email:{' '}
                     <a href="mailto:hello@conceptmap.com" className="hover:text-yellow-700 transition-colors">
-                      hello@conceptmap.com
+                      team@maplet.com
                     </a>
                   </li>
                   <li>
@@ -804,9 +808,9 @@ export default function LandingPage() {
               <div>
                 <h4 className="font-semibold text-gray-900 mb-4">Office</h4>
                 <p className="text-sm text-gray-600">
-                  123 Learning Street
+                  851 Califronia Street 
                   <br />
-                  San Francisco, CA 94107
+                  San Francisco, CA 94102
                   <br />
                   United States
                 </p>
